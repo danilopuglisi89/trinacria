@@ -1,0 +1,1772 @@
+// TRINACRIA — interfaccia utente
+window.UI = (function(){
+const D = () => GDATA;
+let canvas, ctx2d;
+let view = { x:0, y:0, z:4 };
+let sel = { hex:-1, unita:[], raggio:null };
+let drag = null;
+let modoPotere = null;   // {id, bersaglio} quando si sta mirando un potere del sovrano
+// creazione sovrano (schermata iniziale)
+let sovLook = null, sovNome = "", sovFid = 0;
+
+function $(id){ return document.getElementById(id); }
+// icona per l'HTML: immagine AI (assets/icons) se esiste nel manifest degli sprite, altrimenti l'emoji dei dati
+function ico(x, id){
+  const k = id || (x && x.id);
+  const src = k && window.SPRITES && SPRITES.abilitato.icone ? SPRITES.srcIcona(k) : null;
+  return src ? '<img class="ico" src="'+src+'" alt="">' : (x ? x.icona : "");
+}
+// Il loop ridisegna ogni frame (blit cache + livello animato): pan/zoom/selezione non fanno nulla di speciale.
+// La cache-mondo si invalida SOLO quando il contenuto cambia (territori, edifici, migliorie): vedi aggiornaTutto.
+function ridisegna(){ /* no-op: il loop disegna comunque */ }
+
+// ---------- AVVIO ----------
+function initAvvio(){
+  const box = $("avvio-fazioni");
+  box.innerHTML = "";
+  // mappa costruita una volta per le anteprime territorio
+  const geo = MAP.build();
+  for (const f of D().FAZIONI){
+    const div = document.createElement("div");
+    div.className = "carta-fazione" + (f.id===0 ? " scelta" : "");
+    div.dataset.fid = f.id;
+    const leader0 = (D().LEADER_STORICI[f.id] && D().LEADER_STORICI[f.id][0]) || "";
+    div.innerHTML = `<div class="cf-top">
+        <canvas class="cf-crest" width="76" height="86"></canvas>
+        <canvas class="cf-terr" width="86" height="66"></canvas>
+      </div>
+      <div class="cf-nome" style="color:${f.colore}">${f.nome}</div>
+      <div class="cf-leader">◆ ${leader0}</div>
+      <div class="cf-motto">«${f.motto}»</div>
+      <div class="cf-bonus">${f.bonus}</div>`;
+    div.onclick = () => {
+      document.querySelectorAll(".carta-fazione").forEach(x=>x.classList.remove("scelta"));
+      div.classList.add("scelta");
+      AUDIO.sfx("click");
+      scegliSovrano(f.id);
+    };
+    box.appendChild(div);
+    // stemma
+    const crestCv = div.querySelector(".cf-crest");
+    if (!(SPRITES.abilitato.ritratti && SPRITES.drawFit(crestCv.getContext("2d"), "stemma_"+f.id, 38, 43, null, 84)))
+      ART.stemma(crestCv.getContext("2d"), 38, 44, 72, f.id);
+    // mini territorio: evidenzia capitale + città iniziali
+    const startNames = new Set([f.capitale, ...f.citta]);
+    const fake = geo.comuni.map(c => ({ fazione: startNames.has(c.nome) ? f.id : -1 }));
+    ART.siciliaMini(div.querySelector(".cf-terr").getContext("2d"), 86, 66, geo.hexes, fake, f.id, f.colore);
+  }
+  $("btn-inizia").onclick = () => {
+    const fid = parseInt(document.querySelector(".carta-fazione.scelta").dataset.fid);
+    const vel = $("sel-velocita").value;
+    const dif = $("sel-difficolta").value;
+    const neb = $("sel-nebbia").value === "nebbia";
+    avviaPartita({ fazione:fid, velocita:vel, difficolta:dif, nebbia:neb,
+                   sovranoLook: sovLook, sovranoNome: sovNome });
+  };
+  scegliSovrano(0); // preseleziona la prima civiltà
+  // carica salvataggi
+  const salv = SAVE.lista();
+  const boxS = $("avvio-salvataggi");
+  boxS.innerHTML = "";
+  let almeno = false;
+  for (const s of salv){
+    if (s.vuoto) continue;
+    almeno = true;
+    const b = document.createElement("button");
+    b.className = "btn-salv";
+    b.textContent = (s.chiave==="auto"?"⏱ Auto":"💾 "+s.chiave.toUpperCase()) + " — " + s.info;
+    b.onclick = () => { if (SAVE.carica(s.chiave)) entraInGioco(); };
+    boxS.appendChild(b);
+  }
+  if (!almeno) boxS.innerHTML = "<span class='muto'>Nessuna partita salvata</span>";
+}
+
+// ---------- CREAZIONE SOVRANO ----------
+// nomi storici proposti per la civiltà iniziale della fazione
+function nomiSovrano(fid){
+  const f = D().FAZIONI[fid];
+  const cult = f.cultura0;
+  const storici = Object.values(D().LEADER_STORICI[fid]||{});
+  const base = D().NOMI_EREDI[cult] || D().NOMI_EREDI.siciliana;
+  return [...new Set([...storici, ...base])];
+}
+function scegliSovrano(fid){
+  sovFid = fid;
+  sovLook = ART.lookDefault(fid);
+  const nomi = nomiSovrano(fid);
+  sovNome = nomi[0];
+  renderSovranoRitratto();
+  renderOpzioniSovrano();
+}
+function renderSovranoRitratto(){
+  const cv = $("sov-ritratto"); if (!cv) return;
+  const cx = cv.getContext("2d");
+  cx.clearRect(0,0,cv.width,cv.height);
+  ART.sovrano(cx, cv.width/2, cv.height/2, cv.width*0.86, cv.height*0.92, sovLook, sovFid);
+}
+function renderOpzioniSovrano(){
+  const box = $("cs-opzioni"); if (!box) return;
+  const OP = ART.OPZIONI_SOVRANO;
+  const nomi = nomiSovrano(sovFid);
+  let html = `<div class="cs-riga cs-nome"><span class="cs-lab">Nome</span>
+    <select id="sov-nome">${nomi.map(n=>`<option ${n===sovNome?"selected":""}>${n}</option>`).join("")}</select></div>`;
+  const cat = [["copricapo","Copricapo"],["capelli","Capelli"],["barba","Barba"],["pelle","Carnagione"],["veste","Veste"],["manto","Mantello"]];
+  for (const [k,lab] of cat){
+    html += `<div class="cs-riga"><span class="cs-lab">${lab}</span>
+      <button class="cs-fre" data-k="${k}" data-d="-1">◀</button>
+      <span class="cs-val" id="cs-val-${k}">${OP[k][sovLook[k]]}</span>
+      <button class="cs-fre" data-k="${k}" data-d="1">▶</button></div>`;
+  }
+  box.innerHTML = html;
+  $("sov-nome").onchange = e => { sovNome = e.target.value; };
+  box.querySelectorAll(".cs-fre").forEach(b => b.onclick = () => {
+    const k = b.dataset.k, d = parseInt(b.dataset.d), n = OP[k].length;
+    sovLook[k] = (sovLook[k] + d + n) % n;
+    $("cs-val-"+k).textContent = OP[k][sovLook[k]];
+    renderSovranoRitratto();
+    AUDIO.sfx("click");
+  });
+}
+
+function avviaPartita(opts){
+  FX.reset();
+  GAME.nuovaPartita(opts);
+  entraInGioco();
+  mostraModale({ titolo:"🔱 TRINACRIA", testo:
+    "Sicilia, 735 avanti Cristo. Le navi greche toccano le coste, i punici tengono l'occidente, i siculi l'interno.\n\n"+
+    "Tu guidi "+D().FAZIONI[GAME.st.giocatore].nome+". Ventiquattro secoli di storia ti aspettano: conquista i 166 comuni dell'isola, o cadi nell'oblio.\n\n«"+
+    D().FAZIONI[GAME.st.giocatore].motto+"»",
+    scelte:[{label:"All'armi, picciotti!", eff:"nulla"}] }, ()=>{
+      consigliere("benvenuto", "«Maestà, sugnu Don Calorio, u vostru consigghieri. Cliccati 'na truppa e po' 'na casella verdi p'a moviri. Iu vi dicu chi fari, nun v'agitati.»", 11000);
+    });
+}
+
+function entraInGioco(){
+  FX.reset();
+  $("avvio").classList.add("nascosto");
+  $("gioco").classList.remove("nascosto");
+  const cap = GAME.st.comuni[GAME.st.fazioni[GAME.st.giocatore].capitale];
+  const h = MAP.hexes[cap.hex];
+  view.z = 7.5;
+  view.x = window.innerWidth/2 - h.x*view.z;
+  view.y = window.innerHeight/2 - h.y*view.z;
+  sel = { hex:-1, unita:[], raggio:null };
+  aggiornaTutto();
+}
+
+// ---------- LOOP ----------
+function initGioco(){
+  canvas = $("mappa");
+  ctx2d = canvas.getContext("2d");
+  ridimensiona();
+  window.addEventListener("resize", ridimensiona);
+  window.addEventListener("orientationchange", ridimensiona);
+  canvas.addEventListener("pointerdown", giuPuntatore);
+  canvas.addEventListener("pointermove", muoviPuntatore);
+  canvas.addEventListener("pointerup", suPuntatore);
+  canvas.addEventListener("pointercancel", annullaPuntatore);
+  canvas.addEventListener("wheel", rotella, { passive:false });
+  $("btn-turno").onclick = () => fineTurno();
+  $("btn-ricerca").onclick = apriRicerca;
+  $("btn-cucina").onclick = apriCucina;
+  $("btn-poteri").onclick = apriPoteri;
+  $("btn-diplo").onclick = apriDiplomazia;
+  $("btn-menu").onclick = apriMenu;
+  $("btn-musica").onclick = () => {
+    const on = AUDIO.toggleMusica();
+    $("btn-musica").textContent = on ? "🔊" : "🔇";
+  };
+  document.addEventListener("keydown", e => {
+    if (!$("modale-sfondo").classList.contains("nascosto")) return;
+    if (e.key === "Enter") fineTurno();
+    if (e.key === " " || e.code === "Space"){ e.preventDefault(); autoAvanza(); }
+    if (e.key === "Escape"){ annullaPotere(); sel = {hex:-1, unita:[], raggio:null}; chiudiPannello(); aggiornaListaArmata(); }
+  });
+  // click sul consigliere: salta al punto del suggerimento
+  $("consigliere").onclick = () => {
+    if (consHex >= 0){ centraSu(consHex); selezionaHex(consHex); aggiornaTutto(); }
+    $("consigliere").classList.add("nascosto");
+  };
+  // minimappa: tocca per spostare la vista
+  mmCanvas = $("minimappa");
+  mmCtx = mmCanvas.getContext("2d");
+  const saltaMinimappa = e => {
+    const r = mmCanvas.getBoundingClientRect();
+    const mx = (e.clientX - r.left) * (mmCanvas.width / r.width);
+    const my = (e.clientY - r.top) * (mmCanvas.height / r.height);
+    const w = MAP.minimappaVersoMondo(mx, my, mmCanvas.width, mmCanvas.height);
+    view.x = window.innerWidth/2 - w.x*view.z;
+    view.y = window.innerHeight/2 - w.y*view.z;
+  };
+  mmCanvas.addEventListener("pointerdown", e => { e.stopPropagation(); saltaMinimappa(e); });
+  // collassa/espandi: così la minimappa non copre stabilmente una città che finisce nel suo angolo
+  const mmBox = $("minimappa-box"), mmToggle = $("mm-toggle");
+  if (localStorage.getItem("trinacria_mm_collassata")==="1") mmBox.classList.add("collassata");
+  mmToggle.onclick = (e) => {
+    e.stopPropagation();
+    mmBox.classList.toggle("collassata");
+    localStorage.setItem("trinacria_mm_collassata", mmBox.classList.contains("collassata")?"1":"0");
+  };
+  requestAnimationFrame(loop);
+}
+let mmCanvas = null, mmCtx = null, mmT = 0;
+function ridimensiona(){
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth, h = window.innerHeight;
+  canvas.style.width = w+"px";
+  canvas.style.height = h+"px";
+  canvas.width = Math.round(w*dpr);
+  canvas.height = Math.round(h*dpr);
+  ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+let ultimoT = 0;
+function loop(t){
+  const dt = ultimoT ? Math.min(0.05, (t-ultimoT)/1000) : 0.016;
+  ultimoT = t;
+  try {
+    if (GAME.st) {
+      FX.update(dt);
+      // scuotimento cinematografico della camera (non altera lo stato reale della view)
+      const sh = FX.shakeXY();
+      const vv = (sh.x||sh.y) ? { x:view.x+sh.x, y:view.y+sh.y, z:view.z } : view;
+      MAP.frame(ctx2d, vv, GAME.st, sel);
+      FX.renderScreen(ctx2d, window.innerWidth, window.innerHeight);
+      // minimappa: aggiornata ~8 volte al secondo (non serve ogni frame)
+      mmT += dt;
+      if (mmCtx && mmT > 0.12){ mmT = 0; MAP.disegnaMinimappa(mmCtx, mmCanvas.width, mmCanvas.height, view, GAME.st); }
+    }
+  }
+  catch(e){ window.__loopErr = (e && e.message) + " | " + ((e&&e.stack)||"").split("\n").slice(0,3).join(" << "); }
+  requestAnimationFrame(loop);
+}
+
+// ---------- INPUT ----------
+// Pointer Events unificano mouse/touch/penna: un dito trascina la mappa,
+// due dita fanno pinch-to-zoom. Il "tap" (nessun trascinamento) seleziona.
+const puntatori = new Map();
+let pinch = null;
+
+function giuPuntatore(e){
+  try { canvas.setPointerCapture(e.pointerId); } catch(err){ /* id non catturabile: ignora */ }
+  puntatori.set(e.pointerId, { x:e.clientX, y:e.clientY });
+  if (puntatori.size === 1){
+    drag = { x:e.clientX, y:e.clientY, vx:view.x, vy:view.y, mosso:false };
+  } else if (puntatori.size === 2){
+    drag = null;
+    const pts = [...puntatori.values()];
+    const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+    const cx = (pts[0].x+pts[1].x)/2, cy = (pts[0].y+pts[1].y)/2;
+    pinch = { dist, z0:view.z, world: MAP.s2w(view, cx, cy) };
+  }
+}
+function muoviPuntatore(e){
+  if (!puntatori.has(e.pointerId)) return;
+  puntatori.set(e.pointerId, { x:e.clientX, y:e.clientY });
+  if (puntatori.size >= 2 && pinch){
+    const pts = [...puntatori.values()];
+    const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+    const cx = (pts[0].x+pts[1].x)/2, cy = (pts[0].y+pts[1].y)/2;
+    view.z = Math.max(2, Math.min(30, pinch.z0 * (dist/pinch.dist)));
+    view.x = cx - pinch.world.x*view.z;
+    view.y = cy - pinch.world.y*view.z;
+    ridisegna();
+    return;
+  }
+  if (!drag || puntatori.size !== 1) return;
+  const dx = e.clientX-drag.x, dy = e.clientY-drag.y;
+  if (Math.abs(dx)+Math.abs(dy) > 6) drag.mosso = true;
+  if (drag.mosso){
+    view.x = drag.vx+dx; view.y = drag.vy+dy;
+    ridisegna();
+  }
+}
+function suPuntatore(e){
+  puntatori.delete(e.pointerId);
+  if (puntatori.size < 2) pinch = null;
+  if (puntatori.size === 0){
+    const era = drag;
+    drag = null;
+    if (!era || era.mosso || !GAME.st) return;
+    const i = MAP.hexAt(view, e.clientX, e.clientY);
+    // click su un POI sponsor (ha priorità, tranne quando sto comandando truppe o mirando un potere)
+    const comando = sel.unita.length && sel.raggio && i>=0 && sel.raggio[i];
+    if (!comando && !modoPotere){
+      const sp = MAP.sponsorAt(view, e.clientX, e.clientY);
+      if (sp >= 0){ apriSponsor(sp); return; }
+      const po = MAP.poiAt(view, e.clientX, e.clientY);
+      if (po >= 0){ apriPOI(po); return; }
+    }
+    if (i < 0){ sel = {hex:-1, unita:[], raggio:null}; chiudiPannello(); ridisegna(); return; }
+    clickHex(i);
+  } else if (puntatori.size === 1){
+    // resta un dito solo dopo un pinch: ripartiamo il trascinamento da qui, senza scatti
+    const rimasto = [...puntatori.values()][0];
+    drag = { x:rimasto.x, y:rimasto.y, vx:view.x, vy:view.y, mosso:true };
+  }
+}
+function annullaPuntatore(e){
+  puntatori.delete(e.pointerId);
+  if (puntatori.size < 2) pinch = null;
+  if (puntatori.size === 0) drag = null;
+}
+function rotella(e){
+  e.preventDefault();
+  const fattore = e.deltaY < 0 ? 1.15 : 1/1.15;
+  const nuovo = Math.max(2, Math.min(30, view.z*fattore));
+  const w = MAP.s2w(view, e.clientX, e.clientY);
+  view.z = nuovo;
+  view.x = e.clientX - w.x*view.z;
+  view.y = e.clientY - w.y*view.z;
+  ridisegna();
+}
+
+function clickHex(i){
+  const st = GAME.st;
+  // mira di un potere del sovrano: il tap sceglie il bersaglio
+  if (modoPotere){ applicaPotereSuHex(i); return; }
+  // unità selezionate: muovi / attacca / viaggia
+  if (sel.unita.length && sel.raggio){
+    if (sel.raggio[i]){
+      if (sel.raggio[i].attacco) preparaAttacco(i);
+      else eseguiMovimento(i);
+      return;
+    }
+    // fuori portata: proponi una marcia (ma non se clicco le mie truppe altrove)
+    const mieLi = st.unita.some(u=>u.hex===i && u.fazione===st.giocatore);
+    if (!mieLi && i !== sel.hex && proponiViaggio(i)) return;
+  }
+  selezionaHex(i);
+}
+
+function selezionaHex(i){
+  const st = GAME.st, gioc = st.giocatore;
+  sel.hex = i;
+  const mie = st.unita.filter(u=>u.hex===i && u.fazione===gioc);
+  const cm = st.comuni[MAP.hexes[i].comune];
+  if (mie.length){
+    mie.forEach(u => GAME.svegliaUnita(u.id));      // selezionare = svegliare le sentinelle
+    sel.unita = mie.filter(u=>u.mov>0).map(u=>u.id);
+    if (!sel.unita.length) sel.unita = mie.map(u=>u.id);
+    sel.raggio = sel.unita.length ? GAME.raggioMovimento(sel.unita) : null;
+    apriPannelloUnita(i);
+    tutorial("primo_movimento", "Muovere le truppe", "Le caselle <b style='color:#9be89b'>verdi</b> sono dove puoi andare, le <b style='color:#e88'>rosse</b> con le ⚔️ sono nemici da attaccare.<br><br>Clicca una casella evidenziata per muoverti. Clicca un luogo lontano per una <b>marcia</b> di più turni.");
+  } else if (cm.hex === i){
+    sel.unita = []; sel.raggio = null;
+    apriPannelloCitta(cm);
+    tutorial("prima_citta", "Le tue città", "Da qui recluti truppe e costruisci edifici e meraviglie. Ogni turno la città cresce e produce oro, cibo e scienza.<br><br>Tieni d'occhio il <b>malcontento</b>: se sale troppo, il popolo si ribella!");
+  } else {
+    sel.unita = []; sel.raggio = null;
+    apriPannelloHex(i);
+  }
+  aggiornaListaArmata();
+}
+
+function eseguiMovimento(i){
+  const st = GAME.st;
+  GAME.muovi(sel.unita, i);
+  GAME.calcolaVisibilita();
+  AUDIO.sfx("click"); incrAiuto();
+  aggiornaTutto();
+  const u0 = st.unita.find(u=>u.id===sel.unita[0]);
+  if (u0 && u0.mov>0){
+    sel.hex = i;
+    sel.raggio = GAME.raggioMovimento(sel.unita);
+    apriPannelloUnita(i);
+  } else {
+    autoAvanza();
+  }
+}
+
+function proponiViaggio(i){
+  const st = GAME.st;
+  const uid = sel.unita[0];
+  const p = GAME.trovaPercorso(uid, i);
+  if (!p || !p.percorso.length) return false;
+  const luogo = nomeLuogo(i);
+  mostraModale({ titolo:"🚶 Marcia verso "+luogo,
+    testo:"Le tue truppe raggiungeranno "+luogo+" in circa <b>"+p.turni+(p.turni===1?" turno":" turni")+"</b>, muovendosi da sole ogni turno.\n\nTi avviserò se incontrano un nemico lungo la strada.",
+    scelte:[{label:"In marcia!", eff:"si"},{label:"Annulla", eff:"nulla"}] }, idx => {
+      if (idx===0){
+        for (const id of sel.unita) GAME.impostaGoto(id, i);
+        AUDIO.sfx("click"); incrAiuto();
+        aggiornaTutto();
+        tutorial("primo_viaggio", "Marce automatiche", "L'unità ora viaggia da sola verso la meta, turno dopo turno. La linea dorata con la ⚑ mostra dove è diretta.<br><br>Riapparirà tra le truppe da gestire solo quando arriva o incontra un nemico.");
+        autoAvanza();
+      }
+    });
+  return true;
+}
+
+function nomeLuogo(i){
+  const cm = GAME.st.comuni[MAP.hexes[i].comune];
+  return cm.hex===i ? cm.nome : ("il territorio di "+cm.nome);
+}
+
+// centra la telecamera su un esagono
+function centraSu(hex){
+  const h = MAP.hexes[hex]; if (!h) return;
+  if (view.z < 7) view.z = 7;
+  view.x = window.innerWidth/2 - h.x*view.z;
+  view.y = window.innerHeight/2 - h.y*view.z;
+}
+
+// seleziona e centra la prossima cosa da gestire: prima le truppe ferme, poi le città senza ordini
+function autoAvanza(){
+  const st = GAME.st;
+  const ferme = GAME.unitaFerme(st.giocatore);
+  if (ferme.length){
+    centraSu(ferme[0].hex);
+    selezionaHex(ferme[0].hex);
+    aggiornaTutto();
+    return;
+  }
+  const citta = GAME.cittaDaGestire(st.giocatore);
+  if (citta.length){
+    const cm = citta[0];
+    centraSu(cm.hex);
+    sel = { hex:cm.hex, unita:[], raggio:null };
+    apriPannelloCitta(cm);
+    tutorial("prima_citta_ferma", "Città senza ordini", "Anche le città ti avvisano se non stanno costruendo nulla.<br><br>Dai loro un ordine (o metti in <b>coda</b> più cose): non lasciare mai la produzione sprecata!");
+    aggiornaTutto();
+    return;
+  }
+  sel = { hex:-1, unita:[], raggio:null };
+  chiudiPannello();
+  aggiornaListaArmata();
+  consigliere("tutto_gestito", "Tuttu fattu, Maestà! Città e truppi hannu 'u so duviri. Putemu chiudiri 'u turnu.", 2500);
+  aggiornaTutto();
+}
+
+function preparaAttacco(i){
+  const st = GAME.st;
+  const cm = st.comuni[MAP.hexes[i].comune];
+  // colono: non combatte mai, annette solo pacificamente le città indipendenti indifese
+  const selUnita = st.unita.filter(u=>sel.unita.includes(u.id));
+  if (selUnita.length===1 && selUnita[0].tipo==="colono"){ preparaColonizzazione(selUnita[0], i); return; }
+  if (selUnita.length && selUnita.every(u=>u.tipo==="lavoratore")){
+    mostraModale({ titolo:"🔧 I lavoratori non combattono", testo:"Questa casella è occupata da forze nemiche: i lavoratori non sanno combattere. Usa altre truppe per sgomberarla, oppure spostali altrove.",
+      scelte:[{label:"Capito", eff:"nulla"}] }, ()=>{});
+    return;
+  }
+  const dif = GAME.nemiciSuHex(i, st.giocatore);
+  // guerra da dichiarare?
+  let bersaglioF = dif.length ? dif[0].fazione : (cm.hex===i ? cm.fazione : -1);
+  if (bersaglioF >= 0 && bersaglioF < 100){
+    const d = st.fazioni[st.giocatore].diplo[bersaglioF];
+    if (d && d.stato === "patto"){
+      mostraModale({ titolo:"Patto in vigore", testo:"Hai un patto di non aggressione con "+st.fazioni[bersaglioF].nome+". La tua parola vale ancora qualcosa in Sicilia.", scelte:[{label:"Ritirati", eff:"nulla"}] }, ()=>{});
+      return;
+    }
+    if (d && d.stato === "pace"){
+      mostraModale({ titolo:"⚔️ Dichiarare guerra?", testo:"Attaccare significa dichiarare guerra a "+st.fazioni[bersaglioF].nome+". Nessun ripensamento.",
+        scelte:[{label:"Guerra!", eff:"guerra"},{label:"Ritirati", eff:"nulla"}] }, idx => {
+          if (idx===0){ GAME.dichiaraGuerra(st.giocatore, bersaglioF); mostraAnteprima(i); }
+        });
+      return;
+    }
+  }
+  mostraAnteprima(i);
+}
+
+// il colono non combatte mai: annette pacificamente solo le città indipendenti indifese
+function preparaColonizzazione(u, i){
+  const st = GAME.st;
+  const cm = st.comuni[MAP.hexes[i].comune];
+  if (cm.fazione !== -1 || cm.hex !== i){
+    mostraModale({ titolo:"Non colonizzabile", testo:"I coloni possono fondare colonie solo in una città indipendente (senza padrone).",
+      scelte:[{label:"Capito", eff:"nulla"}] }, ()=>{});
+    return;
+  }
+  const difensori = GAME.nemiciSuHex(i, st.giocatore);
+  if (difensori.length){
+    mostraModale({ titolo:"🛡️ Città presidiata", testo:cm.nome+" è difesa da milizie indipendenti: i coloni non possono passare senza combattere. Sgombera prima le difese con le tue truppe.",
+      scelte:[{label:"Capito", eff:"nulla"}] }, ()=>{});
+    return;
+  }
+  mostraModale({ titolo:"🏘️ Fondare una colonia?",
+    testo:"I tuoi coloni possono annettere pacificamente <b>"+cm.nome+"</b> al tuo regno, senza combattere.\n\nIl colono si stabilirà lì per sempre (si consuma nell'impresa), ma la città entra subito ben integrata, senza il malcontento di una conquista militare.",
+    scelte:[{label:"Fonda la colonia", eff:"si"},{label:"Ritirati", eff:"nulla"}] }, idx => {
+      if (idx===0){
+        const r = GAME.colonizza(u.id, cm.id);
+        if (r.ok){
+          AUDIO.sfx("costruito"); incrAiuto();
+          sel = { hex:-1, unita:[], raggio:null }; chiudiPannello();
+          GAME.calcolaVisibilita(); centraSu(cm.hex); aggiornaTutto(); mostraFumetti();
+        }
+      }
+    });
+}
+
+function mostraAnteprima(i){
+  const st = GAME.st;
+  const ant = GAME.anteprima(sel.unita, i);
+  const cm = st.comuni[MAP.hexes[i].comune];
+  if (ant.vuoto){
+    // città indifesa senza mura: cattura diretta
+    eseguiAttacco(i); return;
+  }
+  if (ant.assaltoMura){
+    mostraModale({ titolo:"🧱 Assalto alle mura di "+cm.nome,
+      testo:"La città è indifesa ma le mura reggono ancora: "+ant.muraHP+" PV.\n\nLe tue truppe possono assaltarle (subendo perdite leggere) o le macchine d'assedio possono bombardarle.",
+      scelte:[{label:"All'assalto!", eff:"si"},{label:"Ritirati", eff:"nulla"}] }, idx => {
+        if (idx===0) eseguiAttacco(i);
+      });
+    return;
+  }
+  const pct = Math.round(ant.pWin*100);
+  const colore = pct>=65 ? "#6fbf6f" : (pct>=40 ? "#d9b23f" : "#d96c4f");
+  mostraModale({ titolo:"⚔️ Anteprima battaglia",
+    html:`<div class="ant-box">
+      <div class="ant-riga"><span>${ant.nA} unità attaccanti</span><span>${ant.nD} difensori${ant.mura?" 🧱":""}</span></div>
+      <div class="ant-barra"><div style="width:${pct}%;background:${colore}"></div></div>
+      <div class="ant-pct" style="color:${colore}">${pct}% di vittoria</div>
+      <div class="ant-riga muto"><span>Perdite previste: ${ant.perditeA.toFixed(1)}</span><span>Nemici abbattuti: ${ant.perditeD.toFixed(1)}</span></div>
+      ${ant.mura ? "<div class='muto'>⚠️ Le mura proteggono i difensori: bombardale prima con le macchine d'assedio!</div>" : ""}
+    </div>`,
+    scelte:[{label:"Attacca!", eff:"si"},{label:"Ritirati", eff:"nulla"}] }, idx => {
+      if (idx===0) eseguiAttacco(i);
+    });
+}
+function eseguiAttacco(i){
+  AUDIO.sfx("battaglia");
+  GAME.attacca(sel.unita, i);
+  sel = { hex:-1, unita:[], raggio:null };
+  chiudiPannello();
+  aggiornaTutto();
+  processaPending();
+  controllaFinePartita();
+}
+
+// ---------- PANNELLI ----------
+function chiudiPannello(){ $("pannello").classList.add("nascosto"); }
+function apri(html){
+  const p = $("pannello");
+  p.innerHTML = '<div class="pannello-handle">▾</div>' + html;
+  p.classList.remove("nascosto");
+  p.classList.remove("compatta");
+  $("armata").classList.remove("espansa"); // su mobile: non coprire il pannello appena aperto
+  const maniglia = p.querySelector(".pannello-handle");
+  if (maniglia) maniglia.onclick = (e) => {
+    e.stopPropagation();
+    p.classList.toggle("compatta");
+    maniglia.textContent = p.classList.contains("compatta") ? "▴ mostra" : "▾";
+  };
+}
+function nomeTerra(t){
+  return { plain:"Pianura", hill:"Collina", mountain:"Montagna", forest:"Bosco", volcano:"L'Etna — a Muntagna" }[t]||t;
+}
+
+function apriPannelloHex(i){
+  const st = GAME.st;
+  const h = MAP.hexes[i];
+  const cm = st.comuni[h.comune];
+  const mia = cm.fazione === st.giocatore;
+  let html = `<div class="p-titolo">${nomeTerra(h.terra)}</div>
+    <div class="p-sotto">Territorio di ${cm.nome} ${proprietario(cm)}</div>`;
+  if (h.fiume) html += `<div>💧 Fiume: +1 cibo, difesa +10%</div>`;
+  if (h.costa) html += `<div>🌊 Costa: +oro</div>`;
+  if (h.res) html += `<div>${ico(RES_INFO[h.res], "res_"+h.res)} <b>${RES_INFO[h.res].nome}</b></div>`;
+  if (h.imp) html += `<div>${ico(D().MIGLIORIE[h.imp], h.imp)} ${D().MIGLIORIE[h.imp].nome} — ${D().MIGLIORIE[h.imp].eff}</div>`;
+  if (mia && h.imp && cm.hex!==i){
+    const f = st.fazioni[st.giocatore];
+    const nuovoId = GAME.prossimaMiglioria(h.imp, st.giocatore);
+    if (nuovoId){
+      const nuovo = D().MIGLIORIE[nuovoId];
+      const costo = Math.max(15, Math.ceil((nuovo.costo - D().MIGLIORIE[h.imp].costo)*1.2));
+      const ok = f.oro >= costo;
+      html += `<div class="p-sez">Il tempo passa (oro: ${Math.floor(f.oro)})</div>
+        <button class="btn-lista" id="btn-upg-hex" ${ok?"":"disabled"}>🏭 Ammoderna in ${ico(nuovo, nuovoId)} ${nuovo.nome} <span class="muto">— ${costo} oro (${nuovo.eff})</span></button>`;
+    }
+  }
+  if (mia && !h.imp && cm.hex!==i){
+    html += `<div class="p-sez">Costruisci miglioria (oro: ${Math.floor(st.fazioni[st.giocatore].oro)})</div>
+      <div class="p-riga muto">💰 Paga subito in oro, oppure 🔨 manda un lavoratore: costruisce gratis (ma ci mette il suo tempo).</div>`;
+    const f = st.fazioni[st.giocatore];
+    for (const id of Object.keys(D().MIGLIORIE)){
+      const m = D().MIGLIORIE[id];
+      if (!m.terreni.includes(h.terra)) continue;
+      if (m.fiume && !h.fiume) continue;
+      if (m.costiero && !h.costa) continue;
+      if (m.tech && !f.techs.includes(m.tech)) continue;
+      if (m.eraMin && st.era < m.eraMin) continue;
+      const ok = f.oro >= m.costo;
+      html += `<button class="btn-lista" data-mig="${id}" ${ok?"":"disabled"}>${ico(m, id)} ${m.nome} — ${m.costo} oro <span class="muto">${m.eff}</span></button>`;
+    }
+  }
+  apri(html);
+  document.querySelectorAll("[data-mig]").forEach(b => b.onclick = () => {
+    if (GAME.migliora(i, b.dataset.mig)){ AUDIO.sfx("costruito"); apriPannelloHex(i); aggiornaTutto(); }
+  });
+  const btnUpgHex = $("btn-upg-hex");
+  if (btnUpgHex) btnUpgHex.onclick = () => {
+    if (GAME.upgradaMiglioria(i, st.giocatore)){ AUDIO.sfx("costruito"); apriPannelloHex(i); aggiornaTutto(); }
+  };
+}
+
+function proprietario(cm){
+  const st = GAME.st;
+  if (cm.fazione===-1) return "<span class='muto'>(indipendente)</span>";
+  if (cm.fazione>=100) return "<span class='muto'>(occupata da "+GAME.nomeInvasore(cm.fazione)+")</span>";
+  return "<span style='color:"+D().FAZIONI[cm.fazione].colore+"'>("+st.fazioni[cm.fazione].nome+")</span>";
+}
+
+function apriPannelloCitta(cm){
+  const st = GAME.st;
+  const mia = cm.fazione === st.giocatore;
+  const r = cm.fazione!==-1 && cm.fazione<100 ? GAME.reseComune(cm) : null;
+  const cult = D().CULTURE[cm.cultura] || { nome:cm.cultura };
+  let html = `<div class="p-titolo">${cm.tier>=4?"★ ":""}${cm.nome}</div>
+    <div class="p-sotto">${proprietario(cm)} — prov. ${cm.prov}</div>
+    <div class="p-riga">👥 Popolazione: <b>${cm.pop}</b> &nbsp; 😊 Malcontento: <b class="${cm.unrest>=8?'rosso':(cm.unrest>=5?'giallo':'')}">${cm.unrest}/12</b></div>
+    <div class="p-riga">🏺 Cultura ${cult.nome} — integrazione ${Math.round(cm.integr)}%</div>`;
+  if (cm.mura>0) html += `<div class="p-riga">🧱 Mura liv.${cm.mura}: ${cm.muraHP}/${cm.mura*100} PV</div>`;
+  if (cm.dop){ const d = D().DOP.find(x=>x.id===cm.dop); if (d) html += `<div class="p-riga" style="color:#e8b84a">${ico(d)} <b>${d.nome}</b></div>`; }
+  if (st.peste && st.peste.infetti.includes(cm.id)) html += `<div class="p-riga rosso">☠️ LA PESTE infuria in città!</div>`;
+  if (r) html += `<div class="p-riga">🌾${r.cibo.toFixed(1)} ⚒️${r.prod.toFixed(1)} 💰${r.oro.toFixed(1)} 📜${r.scienza.toFixed(0)} 🎭${r.cultura.toFixed(0)}</div>`;
+  if (cm.edifici.length)
+    html += `<div class="p-riga muto">Edifici: ${cm.edifici.map(e=>(D().EDIFICI[e]||D().EDIFICI_LOCALI.find(x=>x.id===e)).nome).join(", ")}</div>`;
+  for (const mid of Object.keys(st.meraviglie))
+    if (st.meraviglie[mid]===cm.id) html += `<div class="p-riga">🏛️ <b>${D().MERAVIGLIE.find(m=>m.id===mid).nome}</b></div>`;
+  if (mia){
+    // coda
+    html += `<div class="p-sez">Produzione (⚒️ ${cm.prodAcc.toFixed(0)} accumulata)</div>`;
+    if (cm.coda.length){
+      cm.coda.forEach((it, k) => {
+        const nome = it.tipo==="unita" ? D().UNITA[it.id].nome : (it.tipo==="edificio" ? D().EDIFICI[it.id].nome : D().MERAVIGLIE.find(m=>m.id===it.id).nome);
+        const pct = k===0 ? Math.min(100, Math.round(cm.prodAcc/it.costo*100)) : 0;
+        html += `<div class="coda-item">${k+1}. ${nome} <span class="muto">(${it.costo}⚒️${k===0?" — "+pct+"%":""})</span> <button class="btn-x" data-coda="${k}">✕</button></div>`;
+      });
+      const resto = Math.max(0, cm.coda[0].costo - cm.prodAcc);
+      html += `<button class="btn-lista" id="btn-compra">💰 Compra subito (${Math.ceil(resto*2)} oro)</button>`;
+    } else html += `<div class="muto">Coda vuota</div>`;
+    const truppeOra = GAME.truppeFazione(st.giocatore), limiteOra = GAME.limiteEsercito();
+    html += `<div class="p-sez">Recluta unità <span class="muto">(esercito: ${truppeOra}/${limiteOra})</span></div>`;
+    for (const u of GAME.unitaDisponibili(cm)){
+      const titolo = u.motivoPieno==="niente_da_fare" ? "Non ci sono ancora caselle da migliorare nel tuo territorio"
+                   : u.motivoPieno==="al_completo" ? "Hai già 3 lavoratori: fanne finire uno prima di reclutarne altri"
+                   : "Esercito al completo: sciogli o muovi truppe per reclutarne altre";
+      const suffisso = u.motivoPieno==="niente_da_fare" ? " — nulla da migliorare" : (u.pieno ? " — al completo" : "");
+      html += `<button class="btn-lista" data-rec="${u.id}" data-costo="${u.costo}" ${u.pieno?`disabled title='${titolo}'`:""}>${u.uu?"⭐ ":""}${u.nome} <span class="muto">⚔${u.atk} 🛡${u.def} — ${u.costo}⚒️${suffisso}</span></button>`;
+    }
+    html += `<div class="p-sez">Costruisci</div>`;
+    for (const c of GAME.costruzioniDisponibili(cm))
+      html += `<button class="btn-lista" data-cos="${c.tipo}:${c.id}" data-costo="${c.costo}">${ico(c, c.icoId || c.id)} ${c.nome} <span class="muto">${c.costo}⚒️ — ${c.eff}</span></button>`;
+    const f = st.fazioni[st.giocatore];
+    if (f.capitale===cm.id && !f.eroeVivo)
+      html += `<div class="p-sez"></div><button class="btn-lista" id="btn-eroe" ${f.oro>=GAME.costoEroe()?"":"disabled"}>★ Recluta Condottiero (${GAME.costoEroe()} oro)</button>`;
+  }
+  apri(html);
+  if (mia){
+    document.querySelectorAll("[data-rec]").forEach(b => b.onclick = () => {
+      const ok = GAME.accoda(cm.id, { tipo:"unita", id:b.dataset.rec, costo:parseInt(b.dataset.costo) });
+      if (ok) AUDIO.sfx("click"); else consigliere("cons", "Esercito al completo, Maestà: sciogli o impegna qualche truppa prima di reclutarne altre.", 3000);
+      apriPannelloCitta(cm); aggiornaTutto();
+    });
+    document.querySelectorAll("[data-cos]").forEach(b => b.onclick = () => {
+      const [tipo,id] = b.dataset.cos.split(":");
+      GAME.accoda(cm.id, { tipo, id, costo:parseInt(b.dataset.costo) });
+      AUDIO.sfx("click"); apriPannelloCitta(cm); aggiornaTutto();
+    });
+    document.querySelectorAll("[data-coda]").forEach(b => b.onclick = () => {
+      cm.coda.splice(parseInt(b.dataset.coda), 1);
+      apriPannelloCitta(cm); aggiornaTutto();
+    });
+    const bc = $("btn-compra");
+    if (bc) bc.onclick = () => { if (GAME.compraSubito(cm.id)){ AUDIO.sfx("costruito"); apriPannelloCitta(cm); aggiornaTutto(); } };
+    const be = $("btn-eroe");
+    if (be) be.onclick = () => { if (GAME.reclutaEroe(st.giocatore)){ AUDIO.sfx("vittoria"); apriPannelloCitta(cm); aggiornaTutto(); } };
+  }
+}
+
+function apriPannelloUnita(i){
+  const st = GAME.st;
+  const mie = st.unita.filter(u=>u.hex===i && u.fazione===st.giocatore);
+  const cm = st.comuni[MAP.hexes[i].comune];
+  let html = `<div class="p-titolo">Truppe (${mie.length})</div>
+    <div class="p-sotto">${nomeTerra(MAP.hexes[i].terra)} — territorio di ${cm.nome}</div>`;
+  for (const u of mie){
+    const s = GAME.statU(u.tipo);
+    const att = sel.unita.includes(u.id);
+    const nome = D().UNITA[u.tipo] ? D().UNITA[u.tipo].nome : s.nome;
+    html += `<div class="carta-unita ${att?'attiva':''}" data-uid="${u.id}" data-tipo="${u.tipo}">
+      <canvas class="cu-icon" width="42" height="42"></canvas>
+      <div class="cu-txt"><b>${u.nome ? "★ "+u.nome : nome}</b><br>
+      <span class="muto">⚔${s.atk} 🛡${s.def} 👟${u.mov}/${s.mov} ❤${u.hp}${u.xp?" ✨"+u.xp:""}${u.tipo==="lavoratore"?" 🔧"+u.usiRimasti+"/3":""}</span></div>
+    </div>`;
+  }
+  // bombardamento
+  const assedi = mie.filter(u => D().UNITA[u.tipo].muraDanno && u.mov>0);
+  if (assedi.length){
+    for (const nb of [i, ...MAP.vicini(i)]){
+      const c2 = st.comuni[MAP.hexes[nb].comune];
+      if (c2.hex===nb && c2.fazione!==st.giocatore && c2.fazione!==-999 && c2.muraHP>0 && c2.fazione!==st.giocatore){
+        html += `<button class="btn-lista" id="btn-bomba" data-cm="${c2.id}">💥 Bombarda le mura di ${c2.nome} (${c2.muraHP} PV)</button>`;
+        break;
+      }
+    }
+  }
+  // azioni sull'unità selezionata
+  const selUn = mie.filter(u=>sel.unita.includes(u.id) && u.mov>0);
+  if (selUn.length){
+    if (selUn.some(u=>u.goto!=null))
+      html += `<button class="btn-lista" id="btn-annulla-marcia">✋ Ferma la marcia</button>`;
+    if (selUn.every(u=>u.tipo==="lavoratore"))
+      html += `<button class="btn-lista" id="btn-migliora-auto">🔧 Migliora automaticamente le vicinanze</button>`;
+    if (selUn.every(u=>u.tipo==="colono"))
+      html += `<button class="btn-lista" id="btn-colonizza-auto">🏘️ Fonda nuova città (automatico)</button>`;
+    if (selUn.every(u=>u.tipo!=="lavoratore" && u.tipo!=="colono"))
+      html += `<button class="btn-lista" id="btn-conquista-auto">⚔️ Conquista automaticamente</button>`;
+    html += `<button class="btn-lista" id="btn-fortifica">🛡️ Fortifica — di guardia qui (si cura, non ti disturbo più)</button>`;
+  }
+  if (cm.hex===i && cm.fazione===st.giocatore)
+    html += `<button class="btn-lista" id="btn-citta">🏛️ Gestisci ${cm.nome}</button>`;
+  html += `<div class="muto p-riga">🟢 casella verde = <b>muovi</b> · 🔴 rossa ⚔️ = <b>attacca</b> · luogo lontano = <b>marcia</b> di più turni.</div>`;
+  apri(html);
+  const btnFort = $("btn-fortifica");
+  if (btnFort) btnFort.onclick = () => {
+    for (const u of selUn) GAME.fortifica(u.id);
+    AUDIO.sfx("click"); incrAiuto();
+    tutorial("prima_fortifica", "Truppe di guardia", "Le unità <b>fortificate</b> restano ferme a difendere, si curano ogni turno e <b>non compaiono più</b> tra quelle da gestire.<br><br>Per risvegliarle, basta selezionarle di nuovo.");
+    autoAvanza();
+  };
+  const btnMigliora = $("btn-migliora-auto");
+  if (btnMigliora) btnMigliora.onclick = () => {
+    let nOk = 0, nNo = 0;
+    for (const u of selUn){
+      const r = GAME.miglioramentoAutomatico(u.id);
+      if (r.ok) nOk++; else nNo++;
+    }
+    AUDIO.sfx(nOk ? "costruito" : "click");
+    if (nOk) GAME.aggiungiLog("🔧 "+nOk+(nOk===1?" lavoratore ha migliorato":" lavoratori hanno migliorato")+" le campagne vicine.", "bene");
+    if (nNo && !nOk) consigliere("cons", "Nessuna casella vicina da migliorare, o fondi insufficienti, Maestà.", 2800);
+    sel.unita = sel.unita.filter(id => st.unita.some(u=>u.id===id));
+    if (sel.unita.length) apriPannelloUnita(i); else chiudiPannello();
+    aggiornaTutto();
+  };
+  const btnColonizza = $("btn-colonizza-auto");
+  if (btnColonizza) btnColonizza.onclick = () => {
+    let nOk = 0, nMossi = 0;
+    for (const u of selUn){
+      const r = GAME.autoColonizza(u.id);
+      if (r.ok && !r.mossa) nOk++; else if (r.ok && r.mossa) nMossi++;
+    }
+    AUDIO.sfx(nOk ? "vittoria" : "click");
+    if (nOk) GAME.aggiungiLog("🏘️ "+nOk+(nOk===1?" colonia fondata":" colonie fondate")+"!", "bene");
+    else if (nMossi) GAME.aggiungiLog("🏘️ I coloni si avviano verso la città indipendente più vicina.", "info");
+    else consigliere("cons", "Nessuna città indipendente indifesa raggiungibile al momento, Maestà.", 2800);
+    sel.unita = sel.unita.filter(id => st.unita.some(u=>u.id===id));
+    if (sel.unita.length) apriPannelloUnita(i); else chiudiPannello();
+    aggiornaTutto();
+  };
+  const btnConquista = $("btn-conquista-auto");
+  if (btnConquista) btnConquista.onclick = () => {
+    const r = GAME.autoConquista(selUn.map(u=>u.id), st.giocatore);
+    AUDIO.sfx(r.attacco ? "battaglia" : "click");
+    if (r.attacco) GAME.aggiungiLog("⚔️ Le truppe attaccano "+r.verso+"!", "bene");
+    else if (r.mossa) GAME.aggiungiLog("⚔️ Le truppe marciano verso "+r.verso+".", "info");
+    else consigliere("cons", "Nessun bersaglio raggiungibile al momento, Maestà.", 2800);
+    incrAiuto(); GAME.calcolaVisibilita();
+    apriPannelloUnita(i); aggiornaTutto();
+  };
+  const btnMarcia = $("btn-annulla-marcia");
+  if (btnMarcia) btnMarcia.onclick = () => {
+    for (const u of selUn) u.goto = null;
+    apriPannelloUnita(i); aggiornaTutto();
+  };
+  const btnCitta = $("btn-citta");
+  if (btnCitta) btnCitta.onclick = () => {
+    sel.unita = []; sel.raggio = null;
+    apriPannelloCitta(cm);
+    ridisegna();
+  };
+  document.querySelectorAll("[data-uid]").forEach(c => {
+    // icona soldatino
+    const cv = c.querySelector(".cu-icon");
+    if (cv){
+      const cc = cv.getContext("2d");
+      const cat = ART.categoriaUnita(c.dataset.tipo);
+      const ud = GDATA.UNITA[c.dataset.tipo];
+      const col = GDATA.FAZIONI[st.giocatore].colore, col2 = GDATA.FAZIONI[st.giocatore].colore2;
+      ART.soldato(cc, 21, 36, 36, cat, col, col2, 0, ud?ud.era:0, ud&&(ud.uu!==undefined||ud.tipo==="hero"));
+    }
+    c.onclick = () => {
+      const id = parseInt(c.dataset.uid);
+      if (sel.unita.includes(id)) sel.unita = sel.unita.filter(x=>x!==id);
+      else sel.unita.push(id);
+      sel.raggio = sel.unita.length ? GAME.raggioMovimento(sel.unita) : null;
+      apriPannelloUnita(i);
+      ridisegna();
+    };
+  });
+  const bb = $("btn-bomba");
+  if (bb) bb.onclick = () => {
+    const cmId = parseInt(bb.dataset.cm);
+    for (const u of assedi) GAME.bombarda(u.id, cmId);
+    AUDIO.sfx("battaglia");
+    sel.raggio = sel.unita.length ? GAME.raggioMovimento(sel.unita) : null;
+    apriPannelloUnita(i); aggiornaTutto();
+  };
+}
+
+// ---------- TOPBAR ----------
+function aggiornaTopbar(){
+  const st = GAME.st;
+  if (!st) return;
+  const f = st.fazioni[st.giocatore];
+  const r = GAME.reseFazione(st.giocatore);
+  $("info-era").innerHTML = `<b>${D().ERE[st.era].nome}</b> — ${GAME.annoStr(st.anno)} <span class="muto">(turno ${st.turno})</span>`;
+  document.body.className = "era-"+st.era;
+  const nComuni = st.comuni.filter(c=>c.fazione===st.giocatore).length;
+  $("risorse").innerHTML =
+    `💰 ${Math.floor(f.oro)} <span class="muto">(${r.oro>=0?"+":""}${r.oro.toFixed(1)})</span> &nbsp; `+
+    `📜 +${r.scienza.toFixed(1)} &nbsp; 🎭 ${Math.floor(f.cultura)} &nbsp; 🏘️ ${nComuni}/${st.comuni.length}`;
+  const t = D().TRATTI[f.leader.tratto];
+  $("leader-box").innerHTML = `<canvas id="sov-topbar" width="40" height="46"></canvas>`+
+    `<span class="lb-txt"><span style="color:${D().FAZIONI[st.giocatore].colore}">◆</span> ${f.leader.nome}<br><span class="muto">${ico(t, f.leader.tratto)} ${t.nome},${Math.round(f.leader.eta)} anni</span></span>`;
+  const sovCv = $("sov-topbar");
+  if (sovCv && ART.sovrano){
+    const sc = sovCv.getContext("2d");
+    ART.sovrano(sc, 20, 23, 38, 44, f.leader.look, st.giocatore);
+  }
+  // ricerca (lampeggia se nessuna in corso)
+  let ric = "📜 Ricerca";
+  const btnRic = $("btn-ricerca");
+  if (f.ricerca){
+    const tt = D().TECH.find(x=>x.id===f.ricerca);
+    ric = `📜 ${tt.nome} ${Math.min(100,Math.round(f.sciAcc/GAME.costoTech(tt)*100))}%`;
+    btnRic.classList.remove("pulsa");
+  } else if (GAME.techDisponibili(st.giocatore).length){
+    ric = "📜 Scegli ricerca!";
+    btnRic.classList.add("pulsa");
+  } else btnRic.classList.remove("pulsa");
+  btnRic.textContent = ric;
+}
+function aggiornaRegistro(){
+  const st = GAME.st;
+  const box = $("registro");
+  box.innerHTML = st.log.slice(0,5).map(l =>
+    `<div class="log-riga log-${l.tipo}"><span class="muto">${l.anno}</span> ${l.testo}</div>`).join("");
+}
+function aggiornaTutto(){
+  aggiornaTopbar();
+  aggiornaRegistro();
+  aggiornaListaArmata();
+  mostraFumetti();
+  if (window.MAP) MAP.invalidate(); // il contenuto della mappa può essere cambiato: ricostruisci la cache
+}
+// svuota la coda delle reazioni-fumetto accumulate dal motore
+function mostraFumetti(){
+  const st = GAME.st; if (!st || !st.fumetti) return;
+  while (st.fumetti.length){ const f = st.fumetti.shift(); battuta(f.tipo, f.ctx); }
+}
+
+// ---------- AIUTO ADATTIVO ----------
+function incrAiuto(){ const st=GAME.st; if(!st) return; st.aiuto = st.aiuto||{azioni:0}; st.aiuto.azioni++; }
+function livelloAiuto(){
+  const a = (GAME.st && GAME.st.aiuto && GAME.st.aiuto.azioni) || 0;
+  return a < 12 ? "alto" : (a < 45 ? "medio" : "basso");
+}
+
+// ---------- CONSIGLIERE (Don Calorio) ----------
+let consTimer = null, consHex = -1;
+function disegnaVoltoConsigliere(){
+  const cv = $("cons-volto");
+  if (cv && !cv.dataset.drawn){
+    if (!(SPRITES.abilitato.ritratti && SPRITES.drawFit(cv.getContext("2d"), "ritratto_calorio", 36, 44, null, 84)))
+      ART.consigliere(cv.getContext("2d"), 36, 46, 66, 82);
+    cv.dataset.drawn = "1";
+  }
+}
+function consigliere(id, testo, durata){
+  disegnaVoltoConsigliere();
+  const box = $("consigliere");
+  $("cons-bolla").innerHTML = testo;
+  box.classList.remove("nascosto");
+  box.classList.remove("cons-in"); void box.offsetWidth; box.classList.add("cons-in");
+  if (consTimer) clearTimeout(consTimer);
+  consTimer = setTimeout(() => box.classList.add("nascosto"), durata || 6500);
+}
+// ---------- FUMETTI DEI PERSONAGGI ----------
+// reazioni brevi con faccia + nuvoletta; frequenti ma non bloccanti
+let fumTimer = null, fumCoda = [];
+function disegnaVoltoFumetto(chi){
+  const cv = $("fum-volto"); if (!cv) return;
+  const cx = cv.getContext("2d"); cx.clearRect(0,0,cv.width,cv.height);
+  if (chi.tipo === "calorio"){
+    if (!(SPRITES.abilitato.ritratti && SPRITES.drawFit(cx, "ritratto_calorio", 30, 30, null, 58))) ART.consigliere(cx, 30, 34, 56, 62);
+  }
+  else {
+    const st = GAME.st;
+    const fid = chi.fid!==undefined ? chi.fid : (st?st.giocatore:0);
+    const look = st && st.fazioni[fid] && st.fazioni[fid].leader ? st.fazioni[fid].leader.look : null;
+    ART.sovrano(cx, 30, 30, 54, 58, look, fid);
+  }
+}
+// mostra un fumetto (o lo accoda se ce n'è già uno)
+function fumetto(chi, testo, durata){
+  if (!$("fumetto")) return;
+  fumCoda.push({ chi, testo, durata: durata||3600 });
+  if (!fumTimer) prossimoFumetto();
+}
+function prossimoFumetto(){
+  const box = $("fumetto");
+  if (!fumCoda.length){ box.classList.add("nascosto"); fumTimer = null; return; }
+  const f = fumCoda.shift();
+  const st = GAME.st;
+  let nome = "Don Calorio";
+  if (f.chi.tipo !== "calorio"){
+    const fid = f.chi.fid!==undefined ? f.chi.fid : (st?st.giocatore:0);
+    nome = (st && st.fazioni[fid] && st.fazioni[fid].leader) ? st.fazioni[fid].leader.nome : D().FAZIONI[fid].nome;
+  }
+  disegnaVoltoFumetto(f.chi);
+  $("fum-nome").textContent = nome;
+  $("fum-testo").innerHTML = f.testo;
+  box.classList.remove("nascosto");
+  box.classList.remove("fum-in"); void box.offsetWidth; box.classList.add("fum-in");
+  fumTimer = setTimeout(() => { fumTimer = null; prossimoFumetto(); }, f.durata);
+}
+// battute per tipo di evento (spesso ma brevi); {sov}=sovrano, {cal}=Don Calorio, {riv}=rivale
+const BATTUTE = {
+  conquista:  [["sov","Un'altra terra sotto la nostra corona! Avanti, picciotti!"],
+               ["sov","{luogo} è nostra. Cu' non voli, si nni jssi!"],
+               ["cal","Bravu, Maestà! U populu vi acclama."]],
+  colonizzazione: [["sov","{luogo} si unisce a noi senza spargere sangue. Accussì si custruisce un regno!"],
+               ["cal","Bravi i coloni, Maestà! {luogo} è già una di nuiautri."]],
+  ricerca:    [["cal","'Na nova scoperta, Maestà: u sapiri è putenza."],
+               ["sov","La saggezza illumina il regno. Continuiamo così."]],
+  era:        [["cal","'Na nova era s'apri supra a Sicilia, Maestà."],
+               ["sov","Cambia il tempo, ma non la corona!"]],
+  costruito:  [["sov","Bella opera! La città splende di più."],
+               ["cal","U vostru regnu ciurisci, Maestà."]],
+  invasione:  [["sov","Nemici sulle coste! All'armi, difendiamo la Sicilia!"],
+               ["cal","Attenti, Maestà: sbarcanu 'i stranei. Priparàmuni."]],
+  guerra:     [["riv","La tua isola sarà mia, {sovrano}. Preparati alla guerra!"],
+               ["riv","Basta pace: le mie armate marceranno su di te!"]],
+  pace:       [["riv","Facciamo pace, {sovrano}. Il sangue è già troppo."],
+               ["cal","Torna 'a paci, Maestà. Megghiu accussì."]],
+  peste:      [["cal","'A pesti, Maestà... ca Diu ni scanza. Chiudìti 'i porti."],
+               ["sov","Il morbo nero ci flagella. Coraggio, popolo mio."]],
+  vittoriaBattaglia: [["sov","Vittoria! I nostri stendardi sventolano ancora!"],
+               ["cal","Vincìstivu, Maestà! Chi battagghia!"]],
+  sconfittaBattaglia:[["sov","Abbiamo perso uomini valorosi. Non sarà vano."],
+               ["cal","Mala jurnata, Maestà. Ni rifarèmu."]],
+  ambiente:   [["cal","Tuttu tranquillu ppi ora, Maestà. Sviluppàti u regnu."],
+               ["sov","La Sicilia prospera. Che i raccolti siano generosi."],
+               ["cal","U populu è cuntentu quannu c'è pani e paci."]],
+  potere:     [["sov","{testo}"]],
+  sponsor:    [["sov","Una tappa da {nome} e si riparte! I picciotti ringraziano."],
+               ["cal","Nu muzzicuni ê {nome}, Maestà, e semu pronti."]]};
+function battuta(tipo, ctx){
+  const arr = BATTUTE[tipo]; if (!arr) return;
+  const [chiT, txtBase] = arr[Math.floor(Math.random()*arr.length)];
+  const st = GAME.st;
+  let testo = txtBase
+    .replace(/\{luogo\}/g, (ctx&&ctx.luogo)||"la città")
+    .replace(/\{testo\}/g, (ctx&&ctx.testo)||"")
+    .replace(/\{nome\}/g, (ctx&&ctx.nome)||"")
+    .replace(/\{sovrano\}/g, st?st.fazioni[st.giocatore].leader.nome:"nemico");
+  let chi = { tipo:"sovrano" };
+  if (chiT==="cal") chi = { tipo:"calorio" };
+  else if (chiT==="riv") chi = { tipo:"rivale", fid: (ctx&&ctx.fid!==undefined)?ctx.fid:0 };
+  fumetto(chi, testo, tipo==="ambiente"?3200:3800);
+}
+
+// valuta le proposte concrete e le mostra con Accetta / Rifiuta / Più tardi
+function valutaConsigli(){
+  const st = GAME.st; if (!st) return;
+  const liv = livelloAiuto();
+  if (liv === "basso") return;                 // esperto: nessuna proposta non richiesta
+  st.consCooldown = st.consCooldown || {};
+  const props = GAME.propostaConsigliere(st.giocatore);
+  const prop = props.find(p => !st.consCooldown[p.id] || st.consCooldown[p.id] <= st.turno);
+  if (!prop){ consHex = -1; return; }
+  if (liv === "medio" && prop.prio < 8) return; // esperto-ish: solo cose importanti
+  proponiAzione(prop);
+}
+// mostra una proposta con i tre bottoni
+function proponiAzione(prop){
+  disegnaVoltoConsigliere();
+  const box = $("consigliere");
+  consHex = (prop.hex != null) ? prop.hex : -1;
+  $("cons-bolla").innerHTML = "«" + prop.testo + "»" +
+    "<div class='cons-azioni'>" +
+    "<button class='cons-btn cons-si'>✔ Accetta</button>" +
+    "<button class='cons-btn cons-no'>✕ Rifiuta</button>" +
+    "<button class='cons-btn cons-dopo'>⏳ Più tardi</button></div>";
+  box.classList.remove("nascosto");
+  box.classList.remove("cons-in"); void box.offsetWidth; box.classList.add("cons-in");
+  if (consTimer) clearTimeout(consTimer);
+  consTimer = setTimeout(() => box.classList.add("nascosto"), 20000);
+  box.querySelector(".cons-si").onclick = (e) => {
+    e.stopPropagation();
+    if (GAME.eseguiProposta(prop.azione)){ AUDIO.sfx("costruito"); GAME.aggiungiLog("✔ Fatto! " + prop.testo.split("?")[0], "bene"); }
+    box.classList.add("nascosto"); aggiornaTutto();
+  };
+  box.querySelector(".cons-no").onclick = (e) => {
+    e.stopPropagation(); GAME.st.consCooldown[prop.id] = GAME.st.turno + 10; box.classList.add("nascosto");
+  };
+  box.querySelector(".cons-dopo").onclick = (e) => {
+    e.stopPropagation(); GAME.st.consCooldown[prop.id] = GAME.st.turno + 2; box.classList.add("nascosto");
+  };
+}
+// tutorial contestuale al primo uso
+function tutorial(id, titolo, testo){
+  const st = GAME.st; if (!st) return;
+  st.visti = st.visti || {};
+  if (st.visti[id]) return;
+  st.visti[id] = true;
+  if (livelloAiuto() === "basso") return;
+  const card = $("tutorial-card");
+  card.innerHTML = `<div class="tut-titolo">💡 ${titolo}</div><div class="tut-testo">${testo}</div><button class="tut-ok">Capito!</button>`;
+  card.classList.remove("nascosto");
+  card.classList.remove("tut-in"); void card.offsetWidth; card.classList.add("tut-in");
+  card.querySelector(".tut-ok").onclick = () => card.classList.add("nascosto");
+}
+
+// ---------- LISTA ESERCITO ----------
+function aggiornaListaArmata(){
+  const st = GAME.st;
+  const box = $("armata");
+  if (!box) return;
+  if (!st){ box.classList.add("nascosto"); return; }
+  const mie = st.unita.filter(u => u.fazione === st.giocatore);
+  if (!mie.length){ box.classList.add("nascosto"); return; }
+  const perHex = {};
+  for (const u of mie) (perHex[u.hex] = perHex[u.hex] || []).push(u);
+  const nFerme = GAME.unitaFerme(st.giocatore).length;
+  let html = `<div class="ar-titolo">⚔️ Esercito <span class="muto">(${mie.length})</span></div>`;
+  html += nFerme ? `<div class="ar-ferme">▸ ${nFerme} da gestire</div>` : `<div class="ar-ok">✓ tutte gestite</div>`;
+  const keys = Object.keys(perHex).sort((a,b)=>{
+    const fa = perHex[a].some(u=>u.mov>0 && !u.goto && !u.fortificata);
+    const fb = perHex[b].some(u=>u.mov>0 && !u.goto && !u.fortificata);
+    return (fb?1:0)-(fa?1:0);
+  });
+  for (const k of keys){
+    const lista = perHex[k], u0 = lista[0];
+    const ferma = lista.some(u=>u.mov>0 && !u.goto && !u.fortificata);
+    const stato = u0.goto!=null ? "🚶 in marcia" : (u0.fortificata ? "🛡️ di guardia" : (ferma ? "● da muovere" : "✓ mossa"));
+    const nome = D().UNITA[u0.tipo] ? D().UNITA[u0.tipo].nome : u0.tipo;
+    html += `<div class="ar-riga ${ferma?'da-muovere':''}" data-hex="${k}">
+      <span class="ar-n">${lista.length}</span>
+      <span class="ar-info"><b>${nome}</b><br><span class="muto">${nomeLuogo(parseInt(k))} · ${stato}</span></span>
+    </div>`;
+  }
+  box.innerHTML = html;
+  box.classList.remove("nascosto");
+  box.querySelectorAll("[data-hex]").forEach(r => r.onclick = () => {
+    const hex = parseInt(r.dataset.hex);
+    centraSu(hex); selezionaHex(hex); aggiornaTutto();
+  });
+  const titolo = box.querySelector(".ar-titolo");
+  if (titolo) titolo.onclick = (e) => { e.stopPropagation(); box.classList.toggle("espansa"); };
+}
+
+// ---------- MODALI ----------
+let codaModali = [];
+function mostraModale(evt, cb){
+  const sf = $("modale-sfondo");
+  const m = $("modale");
+  let html = "";
+  if (evt.img) html += `<div class="m-illustr"><img src="assets/${evt.img}.jpg" alt=""></div>`;
+  if (evt.ritratto) html += `<canvas class="m-ritratto" width="200" height="260"></canvas>`;
+  html += `<div class="m-titolo">${evt.titolo}</div>`;
+  if (evt.html) html += evt.html;
+  if (evt.testo) html += `<div class="m-testo">${evt.testo.replace(/\n/g,"<br>")}</div>`;
+  html += `<div class="m-scelte">`;
+  evt.scelte.forEach((s, k) => {
+    const caro = s.costoOro && GAME.st.fazioni[GAME.st.giocatore].oro < s.costoOro;
+    html += `<button class="m-btn" data-k="${k}" ${caro?"disabled":""}>${s.label}${s.desc?`<span class="m-desc">${s.desc}</span>`:""}</button>`;
+  });
+  html += `</div>`;
+  m.innerHTML = html;
+  sf.classList.remove("nascosto");
+  // ritratto araldico su canvas
+  if (evt.ritratto){
+    const cv = m.querySelector(".m-ritratto");
+    if (cv){
+      const cc = cv.getContext("2d");
+      // ritratto AI del sovrano iniziale della casata; per i leader successivi resta il ritratto araldico procedurale
+      const st = GAME.st, fz = st && st.fazioni[evt.ritratto.fid];
+      const iniziale = fz && fz.leader && D().LEADER_STORICI[evt.ritratto.fid] && fz.leader.nome === D().LEADER_STORICI[evt.ritratto.fid][0];
+      if (!(iniziale && SPRITES.abilitato.ritratti && SPRITES.drawFit(cc, "ritratto_"+evt.ritratto.fid, 100, 130, null, 240)))
+        ART.ritratto(cc, 100, 130, 176, 232, evt.ritratto.fid, evt.ritratto.tratto);
+    }
+  }
+  // animazione d'ingresso
+  m.classList.remove("m-anim"); void m.offsetWidth; m.classList.add("m-anim");
+  m.querySelectorAll(".m-btn").forEach(b => b.onclick = () => {
+    sf.classList.add("nascosto");
+    AUDIO.sfx("click");
+    cb(parseInt(b.dataset.k));
+  });
+}
+function processaPending(){
+  const st = GAME.st;
+  if (!st || !st.pending.length) return;
+  const evt = st.pending.shift();
+  AUDIO.sfx("campana");
+  // tocco cinematografico sugli eventi maggiori (ere, invasioni, disastri)
+  if (window.FX && evt.titolo && /^[🔱🚨💥☠🔥⚱👑]/.test(evt.titolo)){
+    FX.cinema(1.6);
+    if (/[💥☠🔥]/.test(evt.titolo)) FX.flash("180,40,30",0.5); else FX.flash("240,207,106",0.4);
+  }
+  mostraModale(evt, idx => {
+    GAME.applicaScelta(evt, idx);
+    aggiornaTutto();
+    processaPending();
+  });
+}
+
+// ---------- FINE TURNO ----------
+let inTurno = false;
+function fineTurno(force){
+  if (inTurno || !GAME.st) return;
+  if (!$("modale-sfondo").classList.contains("nascosto")) return;
+  if (!force){
+    const f = GAME.st.fazioni[GAME.st.giocatore];
+    if (!f.ricerca && !(f.percorsoRicerca && f.percorsoRicerca.length)){ proponiRicerca(); return; }
+    const ferme = GAME.unitaFerme(GAME.st.giocatore);
+    if (ferme.length){ proponiAutoTruppe(ferme); return; }
+    const citta = GAME.cittaDaGestire(GAME.st.giocatore);
+    if (citta.length){ proponiAutoCitta(citta); return; }
+  }
+  eseguiFineTurno();
+}
+// nessuna ricerca impostata: chiedi prima di proseguire col resto del turno
+function proponiRicerca(){
+  const st = GAME.st;
+  if (!GAME.techDisponibili(st.giocatore).length){ proseguiDopoRicerca(); return; }
+  mostraModale({ titolo:"📜 Nessuna ricerca in corso",
+    testo:"Il tuo regno non sta studiando nulla di nuovo. Come vuoi procedere?",
+    scelte:[
+      {label:"📜 Scelgo io", desc:"Apri l'elenco completo e imposta un percorso"},
+      {label:"🎓 Suggeriscimi un percorso", desc:"Accoda automaticamente le 4 ricerche più economiche"},
+      {label:"⏭ Ignora per ora", desc:"Nessuna scienza accumulata finché non scegli"}
+    ] }, idx => {
+      if (idx===0){ apriRicerca(); return; }
+      if (idx===1){ GAME.suggerisciPercorso(st.giocatore); AUDIO.sfx("click"); aggiornaTutto(); }
+      proseguiDopoRicerca();
+    });
+}
+function proseguiDopoRicerca(){
+  const ferme = GAME.unitaFerme(GAME.st.giocatore);
+  if (ferme.length){ proponiAutoTruppe(ferme); return; }
+  const citta = GAME.cittaDaGestire(GAME.st.giocatore);
+  if (citta.length){ proponiAutoCitta(citta); return; }
+  eseguiFineTurno();
+}
+// modalità automatica (chiesta ogni turno, non memorizzata): prima le truppe ferme...
+function proponiAutoTruppe(ferme){
+  mostraModale({ titolo:"🪖 "+ferme.length+" "+(ferme.length===1?"truppa ferma":"truppe ferme"),
+    testo:"Come vuoi gestire le truppe che non hanno ancora ordini questo turno?",
+    scelte:[
+      {label:"⚔️ Agisci automaticamente", desc:"Truppe: conquista · Coloni: fonda città · Lavoratori: migliora — ognuno secondo il suo mestiere"},
+      {label:"🛡️ Fortifica tutte", desc:"Restano di guardia: si curano e non compaiono più tra quelle da gestire"},
+      {label:"🖐 Le gestisco io", desc:"Passale in rassegna una per una"},
+      {label:"⏭ Lascia così, finisci il turno", desc:"Non cambia nulla per loro: salta direttamente alla fine del turno"}
+    ] }, idx => {
+      if (idx===2){ autoAvanza(); return; }
+      if (idx===3){ eseguiFineTurno(); return; }
+      if (idx===0) autoEsploraTruppe(ferme); else for (const u of ferme) GAME.fortifica(u.id);
+      AUDIO.sfx("click"); aggiornaTutto();
+      // poi (nello stesso turno) le città senza ordini
+      const citta = GAME.cittaDaGestire(GAME.st.giocatore);
+      if (citta.length) proponiAutoCitta(citta); else eseguiFineTurno();
+    });
+}
+// ...poi le città senza produzione in coda
+function proponiAutoCitta(citta){
+  mostraModale({ titolo:"🏗️ "+citta.length+" "+(citta.length===1?"città senza ordini":"città senza ordini"),
+    testo:"Come vuoi gestire le città che non hanno ancora produzione in coda questo turno?",
+    scelte:[
+      {label:"🏗️ Scegli tu automaticamente", desc:"Sceglie la costruzione più sensata per ciascuna"},
+      {label:"🖐 Le gestisco io", desc:"Passale in rassegna una per una"},
+      {label:"⏭ Lascia così, finisci il turno", desc:"Non cambia nulla per loro: salta direttamente alla fine del turno"}
+    ] }, idx => {
+      if (idx===1){ autoAvanza(); return; }
+      if (idx===2){ eseguiFineTurno(); return; }
+      for (const cm of citta){ const item = GAME.miglioreCostruzione(cm); if (item) GAME.accoda(cm.id, item); }
+      AUDIO.sfx("click"); aggiornaTutto();
+      eseguiFineTurno();
+    });
+}
+// azione automatica per le truppe ferme, diversa per tipo: i lavoratori migliorano le
+// campagne vicine, i coloni cercano una città indipendente indifesa da fondare, le truppe
+// da combattimento (raggruppate per esagono) cercano il bersaglio più vicino da conquistare;
+// se per un'unità non c'è nulla di sensato da fare, esplora verso la frontiera/nebbia più
+// vicina e in ultima istanza si fortifica (garantisce sempre di "smaltire" la lista).
+function autoEsploraTruppe(ferme){
+  const st = GAME.st;
+  const esploraSingola = (u) => {
+    let dest = st.nebbia ? trovaHexNonEsplorato(u.hex) : null;
+    if (dest==null) dest = trovaFrontieraPiuVicina(u.hex);
+    if (dest!=null && dest!==u.hex && GAME.impostaGoto(u.id, dest)) return;
+    GAME.fortifica(u.id);
+  };
+  const gruppiCombattimento = {};
+  for (const u of ferme){
+    if (u.tipo==="lavoratore"){
+      const r = GAME.miglioramentoAutomatico(u.id);
+      if (!r.ok) GAME.fortifica(u.id);
+      continue;
+    }
+    if (u.tipo==="colono"){
+      const r = GAME.autoColonizza(u.id);
+      if (!r.ok) esploraSingola(u);
+      continue;
+    }
+    (gruppiCombattimento[u.hex] = gruppiCombattimento[u.hex] || []).push(u.id);
+  }
+  for (const hex of Object.keys(gruppiCombattimento)){
+    const uids = gruppiCombattimento[hex];
+    const r = GAME.autoConquista(uids, st.giocatore);
+    if (r.ok) continue;
+    for (const uid of uids){
+      const u = st.unita.find(x=>x.id===uid);
+      if (u) esploraSingola(u);
+    }
+  }
+}
+function trovaHexNonEsplorato(startHex){
+  const visti = {}; visti[startHex]=true; const coda=[startHex]; let passi=0;
+  while (coda.length && passi<500){
+    const cur = coda.shift(); passi++;
+    for (const nb of MAP.vicini(cur)){
+      if (visti[nb]) continue; visti[nb]=true;
+      if (!GAME.hexEsplorato(nb)) return nb;
+      coda.push(nb);
+    }
+  }
+  return null;
+}
+function trovaFrontieraPiuVicina(startHex){
+  const st = GAME.st;
+  let best=null, bd=1e9;
+  for (const cm of st.comuni){
+    if (cm.fazione === st.giocatore) continue;
+    const d = MAP.distKm(startHex, cm.hex);
+    if (d<bd){ bd=d; best=cm.hex; }
+  }
+  return best;
+}
+function eseguiFineTurno(){
+  inTurno = true;
+  $("btn-turno").disabled = true;
+  $("btn-turno").textContent = "⏳ La Sicilia si muove...";
+  setTimeout(() => {
+    GAME.fineTurno();
+    AUDIO.sfx("turno");
+    sel = { hex:-1, unita:[], raggio:null };
+    chiudiPannello();
+    aggiornaTutto();
+    $("btn-turno").disabled = false;
+    $("btn-turno").textContent = "Fine Turno ⏭";
+    inTurno = false;
+    const eventoMostrato = mostraEventiTurno();
+    processaPending();
+    // battuta ambientale nei turni tranquilli (spesso ma breve)
+    if (!eventoMostrato && (!GAME.st.fumetti || !GAME.st.fumetti.length) && Math.random()<0.22) battuta("ambiente");
+    if (!GAME.st.vittoria && !eventoMostrato) valutaConsigli();
+    controllaFinePartita();
+  }, 60);
+}
+
+// evidenzia e centra sullo scontro più importante del turno IA che tocca il giocatore
+function mostraEventiTurno(){
+  const st = GAME.st;
+  if (!st.eventiTurno || !st.eventiTurno.length) return false;
+  const ev = st.eventiTurno.slice().sort((a,b)=>(a.vinta?1:0)-(b.vinta?1:0))[0];
+  const h = MAP.hexes[ev.hex]; if (!h) return false;
+  centraSu(ev.hex);
+  if (window.FX){ FX.pulse(h.x, h.y, ev.vinta?"#6fbf6f":"#e05540", 24); FX.battle(h.x, h.y, ev.vinta); }
+  AUDIO.sfx(ev.vinta ? "vittoria" : "battaglia");
+  const dove = ev.nome ? (" a "+ev.nome) : "";
+  consigliere("scontro", ev.vinta
+    ? "«Bona nova, Maestà! Li nostri hannu vintu"+dove+"! 🛡️»"
+    : "«Maestà, ni hannu attaccatu"+dove+"! Curriti a vidiri chi successi.»", 7000);
+  consHex = ev.hex;
+  return true;
+}
+
+function controllaFinePartita(){
+  const st = GAME.st;
+  if (!st.vittoria || st.continua) return;
+  if (st.vittoria==="vinta"){
+    AUDIO.sfx("vittoria");
+    mostraModale({ titolo:"🔱 TRINACRIA È TUA!",
+      testo:"Da Messina a Marsala, da Cefalù a Pachino, ogni campanile suona per te.\n\n"+
+        st.fazioni[st.giocatore].leader.nome+" di "+st.fazioni[st.giocatore].nome+" regna sulla Sicilia unita, nell'anno "+GAME.annoStr(st.anno)+", dopo "+st.turno+" turni di sangue, grano e gloria.\n\n«Cu' avi 'a Sicilia, avi u munnu.»",
+      scelte:[{label:"Continua a regnare", eff:"nulla"},{label:"Nuova partita", eff:"nuova"}] }, idx => {
+        if (idx===1) location.reload();
+        else st.continua = true;
+      });
+  } else {
+    AUDIO.sfx("sconfitta");
+    mostraModale({ titolo:"⚰️ La tua dinastia si spegne",
+      testo:"L'ultima città è caduta, l'ultimo stendardo è bruciato. La storia della Sicilia continuerà — ma senza di te.\n\n«Cu' nesci, arrinesci... ma tu nun ha' nisciutu.»",
+      scelte:[{label:"Nuova partita", eff:"nuova"}] }, () => location.reload());
+  }
+}
+
+// ---------- RICERCA ----------
+// ---------- POI SPONSOR (prototipo fase 1) ----------
+function apriSponsor(spIdx){
+  const st = GAME.st;
+  const sp = MAP.sponsor[spIdx]; if (!sp) return;
+  centraSu(sp.hex);
+  const maps = "https://www.google.com/maps/search/?api=1&query="+sp.lat+","+sp.lon;
+  const zona = [sp.hex, ...MAP.vicini(sp.hex)];
+  const vicine = st.unita.filter(u => u.fazione===st.giocatore && zona.includes(u.hex)).length;
+  const cd = st.sponsorCd && st.sponsorCd[spIdx];
+  const inCd = cd && cd > st.turno;
+  let html = `<div class="sp-head">
+      <div class="sp-logo" style="background:${sp.colore}">${sp.cat}</div>
+      <div class="sp-tit"><div class="sp-nome">${sp.nome}</div><div class="sp-cat">${sp.categoria}</div></div>
+    </div>
+    <div class="sp-desc">${sp.desc}</div>`;
+  if (sp.tel) html += `<div class="sp-riga">📞 <a href="tel:${sp.tel.replace(/\s/g,'')}">${sp.tel}</a></div>`;
+  html += `<button class="btn-lista sp-maps" id="sp-maps">📍 Apri in Google Maps</button>`;
+  if (vicine && !inCd)
+    html += `<button class="btn-lista sp-rif" id="sp-rif">☕ Rifocillati qui — +vigore a ${vicine} ${vicine===1?"truppa":"truppe"}</button>`;
+  else if (vicine && inCd)
+    html += `<div class="sp-riga muto">☕ Già visitato — di nuovo dal turno ${cd}</div>`;
+  else
+    html += `<div class="sp-riga muto">Porta delle truppe qui vicino per «Rifocillarti».</div>`;
+  html += `<div class="sp-ad">Spazio pubblicitario · dimostrativo</div>`;
+  apri(html);
+  const bm = $("sp-maps");
+  if (bm) bm.onclick = () => { try { window.open(maps, "_blank", "noopener"); } catch(e){ GAME.aggiungiLog("Apri: "+maps, "info"); aggiornaTutto(); } };
+  const br = $("sp-rif");
+  if (br) br.onclick = () => {
+    const r = GAME.rifocilla(spIdx);
+    if (r.ok){ AUDIO.sfx("costruito"); incrAiuto(); apriSponsor(spIdx); aggiornaTutto(); mostraFumetti(); }
+  };
+}
+
+// card leggera per un POI di fantasia — nome + link a Maps + invito a "prenderne il posto"
+function apriPOI(idx){
+  const p = MAP.poi[idx]; if (!p) return;
+  centraSu(p.hex);
+  const maps = "https://www.google.com/maps/search/?api=1&query="+p.lat+","+p.lon;
+  let html = `<div class="sp-head">
+      <div class="sp-logo poi-logo">${p.c}</div>
+      <div class="sp-tit"><div class="sp-nome">${p.n}</div><div class="sp-cat">Locale di fantasia — questo posto è libero</div></div>
+    </div>
+    <button class="btn-lista sp-maps" id="poi-maps">📍 Apri la zona in Google Maps</button>
+    <button class="btn-lista" id="poi-sponsor">🏪 Inserisci qui la tua vera attività</button>
+    <div class="sp-ad">Nome di fantasia, nessun legame con locali reali — prendine il posto tu</div>`;
+  apri(html);
+  const bm = $("poi-maps");
+  if (bm) bm.onclick = () => { try { window.open(maps, "_blank", "noopener"); } catch(e){ GAME.aggiungiLog("Apri: "+maps, "info"); aggiornaTutto(); } };
+  const bs = $("poi-sponsor");
+  if (bs) bs.onclick = () => apriSponsorForm({ nome:p.n, cat:p.c, lat:p.lat, lon:p.lon });
+}
+
+// ---------- PORTALE SPONSOR (prototipo fase 2): form + anteprima + demo locale + richiesta ----------
+const SPONSOR_CONTATTO = "info@danilopuglisi.com";  // ⇦ email dove arrivano le richieste (modificabile)
+const SP_CAT = ["🍔","🍕","☕","🍦","🍺","🍽️","🥐","🛍️","💈","🏨","⛽","🏋️"];
+function apriSponsorForm(pre){
+  const st = GAME.st;
+  pre = pre || {};
+  // città selezionabili (capoluoghi + qualche centro), per posizionare lo sponsor
+  const citta = ["Catania","Palermo","Messina","Siracusa","Trapani","Agrigento","Enna","Ragusa","Taormina","Marsala","Caltanissetta","Cefalù"]
+    .filter(n => GAME.st.comuni.some(c=>c.nome===n));
+  let html = `<div class="spf">
+    <p class="spf-intro">Anteprima di come apparirebbe la tua attività sulla mappa. È una <b>demo</b>: prova subito il pin nel gioco, oppure richiedi lo spazio.</p>
+    <label>Nome attività<input id="spf-nome" maxlength="30" value="${(pre.nome||'').replace(/"/g,'&quot;')}" placeholder="Es. Bar Centrale"></label>
+    <label>Categoria (icona)<div id="spf-cats"></div></label>
+    <label>Città<select id="spf-citta">${citta.map(n=>`<option>${n}</option>`).join("")}</select></label>
+    <label>Telefono<input id="spf-tel" maxlength="24" placeholder="+39 ..."></label>
+    <label>Descrizione<textarea id="spf-desc" maxlength="140" rows="2" placeholder="Cosa offri ai giocatori di passaggio"></textarea></label>
+    <div class="spf-prev"><canvas id="spf-canvas" width="120" height="150"></canvas>
+      <div class="spf-hint">Anteprima pin</div></div>
+    <button class="btn-lista sp-rif" id="spf-prova">✨ Provalo subito nel gioco (demo locale)</button>
+    <button class="btn-lista sp-maps" id="spf-invia">✉️ Richiedi questo spazio</button>
+    <button class="btn-lista" id="spf-reset">🗑 Rimuovi i miei sponsor demo</button>
+    <div class="sp-ad">Prototipo · gli spazi reali si concordano col titolare del gioco</div>
+  </div>`;
+  mostraModale({ titolo:"📣 Diventa Sponsor", html, scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
+  // selettore categoria
+  let catSel = pre.cat && SP_CAT.includes(pre.cat) ? pre.cat : "🍔";
+  const catsBox = $("spf-cats");
+  const renderCats = () => { catsBox.innerHTML = SP_CAT.map(e=>`<button type="button" class="spf-cat ${e===catSel?'sel':''}" data-e="${e}">${e}</button>`).join("");
+    catsBox.querySelectorAll(".spf-cat").forEach(b=>b.onclick=()=>{ catSel=b.dataset.e; renderCats(); aggiornaPrev(); }); };
+  const colori = ["#c0392b","#e67e22","#2980b9","#27ae60","#8e44ad","#d4a017"];
+  const coloreFor = s => colori[[...s].reduce((a,c)=>a+c.charCodeAt(0),0) % colori.length];
+  function datiForm(){
+    const nome = ($("spf-nome").value||"").trim() || "La tua attività";
+    return { nome, cat:catSel, colore:coloreFor(nome), tel:($("spf-tel").value||"").trim(),
+             desc:($("spf-desc").value||"").trim() || "La tua descrizione qui.", citta:$("spf-citta").value };
+  }
+  function aggiornaPrev(){
+    const d = datiForm();
+    const cv = $("spf-canvas"); if (!cv) return; const c = cv.getContext("2d");
+    c.clearRect(0,0,cv.width,cv.height);
+    // pin stile mappa
+    const x=60, y=64, r=22;
+    c.beginPath(); c.arc(x,y,r+4,0,7); c.fillStyle="rgba(240,207,106,0.3)"; c.fill();
+    c.fillStyle=d.colore; c.beginPath(); c.moveTo(x-7,y+r*0.6); c.lineTo(x+7,y+r*0.6); c.lineTo(x,y+r+16); c.closePath(); c.fill();
+    c.beginPath(); c.arc(x,y,r,0,7); c.fillStyle="#fff"; c.fill(); c.lineWidth=4; c.strokeStyle=d.colore; c.stroke();
+    c.font="26px serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(d.cat, x, y+1);
+    c.font="bold 12px Georgia"; c.fillStyle="#e8dcc0"; c.fillText(d.nome.slice(0,16), x, y+r+30);
+  }
+  renderCats(); aggiornaPrev();
+  ["spf-nome","spf-tel","spf-desc"].forEach(id=>{ const el=$(id); if(el) el.oninput=aggiornaPrev; });
+  $("spf-prova").onclick = () => {
+    const d = datiForm();
+    const cm = GAME.st.comuni.find(c=>c.nome===d.citta);
+    const raw = window.DATA_COMUNI.find(r=>r[0]===d.citta);
+    if (!raw) return;
+    const seed = [...d.nome].reduce((a,c)=>a+c.charCodeAt(0),0);
+    const lat = raw[1] + (((seed*13)%24-12)/1000);
+    const lon = raw[2] + (((seed*29)%24-12)/1000);
+    const arr = JSON.parse(localStorage.getItem("trinacria_sponsor_custom")||"[]");
+    arr.push({ nome:d.nome, categoria:"La tua attività", cat:d.cat, colore:d.colore, tel:d.tel, desc:d.desc, lat, lon });
+    localStorage.setItem("trinacria_sponsor_custom", JSON.stringify(arr));
+    MAP.build(); GAME.calcolaVisibilita();
+    // ricentra sul nuovo pin
+    const sp = MAP.sponsor[MAP.sponsor.length-1];
+    if (sp){ centraSu(sp.hex); if (view.z<12) view.z=12; view.x=window.innerWidth/2-MAP.hexes[sp.hex].x*view.z; view.y=window.innerHeight/2-MAP.hexes[sp.hex].y*view.z; }
+    $("modale-sfondo").classList.add("nascosto");
+    GAME.aggiungiLog("📣 Sponsor demo «"+d.nome+"» aggiunto a "+d.citta+" — cercalo sulla mappa!", "bene");
+    aggiornaTutto();
+  };
+  $("spf-invia").onclick = () => {
+    const d = datiForm();
+    const corpo = `Richiesta spazio pubblicitario in Trinacria%0D%0A%0D%0AAttività: ${encodeURIComponent(d.nome)}%0D%0ACategoria: ${encodeURIComponent(d.cat)}%0D%0ACittà: ${encodeURIComponent(d.citta)}%0D%0ATelefono: ${encodeURIComponent(d.tel)}%0D%0ADescrizione: ${encodeURIComponent(d.desc)}`;
+    const url = `mailto:${SPONSOR_CONTATTO}?subject=${encodeURIComponent("Trinacria — spazio sponsor: "+d.nome)}&body=${corpo}`;
+    try { window.open(url, "_blank"); } catch(e){ GAME.aggiungiLog("Scrivi a "+SPONSOR_CONTATTO, "info"); }
+  };
+  $("spf-reset").onclick = () => {
+    localStorage.removeItem("trinacria_sponsor_custom");
+    MAP.build(); GAME.calcolaVisibilita();
+    GAME.aggiungiLog("Sponsor demo rimossi.", "info");
+    $("modale-sfondo").classList.add("nascosto"); aggiornaTutto();
+  };
+}
+
+// ---------- GUARDAROBA DEL SOVRANO ----------
+const RARITA_COLORE = { comune:"#9aa0a6", raro:"#4a90d9", epico:"#a05fd9", leggendario:"#e8b83c" };
+const RARITA_LABEL  = { comune:"Comune", raro:"Raro", epico:"Epico", leggendario:"Leggendario" };
+function apriGuardaroba(){
+  const st = GAME.st; if (!st) return;
+  const f = st.fazioni[st.giocatore];
+  f.leader.look = f.leader.look || (ART.lookDefault ? ART.lookDefault(st.giocatore) : {});
+  const stato = GAME.guardarobaStato();
+  const cats = [["veste","👘 Veste"],["manto","🧥 Manto"],["copricapo","💎 Gemma del copricapo"]];
+  let html = `<div class="p-sotto muto">Battaglie, Meraviglie, tecnologie avanzate ed eventi storici sbloccano nuovi capi. Puoi anche comprarli con l'oro (${Math.floor(f.oro)} 💰).</div>
+    <div class="gr-anteprima"><canvas id="gr-canvas" width="130" height="162"></canvas></div>`;
+  for (const [cat, titolo] of cats){
+    const attivo = f.leader.look[cat+"Extra"] || null;
+    html += `<div class="p-sez">${titolo}</div><div class="gr-grid">`;
+    html += `<button class="gr-item ${!attivo?'gr-sel':''}" data-cat="${cat}" data-id="">Base</button>`;
+    for (const it of stato.filter(x=>x.cat===cat)){
+      if (it.sbloccato){
+        html += `<button class="gr-item ${attivo===it.id?'gr-sel':''}" style="border-color:${RARITA_COLORE[it.rarita]}" data-cat="${cat}" data-id="${it.id}">
+          ${it.nome}<br><small style="color:${RARITA_COLORE[it.rarita]}">${RARITA_LABEL[it.rarita]}</small></button>`;
+      } else {
+        const puoComprare = f.oro >= it.costoOro;
+        html += `<button class="gr-item gr-bloccato" style="border-color:${RARITA_COLORE[it.rarita]}" data-compra="${it.id}" ${puoComprare?"":"disabled"}>
+          🔒 ${it.nome}<br><small style="color:${RARITA_COLORE[it.rarita]}">${RARITA_LABEL[it.rarita]} · ${it.costoOro}💰</small></button>`;
+      }
+    }
+    html += `</div>`;
+  }
+  mostraModale({ titolo:"👗 Guardaroba del Sovrano", html:`<div class="m-scroll">${html}</div>`, scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
+  const disegnaPreview = () => {
+    const cv = $("gr-canvas"); if (!cv) return;
+    const cx = cv.getContext("2d"); cx.clearRect(0,0,cv.width,cv.height);
+    ART.sovrano(cx, 65, 81, 120, 150, f.leader.look, st.giocatore);
+  };
+  disegnaPreview();
+  document.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
+    GAME.equipaggiaGuardaroba(b.dataset.cat, b.dataset.id || null);
+    apriGuardaroba(); // ridisegna con la nuova selezione
+  });
+  document.querySelectorAll("[data-compra]").forEach(b => b.onclick = () => {
+    if (GAME.compraGuardaroba(b.dataset.compra)){ AUDIO.sfx("costruito"); apriGuardaroba(); aggiornaTutto(); }
+  });
+}
+
+// ---------- AGGIORNAMENTO ESERCITO (unità di linea alla nuova era) ----------
+function apriAggiornamento(){
+  const st = GAME.st; if (!st) return;
+  const f = st.fazioni[st.giocatore];
+  const lista = GAME.unitaAggiornabili(st.giocatore);
+  let html = `<div class="p-sotto muto">Le unità di linea (non uniche, non di supporto) possono essere aggiornate al modello della tua era attuale, tornando a piena forza. Oro disponibile: ${Math.floor(f.oro)} 💰.</div>`;
+  if (!lista.length){
+    html += `<div class="p-riga muto">Nessuna truppa da aggiornare al momento: sono già tutte al passo coi tempi.</div>`;
+  } else {
+    html += `<button class="btn-lista" id="btn-upg-tutte">⚔️ Aggiorna tutte quelle che posso permettermi</button>`;
+    for (const it of lista){
+      const ok = f.oro >= it.costo;
+      html += `<button class="btn-lista" data-upg="${it.uid}" ${ok?"":"disabled"}>${it.vecchioNome} → <b>${it.nuovoNome}</b> <span class="muto">— ${it.costo} oro</span></button>`;
+    }
+  }
+  mostraModale({ titolo:"⚔️ Aggiorna Esercito", html:`<div class="m-scroll">${html}</div>`, scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
+  const btnTutte = $("btn-upg-tutte");
+  if (btnTutte) btnTutte.onclick = () => {
+    const n = GAME.upgradaEconomiche(st.giocatore);
+    AUDIO.sfx(n>0?"costruito":"click");
+    apriAggiornamento(); aggiornaTutto();
+  };
+  document.querySelectorAll("[data-upg]").forEach(b => b.onclick = () => {
+    if (GAME.upgradaUnita(parseInt(b.dataset.upg), st.giocatore)){ AUDIO.sfx("costruito"); apriAggiornamento(); aggiornaTutto(); }
+  });
+}
+
+function apriAggiornamentoMigliorie(){
+  const st = GAME.st; if (!st) return;
+  const f = st.fazioni[st.giocatore];
+  const lista = GAME.migliorieAggiornabili(st.giocatore);
+  let html = `<div class="p-sotto muto">Le migliorie del territorio si ammodernano con l'era: campi, vigneti, miniere e boschi possono diventare manifatture più redditizie. Oro disponibile: ${Math.floor(f.oro)} 💰.</div>`;
+  if (!lista.length){
+    html += `<div class="p-riga muto">Nessuna miglioria da ammodernare al momento.</div>`;
+  } else {
+    html += `<button class="btn-lista" id="btn-upgm-tutte">🏭 Ammoderna tutte quelle che posso permettermi</button>`;
+    for (const it of lista){
+      const ok = f.oro >= it.costo;
+      html += `<button class="btn-lista" data-upgm="${it.hex}" ${ok?"":"disabled"}>${it.vecchioNome} → <b>${it.nuovoNome}</b> <span class="muto">— ${it.costo} oro</span></button>`;
+    }
+  }
+  mostraModale({ titolo:"🏭 Ammoderna Migliorie", html:`<div class="m-scroll">${html}</div>`, scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
+  const btnTutte = $("btn-upgm-tutte");
+  if (btnTutte) btnTutte.onclick = () => {
+    const n = GAME.upgradaMiglliorieEconomiche(st.giocatore);
+    AUDIO.sfx(n>0?"costruito":"click");
+    apriAggiornamentoMigliorie(); aggiornaTutto();
+  };
+  document.querySelectorAll("[data-upgm]").forEach(b => b.onclick = () => {
+    if (GAME.upgradaMiglioria(parseInt(b.dataset.upgm), st.giocatore)){ AUDIO.sfx("costruito"); apriAggiornamentoMigliorie(); aggiornaTutto(); }
+  });
+}
+
+// ---------- POTERI DEL SOVRANO ----------
+function apriPoteri(){
+  const st = GAME.st; if (!st) return;
+  const poteri = GAME.poteriStato();
+  let html = `<div class="p-titolo">✨ Poteri del Sovrano</div>
+    <div class="p-sotto muto">Mosse speciali a ricarica: usale nei momenti giusti.</div>`;
+  for (const p of poteri){
+    const stato = p.pronto ? "<span style='color:#9be89b'>● Pronto</span>" : "<span class='muto'>↻ tra "+p.attesa+" turni</span>";
+    const tgt = p.bersaglio==="nemico" ? "🎯 area nemica" : (p.bersaglio==="amico" ? "🛡️ tuo territorio" : "🌍 tutto il regno");
+    html += `<button class="btn-lista potere-riga" data-potere="${p.id}" ${p.pronto?"":"disabled"}>
+      <span class="pot-ico">${ico(p)}</span> <b>${p.nome}</b> ${stato}<br>
+      <span class="muto">${tgt} · ricarica ${p.ricarica} turni</span><br>
+      <span class="muto pot-desc">${p.desc}</span></button>`;
+  }
+  apri(html);
+  document.querySelectorAll("[data-potere]").forEach(b => b.onclick = () => {
+    const id = b.dataset.potere;
+    const p = D().POTERI.find(x=>x.id===id);
+    if (!GAME.poterePronto(id)) return;
+    chiudiPannello();
+    if (p.bersaglio==="globale"){
+      if (GAME.usaPotere(id, null)){ AUDIO.sfx("vittoria"); incrAiuto(); GAME.calcolaVisibilita(); aggiornaTutto(); mostraFumetti(); }
+    } else {
+      modoPotere = { id, bersaglio:p.bersaglio };
+      const banner = $("potere-banner");
+      banner.innerHTML = `${ico(p)} <b>${p.nome}</b> — tocca ${p.bersaglio==="nemico"?"un <b>nemico</b> da colpire":"una <b>tua</b> zona"} <button id="pot-annulla">✕ annulla</button>`;
+      banner.classList.remove("nascosto");
+      $("pot-annulla").onclick = (e) => { e.stopPropagation(); annullaPotere(); };
+    }
+  });
+}
+function annullaPotere(){ modoPotere = null; const b=$("potere-banner"); if (b) b.classList.add("nascosto"); }
+function applicaPotereSuHex(i){
+  const p = modoPotere; annullaPotere();
+  if (!p) return;
+  if (GAME.usaPotere(p.id, i)){
+    AUDIO.sfx("battaglia"); incrAiuto();
+    GAME.calcolaVisibilita(); centraSu(i); aggiornaTutto(); mostraFumetti();
+  } else {
+    consigliere("cons", "Non si può lanciare qui, Maestà.", 2500);
+  }
+}
+
+function apriRicerca(){
+  const st = GAME.st;
+  const f = st.fazioni[st.giocatore];
+  const percorso = GAME.percorsoRicercaStato(st.giocatore);
+  let html = "";
+  if (percorso.length){
+    html += `<div class="m-sez">🛤️ Percorso pianificato (dopo quella in corso)</div>`;
+    percorso.forEach((t,k) => { html += `<div class="coda-item">${k+1}. ${t.nome} <button class="btn-x" data-togli="${t.id}">✕</button></div>`; });
+  }
+  html += `<div class="m-sez"></div><button class="btn-lista" id="btn-suggerisci-perc">🎓 Suggeriscimi un percorso (le 4 più economiche)</button>`;
+  for (let e=0; e<=st.era; e++){
+    html += `<div class="m-era">${D().ERE[e].nome}</div><div class="m-tech-gruppo">`;
+    for (const t of D().TECH.filter(x=>x.era===e)){
+      const fatta = f.techs.includes(t.id);
+      const inCorso = f.ricerca===t.id;
+      const inCoda = percorso.some(x=>x.id===t.id);
+      const ct = GAME.costoTech(t);
+      const badge = t.ramo ? `<span class="m-ramo ramo-${t.ramo}">${t.ramo}</span>` : "";
+      html += `<button class="m-tech ${fatta?'fatta':''} ${inCorso?'incorso':''}" data-tech="${t.id}" ${(fatta||inCorso||inCoda)?"disabled":""}>
+        <b>${t.nome}</b>${badge} <span class="muto">${ct}📜${inCorso?" — "+Math.min(100,Math.round(f.sciAcc/ct*100))+"%":(inCoda?" — in coda":"")}</span>
+        <span class="m-desc">${t.desc}</span></button>`;
+    }
+    html += `</div>`;
+  }
+  mostraModale({ titolo:"📜 Ricerca — scienza: +"+GAME.reseFazione(st.giocatore).scienza.toFixed(1)+"/turno",
+    html:`<div class="m-scroll">${html}</div>`, scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
+  document.querySelectorAll("[data-tech]").forEach(b => b.onclick = () => {
+    GAME.accodaRicerca(st.giocatore, b.dataset.tech);
+    AUDIO.sfx("click");
+    apriRicerca(); aggiornaTutto();
+  });
+  document.querySelectorAll("[data-togli]").forEach(b => b.onclick = () => {
+    GAME.rimuoviDaPercorso(st.giocatore, b.dataset.togli);
+    apriRicerca(); aggiornaTutto();
+  });
+  const bs = $("btn-suggerisci-perc");
+  if (bs) bs.onclick = () => { GAME.suggerisciPercorso(st.giocatore); AUDIO.sfx("click"); apriRicerca(); aggiornaTutto(); };
+}
+
+// ---------- CUCINA & TIPICITÀ ----------
+function bonusDopTxt(d){
+  const p=[]; if(d.oro)p.push("+"+d.oro+" oro"); if(d.cibo)p.push("+"+d.cibo+" cibo"); if(d.cultura)p.push("+"+d.cultura+" cultura");
+  return p.join(" ");
+}
+function apriCucina(){
+  const st = GAME.st, fid = st.giocatore;
+  const cuc = GAME.cucina(fid);
+  const controllati = new Set(cuc.dop.map(d=>d.id));
+  let html = `<div class="cuc-sez">🧺 Prodotti tipici — ${cuc.dop.length} su ${D().DOP.length}</div><div class="cuc-grid">`;
+  for (const d of D().DOP){
+    const ok = controllati.has(d.id);
+    const cm = st.comuni.find(c=>c.dop===d.id);
+    html += `<div class="cuc-dop ${ok?'ok':''}">
+      <div class="cuc-ic">${ico(d)}</div>
+      <div class="cuc-info"><b>${d.nome}</b><br>
+      <span class="muto">${cm?cm.nome:''} · ${bonusDopTxt(d)}</span>
+      ${ok?"<br><span class='cuc-si'>✓ nella tua dispensa</span>":"<br><span class='cuc-lock'>🔒 conquista "+(cm?cm.nome:'il comune')+(d.tech?" e scopri "+(D().TECH.find(t=>t.id===d.tech)||{}).nome:"")+"</span>"}</div>
+    </div>`;
+  }
+  html += `</div>`;
+  html += `<div class="cuc-sez">🍽️ Piatti tipici <span class="muto">(bonus permanenti finché possiedi gli ingredienti)</span></div>`;
+  for (const p of D().PIATTI){
+    const sbloccato = cuc.piatti.some(x=>x.id===p.id);
+    const req = Object.entries(p.reqCat).map(([k,v])=>v+" "+k).join(", ");
+    html += `<div class="cuc-piatto ${sbloccato?'ok':''}">${ico(p)} <b>${p.nome}</b> — ${p.testo}${sbloccato?" <span class='cuc-si'>✓ servito!</span>":" <span class='muto'>· serve: "+req+"</span>"}</div>`;
+  }
+  html += `<div class="cuc-sez">🎉 Sagre e feste patronali <span class="muto">(oro: ${Math.floor(st.fazioni[fid].oro)})</span></div>`;
+  for (const s of D().SAGRE){
+    const attiva = (st.sagreAttive||[]).find(x=>x.fid===fid && x.id===s.id);
+    const ok = st.fazioni[fid].oro>=s.costo && !attiva;
+    html += `<button class="btn-lista" data-sagra="${s.id}" ${ok?"":"disabled"}>${ico(s)} <b>${s.nome}</b> — ${s.testo} <span class="muto">(${s.costo} oro)${attiva?" · in corso: "+attiva.turni+"t":""}</span></button>`;
+  }
+  mostraModale({ titolo:"🍴 La Cucina di Sicilia", html:`<div class="m-scroll">${html}</div>`, scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
+  document.querySelectorAll("[data-sagra]").forEach(b => b.onclick = () => {
+    if (GAME.faSagra(fid, b.dataset.sagra)){ AUDIO.sfx("vittoria"); $("modale-sfondo").classList.add("nascosto"); aggiornaTutto(); apriCucina(); }
+  });
+  tutorial("prima_cucina", "La cucina siciliana", "Ogni territorio dà un <b>prodotto tipico</b> (DOP): conquistalo per un bonus permanente.<br><br>Raccogliendo le categorie giuste sblocchi <b>piatti</b> con grandi bonus, e puoi indire <b>sagre</b> per spinte temporanee. «Cu' mancia fa muddìca!»");
+}
+
+// ---------- DIPLOMAZIA ----------
+function apriDiplomazia(){
+  const st = GAME.st;
+  const gioc = st.giocatore;
+  let html = "";
+  for (const f of st.fazioni){
+    if (f.id===gioc) continue;
+    if (f.eliminata){ html += `<div class="dip-riga muto">💀 ${f.nome} — eliminata</div>`; continue; }
+    const d = st.fazioni[gioc].diplo[f.id];
+    const att = d.atteggiamento;
+    const faccia = att>15 ? "😊" : (att>-10 ? "😐" : "😠");
+    const statoTxt = d.stato==="guerra" ? "<b class='rosso'>⚔️ GUERRA</b>" : (d.stato==="patto" ? "🤝 Patto ("+d.turniPatto+"t)" : "🕊️ Pace");
+    const comm = d.commercio>0 ? " 💰("+d.commercio+"t)" : "";
+    html += `<div class="dip-riga">
+      <span style="color:${D().FAZIONI[f.id].colore}">◆</span> <b>${f.nome}</b> — ${f.leader.nome} ${faccia}
+      <span class="muto">forza ${GAME.forzaTotale(f.id)}</span><br>
+      ${statoTxt}${comm} &nbsp;`;
+    if (d.stato==="guerra") html += `<button class="btn-dip" data-az="pace:${f.id}">Proponi pace</button>`;
+    else {
+      if (d.stato==="pace") html += `<button class="btn-dip" data-az="guerra:${f.id}">⚔️ Guerra</button>
+        <button class="btn-dip" data-az="patto:${f.id}">🤝 Patto</button>`;
+      if (d.commercio<=0) html += `<button class="btn-dip" data-az="commercio:${f.id}">💰 Commercio</button>`;
+      html += `<button class="btn-dip" data-az="regalo:${f.id}">🎁 Regalo (50)</button>`;
+    }
+    html += `</div>`;
+  }
+  for (const inv of st.invasori){
+    const attivi = st.unita.some(u=>u.fazione===inv.id) || st.comuni.some(c=>c.fazione===inv.id);
+    if (attivi) html += `<div class="dip-riga"><span style="color:${inv.colore}">◆</span> <b>${inv.nome}</b> — invasori ${st.fazioni[gioc].accordi["inv"+inv.id]>0?"(tributo pagato: "+st.fazioni[gioc].accordi["inv"+inv.id]+"t)":"<b class='rosso'>ostili</b>"}</div>`;
+  }
+  mostraModale({ titolo:"🤝 Diplomazia", html:`<div class="m-scroll">${html}</div>`,
+    scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
+  document.querySelectorAll("[data-az]").forEach(b => b.onclick = () => {
+    const [az, fidS] = b.dataset.az.split(":");
+    const fid = parseInt(fidS);
+    let esito = true;
+    if (az==="guerra") GAME.dichiaraGuerra(gioc, fid);
+    if (az==="pace") esito = GAME.proponiPace(gioc, fid);
+    if (az==="patto") esito = GAME.proponiPatto(gioc, fid);
+    if (az==="commercio") esito = GAME.proponiCommercio(gioc, fid);
+    if (az==="regalo") esito = GAME.regalo(gioc, fid);
+    $("modale-sfondo").classList.add("nascosto");
+    if (!esito) GAME.aggiungiLog(st.fazioni[fid].nome+" rifiuta la proposta.", "male");
+    aggiornaTutto();
+    apriDiplomazia();
+  });
+}
+
+// ---------- MENU ----------
+function apriMenu(){
+  const salv = SAVE.lista();
+  let html = `<div class="m-sez">Salva partita</div>`;
+  for (const s of salv){
+    if (s.chiave==="auto") continue;
+    html += `<button class="btn-lista" data-salva="${s.chiave}">💾 ${s.chiave.toUpperCase()} ${s.vuoto?"(vuoto)":"— "+s.info}</button>`;
+  }
+  html += `<div class="m-sez">Carica</div>`;
+  for (const s of salv){
+    if (s.vuoto) continue;
+    html += `<button class="btn-lista" data-carica="${s.chiave}">📂 ${s.chiave==="auto"?"Autosalvataggio":s.chiave.toUpperCase()} — ${s.info}</button>`;
+  }
+  const nAggiorn = GAME.unitaAggiornabili(GAME.st.giocatore).length;
+  const nAggiornM = GAME.migliorieAggiornabili(GAME.st.giocatore).length;
+  html += `<div class="m-sez"></div>
+    <button class="btn-lista" id="btn-guardaroba">👗 Guardaroba del Sovrano</button>
+    <button class="btn-lista" id="btn-esercito">⚔️ Aggiorna Esercito${nAggiorn?" ("+nAggiorn+")":""}</button>
+    <button class="btn-lista" id="btn-migliorie">🏭 Ammoderna Migliorie${nAggiornM?" ("+nAggiornM+")":""}</button>
+    <button class="btn-lista" id="btn-sponsor">📣 Diventa Sponsor (demo)</button>
+    <button class="btn-lista" id="btn-aiuto">❓ Come si gioca</button>
+    <button class="btn-lista" id="btn-nuova">🔄 Nuova partita</button>`;
+  mostraModale({ titolo:"💾 Menu", html:`<div class="m-scroll">${html}</div>`,
+    scelte:[{label:"Torna al gioco", eff:"nulla"}] }, ()=>{});
+  document.querySelectorAll("[data-salva]").forEach(b => b.onclick = () => {
+    SAVE.salva(b.dataset.salva);
+    $("modale-sfondo").classList.add("nascosto");
+    GAME.aggiungiLog("Partita salvata ("+b.dataset.salva+").", "bene");
+    aggiornaTutto();
+  });
+  document.querySelectorAll("[data-carica]").forEach(b => b.onclick = () => {
+    if (SAVE.carica(b.dataset.carica)){
+      $("modale-sfondo").classList.add("nascosto");
+      entraInGioco();
+    }
+  });
+  $("btn-nuova").onclick = () => location.reload();
+  $("btn-sponsor").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriSponsorForm(); };
+  $("btn-guardaroba").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriGuardaroba(); };
+  $("btn-esercito").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriAggiornamento(); };
+  $("btn-migliorie").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriAggiornamentoMigliorie(); };
+  $("btn-aiuto").onclick = () => {
+    $("modale-sfondo").classList.add("nascosto");
+    mostraModale({ titolo:"❓ Come si gioca", testo:
+      "🖱️ Trascina per muovere la mappa, rotella per lo zoom.\n\n"+
+      "⚔️ Clicca le tue truppe → gli esagoni si illuminano → clicca dove muovere o chi attaccare (vedrai l'anteprima della battaglia).\n\n"+
+      "🏘️ Clicca una tua città per reclutare truppe e costruire edifici e meraviglie. Clicca un esagono del tuo territorio per costruire fattorie, miniere e vigneti.\n\n"+
+      "🧱 Le città murate resistono: bombarda le mura con le macchine d'assedio, poi assalta.\n\n"+
+      "📜 Scegli sempre una ricerca. 🤝 Usa la diplomazia: i patti proteggono le spalle.\n\n"+
+      "😊 Tieni basso il malcontento (templi, integrazione culturale) o il popolo insorgerà.\n\n"+
+      "🏆 Vinci eliminando le fazioni rivali (e cacciando gli invasori) o controllando il 75% dei comuni.\n\n"+
+      "⏭ Invio = Fine turno. Esc = deseleziona.",
+      scelte:[{label:"Chiaro!", eff:"nulla"}] }, ()=>{});
+  };
+}
+
+return { initAvvio, initGioco, aggiornaTutto, processaPending, ridisegna,
+         get view(){ return view; } };
+})();

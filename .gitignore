@@ -1,0 +1,6 @@
+desktop/node_modules/
+desktop/dist/
+desktop/game/
+assets/ref/
+.claude/
+*.zip

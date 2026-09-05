@@ -1,0 +1,25 @@
+{
+  "name": "trinacria-desktop",
+  "productName": "TRINACRIA — La Conquista della Sicilia",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke",
+    "prepara": "node prepara-build.js",
+    "dist": "node prepara-build.js && electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.danilopuglisi.trinacria",
+    "productName": "TRINACRIA",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "steam.js", "game/**/*"],
+    "asarUnpack": ["node_modules/steamworks.js/**/*"],
+    "win": { "target": "dir" }
+  }
+}

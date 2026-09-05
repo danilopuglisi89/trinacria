@@ -1,0 +1,80 @@
+// TRINACRIA — nomi di luoghi (solo etichette, non territori): geografia, coste, siti storici
+// [nome, lat, lon, tipo, zMin]  tipo: catena|monte|fiume|lago|cascata|capo|golfo|stretto|sito|piana|zona|isola
+// zMin = zoom minimo per mostrarlo (più alto = compare solo avvicinandosi)
+window.DATA_LUOGHI = [
+  // --- Catene e monti ---
+  ["Monti Nebrodi", 37.90, 14.68, "catena", 4.5],
+  ["Madonie", 37.86, 14.01, "catena", 4.5],
+  ["Monti Peloritani", 38.10, 15.42, "catena", 5],
+  ["Monti Iblei", 37.05, 14.88, "catena", 4.5],
+  ["Monti Sicani", 37.62, 13.52, "catena", 5],
+  ["Rocca Busambra", 37.85, 13.40, "monte", 8],
+  ["Pizzo Carbonara", 37.885, 14.03, "monte", 9],
+  ["Monte San Calogero", 37.58, 13.53, "monte", 9],
+  ["Rocca di Cerere", 37.57, 14.28, "monte", 9],
+  // --- Fiumi ---
+  ["Fiume Simeto", 37.44, 14.95, "fiume", 6],
+  ["Fiume Salso", 37.28, 13.98, "fiume", 6.5],
+  ["Fiume Belice", 37.70, 12.95, "fiume", 6.5],
+  ["Fiume Platani", 37.45, 13.35, "fiume", 7],
+  ["Fiume Alcantara", 37.86, 15.10, "fiume", 7],
+  ["Fiume Anapo", 37.08, 15.05, "fiume", 7.5],
+  ["Fiume Dittaino", 37.52, 14.60, "fiume", 8],
+  ["Fiume Gornalunga", 37.35, 14.75, "fiume", 8.5],
+  // --- Laghi ---
+  ["Lago di Pergusa", 37.518, 14.30, "lago", 7],
+  ["Lago Pozzillo", 37.61, 14.66, "lago", 8],
+  ["Lago Arancio", 37.60, 13.12, "lago", 8.5],
+  ["Biviere di Gela", 37.02, 14.35, "lago", 9],
+  ["Lago Ancipa", 37.795, 14.628, "lago", 8.5],
+  ["Lago di Piana degli Albanesi", 37.947, 13.283, "lago", 8],
+  ["Laghetti di Marinello", 38.148, 14.970, "lago", 8.5],
+  // --- Cascate e gole ---
+  ["Gole dell'Alcantara", 37.878, 15.170, "cascata", 8],
+  ["Cavagrande del Cassibile", 36.955, 15.106, "cascata", 8.5],
+  // --- Parchi e riserve naturali ---
+  ["Riserva dello Zingaro", 38.083, 12.628, "zona", 7.5],
+  ["Riserva di Vendicari", 36.798, 15.096, "zona", 7.5],
+  ["Saline di Trapani e Paceco", 37.953, 12.472, "zona", 8],
+  // --- Capi ---
+  ["Capo Peloro", 38.263, 15.643, "capo", 6],
+  ["Capo Passero", 36.685, 15.135, "capo", 6],
+  ["Capo Lilibeo", 37.79, 12.43, "capo", 6.5],
+  ["Capo San Vito", 38.18, 12.73, "capo", 7],
+  ["Capo d'Orlando", 38.16, 14.75, "capo", 8],
+  ["Capo Zafferano", 38.11, 13.53, "capo", 8.5],
+  ["Capo Murro di Porco", 37.00, 15.32, "capo", 9],
+  // --- Golfi e stretti ---
+  ["Golfo di Castellammare", 38.06, 12.90, "golfo", 5.5],
+  ["Golfo di Palermo", 38.16, 13.38, "golfo", 6],
+  ["Golfo di Catania", 37.38, 15.16, "golfo", 6],
+  ["Golfo di Gela", 37.02, 14.22, "golfo", 6.5],
+  ["Golfo di Termini", 38.02, 13.75, "golfo", 8],
+  ["Stretto di Messina", 38.18, 15.60, "stretto", 5],
+  // --- Piane e zone ---
+  ["Piana di Catania", 37.40, 14.85, "piana", 5.5],
+  ["Conca d'Oro", 38.10, 13.34, "piana", 6.5],
+  ["Val di Noto", 36.95, 15.00, "zona", 5.5],
+  ["Val Demone", 37.95, 14.90, "zona", 5.5],
+  ["Val di Mazara", 37.65, 12.90, "zona", 5.5],
+  // --- Siti storici e archeologici ---
+  ["Valle dei Templi", 37.290, 13.585, "sito", 6],
+  ["Segesta", 37.941, 12.832, "sito", 7],
+  ["Selinunte", 37.583, 12.825, "sito", 7],
+  ["Teatro di Taormina", 37.852, 15.292, "sito", 8],
+  ["Neapolis di Siracusa", 37.076, 15.276, "sito", 8],
+  ["Villa del Casale", 37.365, 14.335, "sito", 7.5],
+  ["Morgantina", 37.425, 14.472, "sito", 8.5],
+  ["Necropoli di Pantalica", 37.128, 15.020, "sito", 8.5],
+  ["Solunto", 38.088, 13.535, "sito", 9],
+  ["Tindari", 38.143, 15.045, "sito", 8.5],
+  ["Cava d'Ispica", 36.82, 14.87, "sito", 9],
+  ["Mozia", 37.87, 12.47, "sito", 8.5],
+  ["Akrai", 37.065, 14.905, "sito", 9],
+  ["Cappella Palatina", 38.111, 13.353, "sito", 9],
+  ["Teatro Massimo", 38.122, 13.361, "sito", 9],
+  ["Scala dei Turchi", 37.291, 13.464, "sito", 8],
+  ["Duomo di Siracusa", 37.058, 15.293, "sito", 8.5],
+  ["Castello Ursino", 37.497, 15.083, "sito", 9],
+  ["Cretto di Burri", 37.845, 12.905, "sito", 8.5]
+];

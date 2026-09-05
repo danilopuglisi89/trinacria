@@ -1,0 +1,519 @@
+/* TRINACRIA */
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; overflow:hidden; background:#14202b;
+  font-family: Georgia, 'Times New Roman', serif; color:#e8dfc8; }
+.nascosto { display:none !important; }
+.muto { color:#9a9077; font-size:0.88em; }
+.rosso { color:#e05540; }
+.giallo { color:#d9b23f; }
+button { font-family:inherit; cursor:pointer; }
+
+/* ---------- SCHERMATA AVVIO ---------- */
+#avvio {
+  position:fixed; inset:0; overflow-y:auto; text-align:center; padding:24px;
+  background: linear-gradient(rgba(12,18,26,0.62), rgba(12,18,26,0.9)), url("../assets/intro_bg.jpg");
+  background-size: cover; background-position: center top;
+}
+#avvio h1 {
+  font-size:66px; letter-spacing:16px; color:#f0cf6a; margin-top:14px;
+  text-shadow: 0 2px 0 #7a5a1a, 0 4px 18px rgba(0,0,0,0.85);
+  animation: titolo-in 1.1s ease-out;
+}
+@keyframes titolo-in { from { opacity:0; transform:translateY(-18px); letter-spacing:40px; } to { opacity:1; } }
+#avvio .sottotitolo { color:#e6d6a8; font-style:italic; margin-bottom:22px; font-size:18px; text-shadow:0 1px 4px rgba(0,0,0,0.9); }
+#avvio-fazioni {
+  display:flex; flex-wrap:wrap; gap:12px; justify-content:center; max-width:1200px; margin:0 auto 20px;
+}
+.carta-fazione {
+  width:224px; background:rgba(16,26,36,0.9); border:2px solid #3a4a58; border-radius:12px;
+  padding:12px; cursor:pointer; transition: transform .15s, border-color .15s, box-shadow .15s; text-align:left;
+  backdrop-filter: blur(2px);
+}
+.carta-fazione:hover { transform: translateY(-4px); border-color:#8a7a52; box-shadow:0 8px 22px rgba(0,0,0,0.5); }
+.carta-fazione.scelta { border-color:#d9a520; box-shadow:0 0 22px rgba(217,165,32,0.45); }
+.cf-top { display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:6px; }
+.cf-crest, .cf-terr { display:block; }
+.cf-terr { background:rgba(30,77,107,0.25); border-radius:6px; }
+.cf-nome { font-size:21px; font-weight:bold; }
+.cf-leader { font-size:12px; color:#d9c48a; margin-top:1px; }
+.cf-motto { font-style:italic; color:#b8ab8a; font-size:12.5px; margin:5px 0 7px; }
+.cf-bonus { font-size:12.5px; color:#9fc490; }
+#avvio-opzioni { margin:12px 0 20px; }
+#avvio-opzioni label { margin:0 12px; font-size:16px; }
+#avvio-opzioni select {
+  background:#1c2c3a; color:#e8dfc8; border:1px solid #3a4a58; border-radius:6px;
+  padding:6px 10px; font-family:inherit; font-size:15px;
+}
+#btn-inizia {
+  font-size:24px; padding:14px 48px; background:linear-gradient(#d9a520,#a87b12);
+  color:#1a1408; border:none; border-radius:10px; font-weight:bold; letter-spacing:2px;
+  box-shadow:0 4px 16px rgba(0,0,0,0.5);
+}
+#btn-inizia:hover { filter:brightness(1.1); }
+#avvio-salvataggi { margin-top:22px; display:flex; flex-direction:column; gap:6px; align-items:center; }
+.btn-salv {
+  background:#1c2c3a; color:#e8dfc8; border:1px solid #3a4a58; border-radius:6px;
+  padding:8px 16px; font-size:14px; min-width:380px;
+}
+.btn-salv:hover { border-color:#d9a520; }
+
+/* ---------- CREAZIONE SOVRANO ---------- */
+#crea-sovrano {
+  max-width:560px; margin:6px auto 18px; background:rgba(16,26,36,0.9);
+  border:2px solid #8a7a52; border-radius:14px; padding:14px 18px; backdrop-filter:blur(2px);
+}
+.cs-titolo { color:#f0cf6a; font-size:20px; letter-spacing:3px; margin-bottom:10px; text-shadow:0 1px 4px #000; }
+.cs-corpo { display:flex; gap:18px; align-items:flex-start; justify-content:center; flex-wrap:wrap; }
+#sov-ritratto { flex:0 0 auto; filter:drop-shadow(0 4px 14px rgba(0,0,0,0.6)); border-radius:10px; }
+#cs-opzioni { flex:1 1 240px; min-width:230px; display:flex; flex-direction:column; gap:7px; text-align:left; }
+.cs-riga { display:flex; align-items:center; gap:8px; font-size:14px; }
+.cs-lab { flex:0 0 92px; color:#d9c48a; }
+.cs-val { flex:1 1 auto; text-align:center; color:#e8dfc8; background:#1c2c3a; border-radius:6px; padding:5px 6px; font-size:13px; }
+.cs-fre {
+  flex:0 0 auto; width:34px; height:34px; border:1px solid #3a4a58; border-radius:7px;
+  background:#24384a; color:#f0cf6a; font-size:15px; line-height:1;
+}
+.cs-fre:hover { border-color:#d9a520; background:#2e4658; }
+.cs-nome select {
+  flex:1 1 auto; background:#1c2c3a; color:#e8dfc8; border:1px solid #3a4a58; border-radius:6px;
+  padding:6px 8px; font-family:inherit; font-size:14px;
+}
+
+/* ritratto sovrano nella topbar */
+#leader-box { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+#sov-topbar { flex:0 0 auto; border-radius:6px; }
+.lb-txt { line-height:1.25; }
+
+/* ---------- GIOCO ---------- */
+#gioco { position:fixed; inset:0; }
+#mappa { position:absolute; inset:0; cursor:grab; touch-action:none; }
+#mappa:active { cursor:grabbing; }
+
+#topbar {
+  position:absolute; top:0; left:0; right:0; height:46px;
+  background:linear-gradient(rgba(12,18,26,0.95), rgba(12,18,26,0.82));
+  border-bottom:1px solid #3a4a58; display:flex; align-items:center; gap:18px;
+  padding:0 14px; font-size:15px; z-index:10;
+}
+#logo { color:#d9a520; font-weight:bold; letter-spacing:4px; font-size:18px; }
+#info-era { min-width:230px; }
+#risorse { flex:0 0 auto; }
+#leader-box { flex:1 1 auto; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#bottoni-top { display:flex; gap:6px; }
+#bottoni-top button {
+  background:#1c2c3a; color:#e8dfc8; border:1px solid #3a4a58; border-radius:6px;
+  padding:6px 10px; font-size:14px;
+}
+#bottoni-top button:hover { border-color:#d9a520; }
+#bottoni-top button.pulsa { border-color:#e0553a; color:#ffd; animation:btn-pulsa 1.2s ease-in-out infinite; }
+@keyframes btn-pulsa { 0%,100%{ box-shadow:0 0 0 rgba(224,85,58,0); } 50%{ box-shadow:0 0 12px rgba(224,85,58,0.8); } }
+.m-ramo { display:inline-block; font-size:10px; font-weight:bold; padding:1px 6px; border-radius:8px; margin-left:6px; vertical-align:middle; }
+.ramo-militare { background:#7a2e26; color:#f0d0c8; }
+.ramo-economia { background:#7a5a1a; color:#f0e0b0; }
+.ramo-cultura  { background:#5a3a7a; color:#e8d8f0; }
+.ramo-civile   { background:#2a5a6a; color:#d0eaf0; }
+
+#btn-turno {
+  position:absolute; bottom:18px; right:18px; z-index:10;
+  font-size:19px; padding:13px 30px; border:none; border-radius:10px;
+  background:linear-gradient(#d9a520,#a87b12); color:#1a1408; font-weight:bold;
+  box-shadow:0 4px 14px rgba(0,0,0,0.55);
+}
+#btn-turno:hover { filter:brightness(1.1); }
+#btn-turno:disabled { filter:grayscale(0.7); cursor:wait; }
+
+#minimappa-box {
+  position:absolute; bottom:12px; left:12px; z-index:11;
+  display:flex; flex-direction:column; align-items:flex-start; gap:0;
+  opacity:0.7; transition:opacity .18s ease;
+}
+#minimappa-box:hover, #minimappa-box:focus-within { opacity:1; }
+#minimappa {
+  width:190px; height:150px; border:2px solid #8a7a52; border-radius:8px;
+  background:#122838; box-shadow:0 4px 16px rgba(0,0,0,0.5); cursor:pointer;
+  touch-action:none; display:block;
+}
+#mm-toggle {
+  background:#1c2c3a; border:2px solid #8a7a52; border-bottom:none; border-radius:8px 8px 0 0;
+  color:#e8dcc0; font-size:13px; padding:2px 8px; cursor:pointer; align-self:flex-start;
+}
+/* minimappa collassata: resta solo la manigliola, la mappa sotto è di nuovo visibile */
+#minimappa-box.collassata #minimappa { display:none; }
+#minimappa-box.collassata #mm-toggle { border-radius:8px; border-bottom:2px solid #8a7a52; }
+#registro {
+  position:absolute; bottom:172px; left:14px; z-index:9; max-width:420px;
+  font-size:13px; pointer-events:none;
+}
+.log-riga {
+  background:rgba(12,18,26,0.78); border-left:3px solid #3a4a58;
+  padding:3px 10px; margin-top:3px; border-radius:0 5px 5px 0;
+}
+.log-bene { border-left-color:#5a9e5a; }
+.log-male { border-left-color:#c0392b; }
+.log-era { border-left-color:#d9a520; color:#ffd97a; }
+
+/* ---------- PANNELLO LATERALE ---------- */
+#pannello {
+  position:absolute; top:56px; left:12px; width:330px; max-height:calc(100% - 140px);
+  overflow-y:auto; z-index:10;
+  background:rgba(14,22,31,0.95); border:1px solid #3a4a58; border-radius:10px;
+  padding:14px; font-size:14px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  animation: pannello-in .22s ease-out;
+}
+@keyframes pannello-in { from { opacity:0; transform:translateX(-14px); } to { opacity:1; transform:none; } }
+.btn-lista { transition: border-color .12s, background .12s, transform .1s; }
+.btn-lista:hover:not(:disabled) { transform:translateX(2px); }
+#btn-turno { transition: filter .15s, transform .1s; }
+#btn-turno:hover { transform: translateY(-1px); }
+#bottoni-top button { transition: border-color .12s, background .12s; }
+.log-riga { animation: log-in .3s ease-out; }
+@keyframes log-in { from { opacity:0; transform:translateX(-10px); } to { opacity:1; transform:none; } }
+.p-titolo { font-size:21px; color:#ffd97a; font-weight:bold; }
+.p-sotto { color:#9a9077; margin-bottom:8px; font-size:13px; }
+.p-riga { margin:4px 0; }
+.p-sez { margin:12px 0 6px; color:#d9a520; font-weight:bold; border-bottom:1px solid #3a4a58; padding-bottom:3px; }
+.btn-lista {
+  display:block; width:100%; text-align:left; margin:3px 0;
+  background:#1c2c3a; color:#e8dfc8; border:1px solid #3a4a58; border-radius:6px;
+  padding:7px 10px; font-size:13px;
+}
+.btn-lista:hover:not(:disabled) { border-color:#d9a520; }
+.btn-lista:disabled { opacity:0.45; cursor:default; }
+.coda-item { padding:3px 0; }
+.btn-x { background:none; border:none; color:#e05540; font-size:13px; float:right; }
+.carta-unita {
+  background:#1c2c3a; border:1px solid #3a4a58; border-radius:8px;
+  padding:6px 10px; margin:5px 0; cursor:pointer;
+  display:flex; align-items:center; gap:9px; transition:border-color .12s, background .12s, transform .1s;
+}
+.carta-unita:hover { border-color:#8a7a52; transform:translateX(2px); }
+.carta-unita.attiva { border-color:#d9a520; background:#26374a; }
+.cu-icon { flex:0 0 auto; background:rgba(0,0,0,0.18); border-radius:6px; }
+.cu-txt { flex:1 1 auto; line-height:1.35; }
+
+/* ---------- LISTA ESERCITO ---------- */
+#armata {
+  position:absolute; top:56px; right:12px; width:216px; max-height:calc(100% - 160px);
+  overflow-y:auto; z-index:9;
+  background:rgba(14,22,31,0.92); border:1px solid #3a4a58; border-radius:10px;
+  padding:8px; font-size:13px; box-shadow:0 6px 24px rgba(0,0,0,0.45);
+}
+.ar-titolo { font-size:15px; color:#ffd97a; font-weight:bold; padding:2px 4px; }
+.ar-ferme { color:#e8b84a; font-size:12px; padding:1px 4px 5px; font-weight:bold; }
+.ar-ok { color:#7fb87f; font-size:12px; padding:1px 4px 5px; }
+.ar-riga {
+  display:flex; align-items:center; gap:7px; padding:5px 6px; margin:3px 0;
+  background:#1c2c3a; border:1px solid #2f3d4a; border-radius:7px; cursor:pointer;
+  transition:border-color .12s, transform .1s, background .12s;
+}
+.ar-riga:hover { border-color:#8a7a52; transform:translateX(-2px); }
+.ar-riga.da-muovere { border-color:#d9a520; background:#26343f; animation:ar-pulse 1.6s ease-in-out infinite; }
+@keyframes ar-pulse { 0%,100%{ box-shadow:0 0 0 rgba(217,165,32,0); } 50%{ box-shadow:0 0 10px rgba(217,165,32,0.5); } }
+.ar-n {
+  flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:#2a3d50;
+  color:#ffd97a; font-weight:bold; display:flex; align-items:center; justify-content:center; font-size:12px;
+}
+.ar-info { flex:1 1 auto; line-height:1.3; }
+
+/* ---------- CONSIGLIERE (Don Calorio) ---------- */
+#consigliere {
+  position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+  display:flex; align-items:flex-end; gap:10px; max-width:min(600px,86vw); z-index:14; cursor:pointer;
+}
+#cons-volto { flex:0 0 auto; filter:drop-shadow(0 3px 8px rgba(0,0,0,0.6)); }
+#cons-corpo { position:relative; }
+#cons-nome {
+  position:absolute; top:-16px; left:14px; font-size:12px; color:#d9c48a; font-weight:bold;
+  text-shadow:0 1px 3px #000; font-style:italic;
+}
+#cons-bolla {
+  background:linear-gradient(#faf3df,#efe2c0); color:#3a2f1c; border:2px solid #8a7a52;
+  border-radius:14px; padding:12px 16px; font-size:15px; line-height:1.4; box-shadow:0 6px 20px rgba(0,0,0,0.5);
+  position:relative;
+}
+#cons-bolla::after {
+  content:""; position:absolute; left:-11px; bottom:16px; width:0; height:0;
+  border:8px solid transparent; border-right-color:#8a7a52;
+}
+.cons-azioni { display:flex; gap:6px; margin-top:9px; }
+.cons-btn { border:none; border-radius:7px; padding:6px 12px; font-size:13px; font-weight:bold; cursor:pointer; font-family:inherit; transition:filter .12s, transform .1s; }
+.cons-btn:hover { filter:brightness(1.08); transform:translateY(-1px); }
+.cons-si   { background:linear-gradient(#5aa85a,#3d7d3d); color:#fff; }
+.cons-no   { background:#c4b79a; color:#3a2f1c; }
+.cons-dopo { background:#8a9bb0; color:#1a2230; }
+#consigliere.cons-in { animation:cons-pop .35s cubic-bezier(.2,.9,.3,1.3); }
+@keyframes cons-pop { from{ opacity:0; transform:translateX(-50%) translateY(16px) scale(.92);} to{ opacity:1;} }
+
+/* ---------- FUMETTI DEI PERSONAGGI ---------- */
+#fumetto {
+  position:absolute; top:54px; left:50%; transform:translateX(-50%);
+  display:flex; align-items:flex-end; gap:8px; max-width:min(460px,88vw); z-index:16; pointer-events:none;
+}
+#fum-volto {
+  flex:0 0 auto; width:56px; height:56px; border-radius:50%; background:#f0e2c0;
+  border:2px solid #8a7a52; box-shadow:0 3px 10px rgba(0,0,0,0.5);
+}
+#fum-bolla {
+  position:relative; background:linear-gradient(#fbf5e2,#efe1bf); color:#3a2f1c;
+  border:2px solid #8a7a52; border-radius:13px; padding:8px 13px; box-shadow:0 5px 16px rgba(0,0,0,0.45);
+}
+#fum-bolla::after {
+  content:""; position:absolute; left:-10px; bottom:14px; width:0; height:0;
+  border:7px solid transparent; border-right-color:#8a7a52;
+}
+#fum-nome { font-size:11px; font-weight:bold; color:#8a5a2a; font-style:italic; margin-bottom:1px; }
+#fum-testo { font-size:14px; line-height:1.35; }
+#fumetto.fum-in { animation:fum-pop .3s cubic-bezier(.2,.9,.3,1.3); }
+@keyframes fum-pop { from{ opacity:0; transform:translateX(-50%) translateY(-10px) scale(.92); } to{ opacity:1; } }
+
+/* ---------- TUTORIAL ---------- */
+#tutorial-card {
+  position:absolute; top:58px; left:50%; transform:translateX(-50%); width:min(460px,90vw); z-index:30;
+  background:linear-gradient(#20303f,#16222d); border:2px solid #d9a520; border-radius:12px;
+  padding:16px 18px; box-shadow:0 10px 34px rgba(0,0,0,0.6);
+}
+.tut-titolo { font-size:18px; color:#ffd97a; font-weight:bold; margin-bottom:6px; }
+.tut-testo { font-size:14.5px; line-height:1.5; margin-bottom:12px; }
+.tut-ok {
+  background:linear-gradient(#d9a520,#a87b12); color:#1a1408; border:none; border-radius:8px;
+  padding:8px 22px; font-weight:bold; font-size:14px; float:right;
+}
+.tut-ok:hover { filter:brightness(1.1); }
+#tutorial-card.tut-in { animation:cons-pop .3s ease-out; }
+
+/* ---------- POI SPONSOR ---------- */
+.sp-head { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+.sp-logo { width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+  font-size:30px; box-shadow:0 3px 10px rgba(0,0,0,0.4); border:2px solid rgba(255,255,255,0.55); flex:0 0 auto; }
+.sp-tit { min-width:0; }
+.sp-nome { font-size:17px; font-weight:bold; color:#f4ead0; }
+.sp-cat { font-size:12px; color:#c8b78a; }
+.sp-desc { font-size:13.5px; line-height:1.45; margin:6px 0 10px; color:#e6ddc8; }
+.sp-riga { font-size:13px; margin:4px 0; }
+.sp-riga a { color:#7fc6e0; text-decoration:none; }
+.btn-lista.sp-maps { background:linear-gradient(#2e7d46,#1f5e33); border-color:#3f9158; color:#eafbef; font-weight:bold; }
+.btn-lista.sp-rif { background:linear-gradient(#8a5a2a,#6a4420); border-color:#b07a3a; color:#ffeccf; font-weight:bold; }
+.sp-ad { margin-top:10px; font-size:10.5px; letter-spacing:0.5px; color:#8a7f66; text-transform:uppercase; text-align:center; }
+.poi-logo { background:#24384a !important; border-color:rgba(240,230,200,0.5) !important; }
+/* form Diventa Sponsor */
+.spf { display:flex; flex-direction:column; gap:9px; }
+.spf-intro { font-size:12.5px; color:#c8bda0; line-height:1.4; margin:0; }
+.spf label { display:flex; flex-direction:column; gap:3px; font-size:12px; color:#c8b78a; }
+.spf input, .spf select, .spf textarea { background:#16222d; border:1px solid #3a4a58; border-radius:7px;
+  color:#f4ead0; padding:8px; font-size:14px; font-family:inherit; }
+.spf textarea { resize:vertical; }
+#spf-cats { display:flex; flex-wrap:wrap; gap:5px; }
+.spf-cat { background:#16222d; border:1px solid #3a4a58; border-radius:7px; font-size:18px; width:38px; height:34px; cursor:pointer; }
+.spf-cat.sel { border-color:#f0cf6a; background:#2a3644; }
+.spf-prev { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.spf-hint { font-size:10.5px; color:#8a7f66; text-transform:uppercase; letter-spacing:0.5px; }
+
+/* ---------- GUARDAROBA DEL SOVRANO ---------- */
+.gr-anteprima { display:flex; justify-content:center; margin:6px 0 10px; }
+.gr-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px; }
+.gr-item {
+  background:#16222d; border:2px solid #3a4a58; border-radius:8px; color:#f4ead0;
+  padding:7px 8px; font-size:12.5px; text-align:left; cursor:pointer; line-height:1.3;
+}
+.gr-item.gr-sel { background:#2a3644; box-shadow:0 0 0 2px rgba(240,207,106,0.5) inset; }
+.gr-item.gr-bloccato { opacity:0.6; }
+.gr-item.gr-bloccato:disabled { opacity:0.35; cursor:not-allowed; }
+
+/* ---------- POTERI DEL SOVRANO ---------- */
+#potere-banner {
+  position:absolute; top:56px; left:50%; transform:translateX(-50%); z-index:40;
+  background:linear-gradient(#3a2740,#241826); border:2px solid #d9a520; border-radius:11px;
+  padding:10px 16px; font-size:14.5px; color:#f4ead0; box-shadow:0 8px 28px rgba(0,0,0,0.6);
+  max-width:92vw; text-align:center; animation:cons-pop .3s ease-out;
+}
+#potere-banner button {
+  margin-left:12px; background:#5a2530; color:#ffd; border:1px solid #a04050; border-radius:7px;
+  padding:5px 12px; font-size:13px; cursor:pointer;
+}
+#potere-banner button:hover { filter:brightness(1.15); }
+.potere-riga { text-align:left; line-height:1.35; }
+.potere-riga .pot-ico { font-size:19px; }
+.pot-desc { font-size:12px; opacity:0.85; }
+@media (max-width:600px){ #potere-banner { top:auto; bottom:calc(58px + env(safe-area-inset-bottom)); left:8px; right:8px; transform:none; } }
+
+/* ---------- CUCINA ---------- */
+.cuc-sez { color:#e8b84a; font-weight:bold; margin:14px 0 6px; border-bottom:1px solid #3a4a58; padding-bottom:3px; }
+.cuc-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.cuc-dop { display:flex; gap:8px; background:#1c2c3a; border:1px solid #2f3d4a; border-radius:8px; padding:7px; opacity:0.6; }
+.cuc-dop.ok { opacity:1; border-color:#7fb87f; background:#20342a; }
+.cuc-ic { font-size:26px; flex:0 0 auto; }
+/* icone AI (assets/icons) al posto delle emoji, quando disponibili */
+img.ico { height:1.2em; width:auto; vertical-align:-0.22em; image-rendering:auto; }
+.cuc-ic img.ico { height:1.6em; vertical-align:middle; }
+.pot-ico img.ico { height:1.5em; }
+.cuc-info { font-size:12px; line-height:1.3; }
+.cuc-si { color:#7fd07f; font-weight:bold; }
+.cuc-lock { color:#c98a5a; font-size:11px; }
+.cuc-piatto { background:#1c2c3a; border:1px solid #2f3d4a; border-radius:7px; padding:7px 10px; margin:4px 0; font-size:13px; opacity:0.65; }
+.cuc-piatto.ok { opacity:1; border-color:#d9a520; background:#26343f; }
+
+/* ---------- MODALI ---------- */
+#modale-sfondo {
+  position:fixed; inset:0; background:rgba(6,10,15,0.72); z-index:50;
+  display:flex; align-items:center; justify-content:center;
+}
+#modale {
+  background:linear-gradient(#20303f, #16222d); border:2px solid #8a7a52; border-radius:14px;
+  max-width:640px; width:92%; max-height:85vh; overflow-y:auto; padding:24px;
+  box-shadow:0 10px 50px rgba(0,0,0,0.7);
+}
+.m-illustr {
+  margin:-24px -24px 14px; border-radius:12px 12px 0 0; overflow:hidden;
+  border-bottom:3px solid #8a7a52; box-shadow: inset 0 -40px 50px -20px rgba(20,15,8,0.9);
+}
+.m-illustr img { width:100%; display:block; }
+.m-ritratto { float:right; margin:0 0 8px 14px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6)); }
+.m-titolo { font-size:24px; color:#ffd97a; margin-bottom:12px; font-weight:bold; }
+#modale.m-anim { animation: modale-in .32s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes modale-in { from { opacity:0; transform:scale(.9) translateY(14px); } to { opacity:1; transform:none; } }
+.m-testo { font-size:16px; line-height:1.55; margin-bottom:10px; }
+.m-scelte { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+.m-btn {
+  background:#2a3d50; color:#e8dfc8; border:1px solid #8a7a52; border-radius:8px;
+  padding:11px 16px; font-size:16px; text-align:left;
+}
+.m-btn:hover:not(:disabled) { background:#385069; border-color:#d9a520; }
+.m-btn:disabled { opacity:0.4; }
+.m-desc { display:block; font-size:13px; color:#9a9077; margin-top:2px; }
+.m-scroll { max-height:52vh; overflow-y:auto; padding-right:6px; }
+.m-era { color:#d9a520; font-weight:bold; margin:10px 0 4px; font-size:15px; }
+.m-sez { color:#d9a520; font-weight:bold; margin:12px 0 4px; }
+.m-tech-gruppo { display:flex; flex-direction:column; gap:4px; }
+.m-tech {
+  background:#1c2c3a; color:#e8dfc8; border:1px solid #3a4a58; border-radius:6px;
+  padding:7px 10px; font-size:13px; text-align:left;
+}
+.m-tech:hover:not(:disabled) { border-color:#d9a520; }
+.m-tech.fatta { opacity:0.45; border-color:#5a9e5a; }
+.m-tech.incorso { border-color:#d9a520; background:#26374a; }
+.dip-riga { padding:9px 4px; border-bottom:1px solid #2a3745; font-size:14px; line-height:1.7; }
+.btn-dip {
+  background:#2a3d50; color:#e8dfc8; border:1px solid #3a4a58; border-radius:5px;
+  padding:3px 9px; font-size:12px; margin:0 2px;
+}
+.btn-dip:hover { border-color:#d9a520; }
+.ant-box { margin:8px 0; }
+.ant-riga { display:flex; justify-content:space-between; margin:5px 0; }
+.ant-barra { height:16px; background:#4a2a24; border-radius:8px; overflow:hidden; }
+.ant-barra div { height:100%; }
+.ant-pct { text-align:center; font-size:26px; font-weight:bold; margin:6px 0; }
+
+::-webkit-scrollbar { width:9px; }
+::-webkit-scrollbar-track { background:#14202b; }
+::-webkit-scrollbar-thumb { background:#3a4a58; border-radius:5px; }
+
+/* ---------- TEMI PER EPOCA STORICA ---------- */
+/* ogni epoca tinge leggermente cornici e accenti dell'interfaccia, lo stile mosaico resta lo stesso */
+body.era-0 { --epoca:#4fa8c9; } /* Greca: blu Egeo */
+body.era-1 { --epoca:#b3392c; } /* Romana: porpora imperiale */
+body.era-2 { --epoca:#8a4fa8; } /* Bizantina: porpora/oro */
+body.era-3 { --epoca:#3d9166; } /* Araba: verde smeraldo */
+body.era-4 { --epoca:#3a6ea8; } /* Normanno-Sveva: blu cobalto */
+body.era-5 { --epoca:#cf6b1e; } /* Aragonese: ambra scarlatto */
+body[class^="era-"] #topbar { border-bottom-color: var(--epoca, #3a4a58); }
+body[class^="era-"] .p-sez, body[class^="era-"] .m-sez, body[class^="era-"] .m-era { color: var(--epoca, #d9a520); border-bottom-color: var(--epoca, #3a4a58); }
+body[class^="era-"] #tutorial-card { border-color: var(--epoca, #d9a520); }
+body[class^="era-"] .btn-lista:hover:not(:disabled), body[class^="era-"] .m-tech:hover:not(:disabled) { border-color: var(--epoca, #d9a520); }
+body[class^="era-"] #cons-nome { color: var(--epoca, #d9c48a); }
+
+/* ---------- MOBILE / TOUCH (telefoni piccoli, principalmente ritratto) ---------- */
+.pannello-handle { display:none; }
+@media (max-width:760px) {
+  /* schermata avvio: testi e schede più compatti */
+  #avvio { padding:14px 10px; }
+  #avvio h1 { font-size:36px; letter-spacing:5px; margin-top:6px; }
+  #avvio .sottotitolo { font-size:13px; margin-bottom:14px; }
+  .carta-fazione { width:min(224px, 88vw); }
+  #avvio-opzioni label { display:block; margin:8px 0; font-size:14px; }
+  #btn-inizia { font-size:19px; padding:14px 36px; width:88%; max-width:340px; }
+  .btn-salv { min-width:0; width:88vw; max-width:380px; }
+
+  /* topbar: si adatta su più righe, bottoni più larghi per il tocco */
+  #topbar { flex-wrap:wrap; height:auto; min-height:44px; padding:6px 8px; gap:4px 8px; font-size:13px; }
+  #info-era { min-width:0; font-size:12px; }
+  #leader-box { display:none; }
+  #bottoni-top { gap:5px; flex-wrap:wrap; }
+  #bottoni-top button { padding:9px 10px; font-size:14px; min-width:42px; min-height:40px; }
+
+  /* registro eventi: spostato in alto per non intralciare i pannelli in basso */
+  #registro { top:48px; bottom:auto; left:6px; right:6px; max-width:none; font-size:11px; }
+  /* minimappa: nascosta su telefono (schermo troppo piccolo) */
+  #minimappa-box { display:none; }
+
+  /* pannello contestuale (città/unità/casella): scheda a comparsa dal basso, meno invadente */
+  #pannello {
+    left:0; right:0; top:auto; bottom:44px; width:100%; max-height:40vh;
+    border-radius:16px 16px 0 0; padding:6px 14px calc(14px + env(safe-area-inset-bottom));
+    animation:pannello-in-mobile .22s ease-out; transition:max-height .22s ease;
+  }
+  @keyframes pannello-in-mobile { from { opacity:0; transform:translateY(26px); } to { opacity:1; transform:none; } }
+  /* maniglia per ridurre il pannello a una striscia e liberare la mappa */
+  .pannello-handle {
+    display:block; text-align:center; font-size:19px; line-height:16px; color:#9a9077;
+    cursor:pointer; margin:0 -14px 6px; padding:7px 0; user-select:none;
+  }
+  #pannello.compatta { max-height:52px; overflow:hidden; }
+  .btn-lista { padding:11px 12px; font-size:14px; }
+  .carta-unita { padding:9px 10px; }
+
+  /* lista esercito: striscia compatta in basso, si espande al tocco del titolo */
+  #armata {
+    left:0; right:0; top:auto; bottom:0; width:100%; max-height:44px; overflow:hidden;
+    border-radius:14px 14px 0 0; padding:6px 10px; z-index:12; transition:max-height .25s ease;
+  }
+  #armata.espansa {
+    max-height:38vh; overflow-y:auto; padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+  }
+  .ar-titolo { cursor:pointer; }
+  .ar-riga { padding:8px 8px; }
+
+  /* fine turno: sopra la striscia esercito, non copre nulla */
+  #btn-turno { bottom:calc(50px + env(safe-area-inset-bottom)); right:10px; padding:13px 22px; font-size:16px; }
+
+  /* consigliere e tutorial: larghezza piena, sopra la striscia esercito */
+  #consigliere { left:8px; right:8px; max-width:none; transform:none; bottom:calc(50px + env(safe-area-inset-bottom)); }
+  #tutorial-card { width:92vw; top:48px; }
+
+  /* modali: meno padding per lasciare più spazio al testo */
+  #modale { padding:16px; }
+  .m-titolo { font-size:20px; }
+  .cons-btn, .m-btn, .m-tech, .btn-dip { padding-top:10px; padding-bottom:10px; }
+}
+
+/* ---------- TELEFONO IN ORIZZONTALE (largo ma basso): pannelli laterali stretti, mappa a piena altezza ---------- */
+@media (max-height:480px) and (min-width:601px) {
+  #topbar { flex-wrap:nowrap; min-height:38px; height:auto; padding:4px 10px; font-size:12px; gap:8px; }
+  #info-era { min-width:0; font-size:11px; }
+  #leader-box { display:none; }
+  #bottoni-top button { padding:6px 9px; font-size:13px; min-height:34px; }
+  #registro { top:44px; bottom:auto; left:6px; max-width:36vw; font-size:11px; }
+  #minimappa { display:none; }
+
+  #pannello {
+    left:auto; right:10px; top:46px; bottom:auto; width:290px; max-height:calc(100% - 60px);
+    border-radius:12px; padding:6px 12px calc(10px + env(safe-area-inset-bottom));
+    animation:none;
+  }
+  .pannello-handle { display:none; } /* in orizzontale c'è già spazio: niente da comprimere */
+  .btn-lista { padding:9px 11px; font-size:13px; }
+
+  #armata {
+    left:auto; right:10px; top:46px; bottom:auto; width:170px; max-height:44px; overflow:hidden;
+    border-radius:12px; padding:6px 8px; transition:max-height .25s ease;
+  }
+  #armata.espansa { max-height:calc(100% - 60px); overflow-y:auto; }
+  /* se il pannello contestuale è aperto, la lista esercito si riduce a una striscia per non sovrapporsi */
+  #pannello:not(.nascosto) ~ #armata { max-height:36px; }
+
+  #btn-turno { bottom:10px; right:10px; padding:9px 18px; font-size:14px; }
+  #consigliere { left:8px; right:auto; max-width:54vw; transform:none; bottom:10px; }
+  #tutorial-card { width:70vw; top:44px; }
+  #modale { padding:16px; }
+  .m-titolo { font-size:20px; }
+}
