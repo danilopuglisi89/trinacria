@@ -409,6 +409,8 @@ function aggiornaComune(cm){
     u -= cucinaBonus(faz.id).malcontento;
     u -= techBonus(faz.id).malcontento;
   }
+  // malcontento "extra" dei dilemmi: si riassorbe di 1 a turno
+  if (cm.unrestExtra){ u += cm.unrestExtra; cm.unrestExtra += cm.unrestExtra > 0 ? -1 : 1; if (Math.abs(cm.unrestExtra) < 1) cm.unrestExtra = 0; }
   cm.unrest = Math.max(0, Math.min(12, u));
   // crescita
   if (cm.fazione !== -1){
@@ -624,6 +626,7 @@ function migliora(hexIdx, impId, gratis){
   if (im.costiero && !h.costa) return false;
   if (!gratis) f.oro -= im.costo;
   h.imp = impId;
+  if (cm.fazione===st.giocatore) stat().migliorie++;
   return true;
 }
 
@@ -1273,7 +1276,8 @@ function attacca(uids, hexDif){
     FX.battle(h.x, h.y, r.vinceA); FX.floatText(h.x, h.y-4, (r.vinceA?"−":"+")+(r.vinceA?r.perditeD:r.perditeA), r.vinceA?"#6fbf6f":"#e05540");
     if (atts[0] && atts[0].fazione===st.giocatore) FX.shake(r.vinceA?3:4, 0.3);
   }
-  if (r.vinceA && atts[0] && atts[0].fazione===st.giocatore) provaSbloccoGuardaroba("battaglia", 0.12);
+  if (r.vinceA && atts[0] && atts[0].fazione===st.giocatore){ provaSbloccoGuardaroba("battaglia", 0.12); stat().vinte++; }
+  if (!r.vinceA && defs.some(d=>d.fazione===st.giocatore)) stat().vinte++;   // difesa riuscita
   const nomeDif = cm.hex===hexDif ? cm.nome : "campo aperto";
   aggiungiLog((r.vinceA?"⚔️ Vittoria":"⚔️ Sconfitta")+" a "+nomeDif+" — perdite: "+r.perditeA+" nostre, "+r.perditeD+" nemiche.", r.vinceA?"bene":"male");
   return r;
@@ -1394,6 +1398,19 @@ function catturaComune(cm, fid){
   if (fid>=0 && fid<100) st.fazioni[fid].oro += bottino;
   const nomeF = fid>=100 ? nomeInvasore(fid) : (fid===-1?"i ribelli":st.fazioni[fid].nome);
   aggiungiLog("🏴 "+cm.nome+" è caduta! Ora è di "+nomeF+".", fid===st.giocatore?"bene":"male");
+  if (fid===st.giocatore){
+    stat().conquiste++;
+    if (vecchio>=100){
+      stat().invasoriCitta++;
+      // ultimo caposaldo degli invasori cacciato: grande ricompensa
+      if (!st.comuni.some(c=>c.fazione===vecchio)){
+        const premio = 150 + st.era*50;
+        st.fazioni[fid].oro += premio; stat().invasoriRespinti++;
+        st.unita = st.unita.filter(u=>u.fazione!==vecchio);
+        st.pending.push({ titolo:"🛡️ "+nomeInvasore(vecchio).replace(/^gli /,"Gli ")+" sono stati cacciati!", testo:"Le loro ultime bandiere cadono a "+cm.nome+". La Sicilia è di nuovo dei siciliani.\n\nBottino di guerra: +"+premio+" oro, +40 punti.", scelte:[{label:"Antudo!", eff:"nulla"}] });
+      }
+    }
+  }
   // capitale persa?
   if (vecchio>=0 && vecchio<100){
     const f = st.fazioni[vecchio];
@@ -1688,7 +1705,7 @@ function controllaEra(){
     }
     for (const cm of st.comuni) cm.integr = Math.max(0, cm.integr-25);
     aggiungiLog("🔱 Inizia l'"+era.nome+" ("+annoStr(era.da)+")! I tempi cambiano, le genti mormorano.", "era");
-    st.pending.push({ titolo:"🔱 "+era.nome, img:"era_"+st.era, testo:"Un'epoca nuova cala sulla Sicilia. Nuove tecnologie, nuove genti, nuovi padroni. Le popolazioni guardano con sospetto i nuovi costumi (integrazione -25).",
+    st.pending.push({ titolo:"🔱 "+era.nome, img:"era_"+st.era, testo:"Un'epoca nuova cala sulla Sicilia. Nuove tecnologie, nuove genti, nuovi padroni. Le popolazioni guardano con sospetto i nuovi costumi (integrazione -25).\n\n🎯 Obiettivi dell'era:\n• "+obiettiviEra(st.era).map(o=>o.testo).join("\n• ")+"\n\nPunteggio attuale: "+punteggio(st.giocatore).totale,
       scelte:[{label:"La storia avanza", eff:"nulla"}] });
     // suggerisci l'aggiornamento delle truppe del giocatore alle unità della nuova era (solo se sostenibile)
     const upg = unitaAggiornabili(st.giocatore);
@@ -1749,7 +1766,8 @@ function controllaInvasioni(annoPrec){
         .filter((v,i,a)=>a.indexOf(v)===i)
         .filter(i=>unitaSuHex(i).length<3 && MAP.hexes[i]);
       // invasioni più rare e più deboli: meno unità e con meno vigore (hp ridotti)
-      const nInv = Math.max(2, Math.round(inv.n * 0.55));
+      const kInv = st.difficolta==="facile" ? 0.4 : (st.difficolta==="difficile" ? 0.75 : 0.55);
+      const nInv = Math.max(2, Math.round(inv.n * kInv));
       for (let k=0;k<nInv;k++){
         const tipo = linea[k%3];
         const u = creaUnita(tipo, fid, liberi[k%liberi.length]);
@@ -1887,8 +1905,81 @@ function eventiCasuali(){
     st.pending.push({ titolo:(ev.tipo==="buono"?"🌞 ":"⚠️ ")+ev.titolo, testo:ev.testo,
       img: ev.id==="eruzione_min"?"ev_eruzione":null,
       scelte:[{label:"Così va il mondo", eff:"nulla"}] });
-    break; // max uno per turno
+    return; // max uno per turno
   }
+  // dilemmi con scelta: circa uno ogni 5 turni, mai due di seguito troppo vicini
+  const daUltimo = st.turno - (st.ultimoDilemma||0);
+  if (daUltimo >= 3 && rnd() < 0.18 + Math.max(0, daUltimo-3)*0.08 && st.comuni.some(c=>c.fazione===st.giocatore)){
+    const recenti = st.dilemmiFatti || (st.dilemmiFatti = []);
+    const pool = D().DILEMMI.filter(d => !recenti.slice(-6).includes(d.id));
+    const d = scegli(pool.length ? pool : D().DILEMMI);
+    recenti.push(d.id);
+    st.ultimoDilemma = st.turno;
+    st.pending.push({ titolo:"⚖️ "+d.titolo, testo:d.testo, scelte:d.scelte.map(s => ({ ...s })) });
+  }
+}
+
+// ---------- STATISTICHE, OBIETTIVI D'ERA, PUNTEGGIO ----------
+function stat(){ return st.stat || (st.stat = { vinte:0, conquiste:0, migliorie:0, invasoriCitta:0, invasoriRespinti:0, obiettivi:[] }); }
+function valoreCheck(check, fid){
+  const [k, v] = check.split(":");
+  const f = st.fazioni[fid];
+  const mie = st.comuni.filter(c=>c.fazione===fid);
+  switch(k){
+    case "citta": return mie.length >= +v;
+    case "tech": return f.techs.length >= +v;
+    case "migliorie": return stat().migliorie >= +v;
+    case "vinte": return stat().vinte >= +v;
+    case "invasoriCitta": return stat().invasoriCitta >= +v;
+    case "edificio": return mie.some(c => v.split(",").some(e => c.edifici.includes(e)));
+    case "meraviglie": return Object.keys(st.meraviglie).filter(m => st.comuni[st.meraviglie[m]] && st.comuni[st.meraviglie[m]].fazione===fid).length >= +v;
+    case "dop": return dopControllati(fid).length >= +v;
+    case "patti": return Object.values(f.diplo).filter(d=>d.stato==="patto").length >= +v;
+  }
+  return false;
+}
+function obiettiviEra(era){ return D().OBIETTIVI.filter(o => o.era === era); }
+function statoObiettivi(fid){
+  const fatti = stat().obiettivi;
+  return D().OBIETTIVI.filter(o => o.era <= st.era).map(o => ({ ...o, fatto: fatti.includes(o.id), attuale: o.era===st.era }));
+}
+function premioObiettivo(era){ return { oro: 60 + era*40, cultura: 30 + era*10 }; }
+function controllaObiettivi(){
+  const fid = st.giocatore, s = stat();
+  for (const o of obiettiviEra(st.era)){
+    if (s.obiettivi.includes(o.id) || !valoreCheck(o.check, fid)) continue;
+    s.obiettivi.push(o.id);
+    const p = premioObiettivo(st.era);
+    st.fazioni[fid].oro += p.oro; st.fazioni[fid].cultura += p.cultura;
+    aggiungiLog("🎯 Obiettivo raggiunto: "+o.testo+" (+"+p.oro+" oro, +"+p.cultura+" cultura)", "bene");
+    const restanti = obiettiviEra(st.era).filter(x => !s.obiettivi.includes(x.id));
+    st.pending.push({ titolo:"🎯 Obiettivo raggiunto", testo:o.testo+"\n\nPremio: +"+p.oro+" oro, +"+p.cultura+" cultura, +25 punti."+(restanti.length?"\n\nRestano per quest'era:\n• "+restanti.map(x=>x.testo).join("\n• "):"\n\nTutti gli obiettivi dell'era sono compiuti: +50 punti bonus!"),
+      scelte:[{label:"Avanti così", eff:"nulla"}] });
+    if (!restanti.length) s.bonusEra = (s.bonusEra||0) + 1;
+  }
+}
+function punteggio(fid){
+  const s = stat();
+  const mie = st.comuni.filter(c=>c.fazione===fid).length;
+  const mer = Object.keys(st.meraviglie).filter(m => st.comuni[st.meraviglie[m]] && st.comuni[st.meraviglie[m]].fazione===fid).length;
+  const f = st.fazioni[fid];
+  const ob = fid===st.giocatore ? s.obiettivi.length*25 + (s.bonusEra||0)*50 : 0;
+  return { totale: mie*10 + mer*15 + f.techs.length*2 + ob + (fid===st.giocatore ? s.vinte*3 + s.invasoriRespinti*40 : 0),
+           citta:mie, meraviglie:mer, techs:f.techs.length, obiettivi: fid===st.giocatore ? s.obiettivi.length : 0 };
+}
+// 3 carte di costruzione sensate per una città (al posto della lista lunga)
+function carteCostruzione(cm){
+  const out = [];
+  const push = (it) => { if (it && !out.some(x=>x.tipo===it.tipo && x.id===it.id)) out.push(it); };
+  push(miglioreCostruzione(cm));
+  const cost = costruzioniDisponibili(cm);
+  push(cost.find(x=>x.tipo==="meraviglia"));
+  const u = unitaDisponibili(cm).filter(x=>!D().UNITA[x.id].supporto && !x.pieno).sort((a,b)=>(b.atk+b.def)-(a.atk+a.def))[0];
+  if (u) push({ tipo:"unita", id:u.id, nome:u.nome, costo:u.costo, icona:"⚔️", eff:"⚔"+u.atk+" 🛡"+u.def });
+  for (const c of cost){ if (out.length>=3) break; push(c); }
+  const lav = unitaDisponibili(cm).find(x=>x.id==="lavoratore" && !x.pieno);
+  if (out.length<3 && lav) push({ tipo:"unita", id:"lavoratore", nome:lav.nome, costo:lav.costo, icona:"🔨", eff:"migliora le campagne" });
+  return out.slice(0,3);
 }
 
 // ---------- EFFETTI SCELTE EVENTI ----------
@@ -1933,6 +2024,32 @@ function applicaEffetto(eff, fid, evento){
       break;
     }
     default:
+      if (eff && eff.indexOf("fx:")===0){
+        // mini-linguaggio dei dilemmi: fx:oro:80;unrest:1;cibo:12;cult:30;sci:90;unita:linea0;popcap:1
+        const mie = st.comuni.filter(c=>c.fazione===fid);
+        for (const op of eff.slice(3).split(";")){
+          const [k, v] = op.split(":"); const n = parseFloat(v);
+          if (k==="oro") f.oro += n;
+          else if (k==="cult") f.cultura += n;
+          else if (k==="sci") f.sciAcc += n;
+          else if (k==="cibo") for (const c of mie) c.cibo += n;
+          else if (k==="unrest") for (const c of mie){ c.unrestExtra = (c.unrestExtra||0) + n; }
+          else if (k==="popcap"){ const cap = st.comuni[f.capitale]; if (cap) cap.pop = Math.min(25, cap.pop + n); }
+          else if (k==="unita"){ const tipo = v==="linea0" ? D().LINEA_ERA[st.era][0] : v; creaUnita(tipo, fid, st.comuni[f.capitale].hex); }
+        }
+        break;
+      }
+      if (eff && eff.indexOf("coda:")===0){
+        // carta di costruzione scelta: coda:<cmId>:<tipo>:<id>
+        const p = eff.split(":"); const cm = st.comuni[parseInt(p[1])];
+        if (cm && cm.fazione===fid){
+          let item = null;
+          if (p[2]==="unita"){ const u = unitaDisponibili(cm).find(x=>x.id===p[3]); if (u) item = { tipo:"unita", id:u.id, costo:u.costo }; }
+          else item = costruzioniDisponibili(cm).find(x=>x.tipo===p[2] && x.id===p[3]);
+          if (item) accoda(cm.id, item);
+        }
+        break;
+      }
       if (eff && eff.indexOf("dip:")===0){
         const p = eff.split(":");
         const tipo = p[1], da = parseInt(p[2]);
@@ -2031,6 +2148,7 @@ function fineTurno(){
   controllaEventiStorici(annoPrec);
   passoPeste();
   eventiCasuali();
+  controllaObiettivi();
   // ricarica dei poteri del sovrano
   if (st.poteri && st.poteri.cooldown)
     for (const k in st.poteri.cooldown) if (st.poteri.cooldown[k]>0) st.poteri.cooldown[k]--;
@@ -2050,10 +2168,11 @@ function fineTurno(){
   if (st.anno >= 1700 && !st.vittoria && !st.eventiFatti.includes("fine1700")){
     st.eventiFatti.push("fine1700");
     const classifica = st.fazioni.filter(f=>!f.eliminata)
-      .map(f=>({f, n:st.comuni.filter(c=>c.fazione===f.id).length}))
-      .sort((a,b)=>b.n-a.n);
-    const punteggio = classifica.map((x,i)=>(i+1)+". "+x.f.nome+" — "+x.n+" comuni").join("\n");
-    st.pending.push({ titolo:"⏳ L'Anno 1700", testo:"Le ere si sono compiute. La Sicilia entra nell'età moderna.\n\nClassifica:\n"+punteggio+"\n\nPuoi continuare a giocare fino alla conquista totale.", scelte:[{label:"Continua a giocare", eff:"nulla"}] });
+      .map(f=>({f, p:punteggio(f.id)}))
+      .sort((a,b)=>b.p.totale-a.p.totale);
+    const righe = classifica.map((x,i)=>(i+1)+". "+x.f.nome+" — "+x.p.totale+" punti ("+x.p.citta+" città, "+x.p.meraviglie+" meraviglie"+(x.f.id===st.giocatore?", "+x.p.obiettivi+" obiettivi":"")+")").join("\n");
+    const pos = classifica.findIndex(x=>x.f.id===st.giocatore)+1;
+    st.pending.push({ titolo:"⏳ L'Anno 1700", testo:"Le ere si sono compiute. La Sicilia entra nell'età moderna.\n\nClassifica finale:\n"+righe+"\n\n"+(pos===1?"👑 Sei il sovrano più glorioso dell'isola!":"Sei arrivato "+pos+"°: la storia ricorderà chi ha fatto di più.")+"\n\nPuoi continuare a giocare fino alla conquista totale.", scelte:[{label:"Continua a giocare", eff:"nulla"}] });
   }
   SAVE.autosalva();
 }
@@ -2241,10 +2360,11 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,
   miglioramentoAutomatico, azioneLavoratore, esisteMiglioriaPossibile,
   migliorieAggiornabili, upgradaMiglioria, upgradaMiglliorieEconomiche, prossimaMiglioria,
+  stat, statoObiettivi, obiettiviEra, punteggio, carteCostruzione,
   accodaRicerca, rimuoviDaPercorso, percorsoRicercaStato, suggerisciPercorso,
   dichiaraGuerra, proponiPace, proponiPatto, proponiCommercio, regalo, forzaTotale,
   poteriStato, poterePronto, usaPotere, rifocilla,
   guardarobaStato, equipaggiaGuardaroba, compraGuardaroba, sbloccaGuardaroba,
-  applicaScelta, fineTurno, unitaSuHex, nemiciSuHex, nomeInvasore, catturaComune, colonizza, autoColonizza, autoConquista,
+  applicaScelta, fineTurno, unitaSuHex, nemiciSuHex, nomeInvasore, catturaComune, creaUnita, colonizza, autoColonizza, autoConquista,
   controllaVittoria };
 })();

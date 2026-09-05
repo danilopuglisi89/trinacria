@@ -17,3 +17,13 @@
 
 ## File toccati
 `game.js` (costoTech, techBonus, sbloccatiDaTech, cittaDaGestire, propostaConsigliere, eseguiProposta), `data_game.js` (+18 tech a rami), `art.js` (soldato/elmoEra/scudoEra/cavallo/macchina riscritti), `map.js` (icona 🔨, passa era/speciale al soldato), `ui.js` (proponiAzione, autoAvanza esteso, avviso fine turno con città, pulsante ricerca lampeggiante), `style.css` (.cons-azioni, .pulsa, .m-ramo).
+
+## Passata "mai noioso" (settembre 2026, v52) — scelte di Danilo: B+C (pressione, obiettivi, ritmo), IA proporzionata alla difficoltà, città a 3 carte
+Diagnosi (partita di 180 turni a giocatore passivo): zero guerre subite, zero città perse, 13 sistemi paralleli con bonus da +8%, turni vuoti.
+- **Pressione**: le IA confinanti più forti minacciano il giocatore (3 turni di "Voci di guerra", poi guerra) con parametri per difficoltà (`AGGR` in ai.js: era minima, rapporto di forza, probabilità; coalizione solo a Re di Sicilia). Fase protetta: 2 ere a facile, 1 a normale, 0 a difficile.
+- **Invasori-boss**: finché tengono città (<10) annettono ogni 8 turni una città vicina senza guarnigione e ricevono rinforzi ogni 6 turni (max 4 unità); cacciarli del tutto = +150+era×50 oro e +40 punti. Sbarchi scalati con la difficoltà (×0.4/0.55/0.75).
+- **Obiettivi d'era** (`OBIETTIVI`, 3 per era) con premio oro/cultura, punteggio (`punteggio()`), pannello "🎯 Obiettivi" nel menu e classifica finale a punti nel 1700.
+- **Dilemmi** (`DILEMMI`, 13) con 2 scelte, mini-linguaggio `fx:oro:80;unrest:1;…`, circa uno ogni 5 turni; eventi casuali "senza scelta" dimezzati.
+- **Ritmo**: Normale 20 turni/era (era 30), Blitz 12, Epica 40. **Turno automatico** (⏩ accanto a Fine Turno, memorizzato): se non c'è nulla da decidere il turno passa da solo dopo 0,9 s; si ferma su eventi, truppe ferme, città senza ordini, ricerca vuota, crisi (prio ≥ 9).
+- **Città a 3 carte**: a fine turno ogni città senza ordini propone 3 costruzioni sensate (`carteCostruzione`) + "Apri la città" + "Automatico per tutte".
+Non fatto (pacchetto A, rimandato): taglio tech 54→24, edifici 20→10, pannello Corte unico, diplomazia a 2 azioni.

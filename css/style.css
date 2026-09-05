@@ -121,6 +121,13 @@ button { font-family:inherit; cursor:pointer; }
 }
 #btn-turno:hover { filter:brightness(1.1); }
 #btn-turno:disabled { filter:grayscale(0.7); cursor:wait; }
+#btn-turno.auto { background:linear-gradient(#5aa06a,#2f7a44); color:#f4f1e6; animation:autoPulse 0.9s infinite; }
+@keyframes autoPulse { 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.25); } }
+#btn-auto {
+  position:absolute; bottom:18px; right:190px; z-index:10; width:46px; height:46px; border:none; border-radius:10px;
+  background:#3a3128; color:#8a7f6c; font-size:20px; box-shadow:0 4px 14px rgba(0,0,0,0.5); opacity:0.75;
+}
+#btn-auto.attivo { background:linear-gradient(#5aa06a,#2f7a44); color:#f4f1e6; opacity:1; }
 
 #minimappa-box {
   position:absolute; bottom:12px; left:12px; z-index:11;

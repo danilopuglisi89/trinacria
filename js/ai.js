@@ -9,8 +9,45 @@ const PRIORITA_EDIFICI = ["granaio","mercato","caserma","tempio","mura1","scuder
 
 // Fase iniziale protetta: fino a QUESTA era le IA restano quasi ferme a svilupparsi,
 // non dichiarano guerra e non aggrediscono gli insediamenti indipendenti (li lasciano al giocatore).
-const PROTETTA_FINO_ERA = 1;
-function faseProtetta(){ return GAME.st.era <= PROTETTA_FINO_ERA; }
+// facile: 2 ere di pace; normale: 1; difficile: le IA si muovono da subito
+function protettaFinoEra(){ const d = GAME.st.difficolta; return d==="facile" ? 2 : (d==="difficile" ? 0 : 1); }
+function faseProtetta(){ return GAME.st.era <= protettaFinoEra(); }
+// aggressività verso il GIOCATORE (proporzionata alla difficoltà): l'IA confinante più forte
+// prepara un attacco annunciato (3 turni di "minaccia", Don Calorio avverte) e poi dichiara guerra
+const AGGR = {
+  facile:    { daEra:3, forza:2.0, p:0.04, coalizione:false },
+  normale:   { daEra:2, forza:1.3, p:0.10, coalizione:false },
+  difficile: { daEra:1, forza:1.0, p:0.15, coalizione:true }
+};
+function aggr(){ return AGGR[GAME.st.difficolta] || AGGR.normale; }
+function minacciaGiocatore(f){
+  const st = GAME.st, g = st.giocatore, d = f.diplo[g];
+  if (!d || d.stato!=="pace") return;
+  const a = aggr();
+  // conto alla rovescia già avviato
+  if (d.minaccia > 0){
+    d.minaccia--;
+    if (d.minaccia===0){
+      GAME.dichiaraGuerra(f.id, g);
+      st.pending.push({ titolo:"🚨 "+f.nome+" dichiara guerra!", testo:f.leader.nome+" di "+f.nome+" ha rotto la pace: le sue truppe marciano verso i tuoi confini.\n\nDifendi le città di frontiera e prepara i picciotti.", scelte:[{label:"Alle armi!", eff:"nulla"}] });
+    }
+    return;
+  }
+  if (st.era < a.daEra || Object.values(f.diplo).some(x=>x.stato==="guerra")) return;
+  if (!confinanti(f.id, g)) return;
+  const mie = st.comuni.filter(c=>c.fazione===g).length;
+  const sue = st.comuni.filter(c=>c.fazione===f.id).length;
+  const forte = GAME.forzaTotale(f.id) > GAME.forzaTotale(g)*a.forza || sue > mie*1.5;
+  // coalizione (solo difficile): se il giocatore è in testa e qualcuno gli fa già guerra, altri si uniscono
+  const inTesta = st.fazioni.every(x => x.id===g || x.eliminata || st.comuni.filter(c=>c.fazione===x.id).length <= mie);
+  const coalizione = a.coalizione && inTesta && st.fazioni.some(x => x.id!==g && !x.eliminata && x.diplo[g] && x.diplo[g].stato==="guerra");
+  const moltoPiuForte = GAME.forzaTotale(f.id) > GAME.forzaTotale(g)*3;   // preda facile: si muove prima
+  if ((forte && rnd() < a.p * (moltoPiuForte ? 2 : 1)) || (coalizione && rnd() < 0.05)){
+    d.minaccia = 3;
+    GAME.aggiungiLog("⚠️ "+f.nome+" ammassa truppe ai tuoi confini!", "male");
+    st.pending.push({ titolo:"⚠️ Voci di guerra", testo:"Le spie riferiscono che "+f.nome+" sta ammassando truppe ai tuoi confini. Hai tre turni per prepararti: rinforza le città di frontiera o cerca un patto.", scelte:[{label:"Prepariamoci", eff:"nulla"}] });
+  }
+}
 
 function sogliaAttacco(){
   const d = GAME.st.difficolta;
@@ -37,6 +74,7 @@ function turnoIA(){
 
 function diplomaziaIA(f){
   const st = GAME.st;
+  minacciaGiocatore(f);
   const guerraInCorso = Object.values(f.diplo).some(d=>d.stato==="guerra");
   for (const g of st.fazioni){
     if (g.id===f.id || g.eliminata) continue;
@@ -298,6 +336,29 @@ function turnoInvasori(){
       if (cm.fazione===inv.id) continue;
       if (cm.fazione>=0 && cm.fazione<100 && st.fazioni[cm.fazione].accordi["inv"+inv.id]>0) continue;
       bersagli.push(cm);
+    }
+    // "boss": finché tengono almeno una città, gli invasori dilagano — ogni 5 turni annettono una
+    // città vicina indifesa e ogni 6 turni ricevono rinforzi dal mare. Cacciarli conviene presto.
+    if (comuni.length && comuni.length < 10){
+      if (st.turno % 8 === 0){
+        const vicine = [];
+        for (const c of comuni) for (const nb of MAP.vicini(c.hex)){
+          const t = st.comuni[MAP.hexes[nb].comune];
+          if (t.fazione===inv.id || vicine.includes(t)) continue;
+          if (t.fazione>=0 && t.fazione<100 && st.fazioni[t.fazione].accordi["inv"+inv.id]>0) continue;
+          if (GAME.unitaSuHex(t.hex).length) continue;    // solo città senza guarnigione
+          vicine.push(t);
+        }
+        if (vicine.length){
+          const t = scegli(vicine);
+          GAME.aggiungiLog("🚨 Gli "+inv.nome+" dilagano: "+t.nome+" si arrende senza combattere.", "male");
+          GAME.catturaComune(t, inv.id);
+        }
+      }
+      if (st.turno % 6 === 0 && unita.length < 4){
+        const linea = D().LINEA_ERA[st.era];
+        GAME.creaUnita(linea[Math.floor(rnd()*3)], inv.id, scegli(comuni).hex);
+      }
     }
     muoviUnitaIA(inv.id, bersagli);
   }

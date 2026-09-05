@@ -12,9 +12,9 @@ const ERE = [
 
 // turni per era in base alla velocità
 const VELOCITA = {
-  blitz:   { nome:"Blitz",   turniEra: 14 },
-  normale: { nome:"Normale", turniEra: 30 },
-  epica:   { nome:"Epica",   turniEra: 55 }
+  blitz:   { nome:"Blitz",   turniEra: 12 },
+  normale: { nome:"Normale", turniEra: 20 },
+  epica:   { nome:"Epica",   turniEra: 40 }
 };
 
 const CULTURE = {
@@ -508,12 +508,79 @@ const EVENTI_STORICI = [
 
 // Eventi casuali
 const EVENTI_CASUALI = [
-  { id:"buon_raccolto", p:0.05, titolo:"Annata d'oro", testo:"Piogge generose e sole giusto: i campi traboccano.", tipo:"buono" },
-  { id:"fiera", p:0.04, titolo:"La Fiera", testo:"Mercanti da tutto il Mediterraneo affollano le tue piazze.", tipo:"buono" },
-  { id:"siccita", p:0.04, titolo:"Siccità", testo:"U suli spacca i petri: raccolti bruciati nelle campagne.", tipo:"cattivo" },
-  { id:"briganti", p:0.04, titolo:"Briganti", testo:"Bande armate infestano le trazzere dell'interno.", tipo:"cattivo" },
+  { id:"buon_raccolto", p:0.03, titolo:"Annata d'oro", testo:"Piogge generose e sole giusto: i campi traboccano.", tipo:"buono" },
+  { id:"fiera", p:0.025, titolo:"La Fiera", testo:"Mercanti da tutto il Mediterraneo affollano le tue piazze.", tipo:"buono" },
+  { id:"siccita", p:0.025, titolo:"Siccità", testo:"U suli spacca i petri: raccolti bruciati nelle campagne.", tipo:"cattivo" },
+  { id:"briganti", p:0.02, titolo:"Briganti", testo:"Bande armate infestano le trazzere dell'interno.", tipo:"cattivo" },
   { id:"eruzione_min", p:0.03, titolo:"L'Etna borbotta", testo:"'A Muntagna sputa fuoco: colate di lava scendono verso i paesi.", tipo:"etna" },
   { id:"terremoto_min", p:0.02, titolo:"Terremoto", testo:"La terra trema: crolli e paura.", tipo:"terremoto" }
+];
+
+// ---- DILEMMI (eventi con scelta: ~uno ogni 5 turni) ----
+// eff con mini-linguaggio "fx:chiave:valore;..." — oro, cult, sci (scienza), cibo (tutte le città),
+// unrest (tutte le città, negativo = calma), unita:<tipo> (nella capitale), popcap (+1 pop in capitale)
+const DILEMMI = [
+  { id:"mercanti_genovesi", titolo:"Mercanti genovesi", testo:"Una compagnia di mercanti genovesi chiede un porto franco: niente dazi per loro, oro subito per te. I bottegai locali storcono il naso.",
+    scelte:[ {label:"Concedi il porto franco", desc:"+80 oro, +1 malcontento", eff:"fx:oro:80;unrest:1"},
+             {label:"Proteggi i nostri mercanti", desc:"+30 cultura", eff:"fx:cult:30"} ] },
+  { id:"carestia", titolo:"Carestia nell'interno", testo:"Piove poco, il grano è marcito nei silos. Le famiglie dell'interno chiedono aiuto al sovrano.",
+    scelte:[ {label:"Apri i granai reali (60 oro)", desc:"+12 cibo in ogni città, −1 malcontento", eff:"fx:cibo:12;unrest:-1", costoOro:60},
+             {label:"Che si arrangino", desc:"+2 malcontento", eff:"fx:unrest:2"} ] },
+  { id:"pellegrini", titolo:"Pellegrini alle porte", testo:"Centinaia di pellegrini diretti a un santuario chiedono ospitalità e scorta.",
+    scelte:[ {label:"Accoglili (30 oro)", desc:"+40 cultura, −1 malcontento", eff:"fx:cult:40;unrest:-1", costoOro:30},
+             {label:"Falli pagare il pedaggio", desc:"+25 oro, +1 malcontento", eff:"fx:oro:25;unrest:1"} ] },
+  { id:"mercenari", titolo:"Mercenari in cerca di padrone", testo:"Una compagnia di ventura si offre: «Paga bene e combatteremo sotto la tua bandiera».",
+    scelte:[ {label:"Assoldali (90 oro)", desc:"Una truppa di fanteria pronta nella capitale", eff:"fx:unita:linea0", costoOro:90},
+             {label:"Mandali via", desc:"Nessun effetto", eff:"nulla"} ] },
+  { id:"dotto", titolo:"Un dotto straniero", testo:"Un sapiente arrivato da Alessandria offre i suoi scritti alla tua corte in cambio di una pensione.",
+    scelte:[ {label:"Accoglilo a corte (50 oro)", desc:"+90 scienza", eff:"fx:sci:90", costoOro:50},
+             {label:"Non abbiamo bisogno di lui", desc:"Nessun effetto", eff:"nulla"} ] },
+  { id:"gabelle", titolo:"Protesta contro le gabelle", testo:"Il popolo scende in piazza contro le tasse sul sale e sul grano. Gli esattori sono stati presi a sassate.",
+    scelte:[ {label:"Riduci le gabelle", desc:"−40 oro, −3 malcontento ovunque", eff:"fx:unrest:-3"},
+             {label:"Manda le guardie", desc:"+40 oro, +3 malcontento ovunque", eff:"fx:oro:40;unrest:3"} ] },
+  { id:"tesoro", titolo:"Il tesoro punico", testo:"Scavando le fondamenta di una torre, i muratori trovano un'anfora piena di monete cartaginesi.",
+    scelte:[ {label:"Nel tesoro reale", desc:"+120 oro", eff:"fx:oro:120"},
+             {label:"Esponilo nel tempio", desc:"+60 cultura", eff:"fx:cult:60"} ] },
+  { id:"naufragio", titolo:"Naufragio sulla costa", testo:"Una nave mercantile si è schiantata sugli scogli: il carico è sparso sulla spiaggia, l'equipaggio chiede soccorso.",
+    scelte:[ {label:"Requisisci il carico", desc:"+70 oro, +1 malcontento", eff:"fx:oro:70;unrest:1"},
+             {label:"Soccorri i naufraghi", desc:"+40 cultura, −1 malcontento", eff:"fx:cult:40;unrest:-1"} ] },
+  { id:"predicatore", titolo:"Il predicatore", testo:"Un frate infuocato predica nelle piazze contro i ricchi e — sottovoce — contro il sovrano.",
+    scelte:[ {label:"Caccialo dal regno", desc:"−2 malcontento, −20 cultura", eff:"fx:unrest:-2;cult:-20"},
+             {label:"Lascialo parlare", desc:"+40 cultura, +2 malcontento", eff:"fx:cult:40;unrest:2"} ] },
+  { id:"ceramisti", titolo:"I maestri ceramisti", testo:"I ceramisti di Caltagirone chiedono una bottega reale: «Le nostre maioliche faranno invidia a Bisanzio».",
+    scelte:[ {label:"Finanzia la bottega (70 oro)", desc:"+40 cultura, +40 scienza", eff:"fx:cult:40;sci:40", costoOro:70},
+             {label:"Non ora", desc:"Nessun effetto", eff:"nulla"} ] },
+  { id:"spia", titolo:"Una spia catturata", testo:"Le guardie hanno preso un uomo che copiava le mappe delle mura. Ha un anello di un regno vicino.",
+    scelte:[ {label:"Impiccalo sulle mura", desc:"−1 malcontento (il popolo applaude)", eff:"fx:unrest:-1"},
+             {label:"Chiedi un riscatto", desc:"+70 oro", eff:"fx:oro:70"} ] },
+  { id:"vendemmia", titolo:"Vendemmia straordinaria", testo:"Un'annata come non se ne vedevano da decenni: le botti traboccano di mosto.",
+    scelte:[ {label:"Festa in tutto il regno", desc:"−2 malcontento ovunque", eff:"fx:unrest:-2"},
+             {label:"Vendi il vino ai mercanti", desc:"+70 oro", eff:"fx:oro:70"} ] },
+  { id:"profughi", titolo:"Profughi di guerra", testo:"Famiglie in fuga da una città saccheggiata chiedono di stabilirsi nella tua capitale.",
+    scelte:[ {label:"Accoglili", desc:"+1 popolazione nella capitale, +1 malcontento", eff:"fx:popcap:1;unrest:1"},
+             {label:"Respingili", desc:"Nessun effetto", eff:"nulla"} ] }
+];
+
+// ---- OBIETTIVI D'ERA (3 per era: traguardi intermedi con premio e punteggio) ----
+const OBIETTIVI = [
+  { id:"e0_citta",    era:0, testo:"Possiedi 14 città",                    check:"citta:14" },
+  { id:"e0_tech",     era:0, testo:"Completa 2 ricerche",                  check:"tech:2" },
+  { id:"e0_migl",     era:0, testo:"Costruisci 3 migliorie del territorio", check:"migliorie:3" },
+  { id:"e1_citta",    era:1, testo:"Possiedi 32 città",                    check:"citta:32" },
+  { id:"e1_edif",     era:1, testo:"Costruisci un Tempio o un Mercato",     check:"edificio:tempio,mercato" },
+  { id:"e1_vinte",    era:1, testo:"Vinci 3 battaglie",                    check:"vinte:3" },
+  { id:"e2_citta",    era:2, testo:"Possiedi 24 città",                    check:"citta:24" },
+  { id:"e2_mer",      era:2, testo:"Completa una Meraviglia",               check:"meraviglie:1" },
+  { id:"e2_inv",      era:2, testo:"Strappa una città agli invasori",       check:"invasoriCitta:1" },
+  { id:"e3_citta",    era:3, testo:"Possiedi 18 città",                    check:"citta:18" },
+  { id:"e3_dop",      era:3, testo:"Controlla 4 prodotti DOP",             check:"dop:4" },
+  { id:"e3_vinte",    era:3, testo:"Vinci 10 battaglie",                   check:"vinte:10" },
+  { id:"e4_citta",    era:4, testo:"Possiedi 42 città",                    check:"citta:42" },
+  { id:"e4_mer",      era:4, testo:"Completa 3 Meraviglie",                check:"meraviglie:3" },
+  { id:"e4_patti",    era:4, testo:"Hai un patto con 2 regni",             check:"patti:2" },
+  { id:"e5_citta",    era:5, testo:"Possiedi 55 città",                    check:"citta:55" },
+  { id:"e5_mer",      era:5, testo:"Completa 5 Meraviglie",                check:"meraviglie:5" },
+  { id:"e5_tech",     era:5, testo:"Conosci 40 tecnologie",                check:"tech:40" }
 ];
 
 // ---- GUARDAROBA DEL SOVRANO (sblocchi cosmetici con rarità, durante la partita) ----
@@ -558,5 +625,5 @@ const POTERI = [
 
 return { ERE, VELOCITA, CULTURE, FAZIONI, LEADER_STORICI, NOMI_EREDI, TRATTI, EROI,
          TECH, UNITA, LINEA_ERA, EDIFICI, EDIFICI_LOCALI, MIGLIORIE, MIGLIORIE_LINEA, MERAVIGLIE, INVASIONI,
-         EVENTI_STORICI, EVENTI_CASUALI, DOP, PIATTI, SAGRE, POTERI, GUARDAROBA_EXTRA };
+         EVENTI_STORICI, EVENTI_CASUALI, DILEMMI, OBIETTIVI, DOP, PIATTI, SAGRE, POTERI, GUARDAROBA_EXTRA };
 })();

@@ -166,7 +166,9 @@ function initGioco(){
   canvas.addEventListener("pointerup", suPuntatore);
   canvas.addEventListener("pointercancel", annullaPuntatore);
   canvas.addEventListener("wheel", rotella, { passive:false });
-  $("btn-turno").onclick = () => fineTurno();
+  $("btn-turno").onclick = () => { if (autoTimer){ annullaAuto(); AUDIO.sfx("click"); return; } fineTurno(); };
+  const ba = $("btn-auto");
+  if (ba){ ba.onclick = () => { impostaAuto(!autoTurno); AUDIO.sfx("click"); if (autoTurno) pianificaAuto(); }; impostaAuto(autoTurno); }
   $("btn-ricerca").onclick = apriRicerca;
   $("btn-cucina").onclick = apriCucina;
   $("btn-poteri").onclick = apriPoteri;
@@ -1102,7 +1104,8 @@ function mostraModale(evt, cb){
 }
 function processaPending(){
   const st = GAME.st;
-  if (!st || !st.pending.length) return;
+  if (!st) return;
+  if (!st.pending.length){ if (typeof pianificaAuto === "function") pianificaAuto(); return; }
   const evt = st.pending.shift();
   AUDIO.sfx("campana");
   // tocco cinematografico sugli eventi maggiori (ere, invasioni, disastri)
@@ -1174,21 +1177,56 @@ function proponiAutoTruppe(ferme){
       if (citta.length) proponiAutoCitta(citta); else eseguiFineTurno();
     });
 }
-// ...poi le città senza produzione in coda
-function proponiAutoCitta(citta){
-  mostraModale({ titolo:"🏗️ "+citta.length+" "+(citta.length===1?"città senza ordini":"città senza ordini"),
-    testo:"Come vuoi gestire le città che non hanno ancora produzione in coda questo turno?",
-    scelte:[
-      {label:"🏗️ Scegli tu automaticamente", desc:"Sceglie la costruzione più sensata per ciascuna"},
-      {label:"🖐 Le gestisco io", desc:"Passale in rassegna una per una"},
-      {label:"⏭ Lascia così, finisci il turno", desc:"Non cambia nulla per loro: salta direttamente alla fine del turno"}
-    ] }, idx => {
-      if (idx===1){ autoAvanza(); return; }
-      if (idx===2){ eseguiFineTurno(); return; }
-      for (const cm of citta){ const item = GAME.miglioreCostruzione(cm); if (item) GAME.accoda(cm.id, item); }
+// ...poi le città senza produzione in coda: 3 carte per città (una decisione secca invece di una lista)
+function proponiAutoCitta(citta){ proponiCarteCitta(citta, 0); }
+function proponiCarteCitta(citta, k){
+  if (k >= citta.length){ eseguiFineTurno(); return; }
+  const cm = citta[k];
+  if (cm.coda.length){ proponiCarteCitta(citta, k+1); return; }
+  const carte = GAME.carteCostruzione(cm);
+  if (!carte.length){ proponiCarteCitta(citta, k+1); return; }
+  const scelte = carte.map(c => ({ label: (c.icona||"🏗️")+" "+c.nome, desc: (c.costo+"⚒️ — "+(c.eff||"")).trim() }));
+  scelte.push({ label:"🏘️ Apri la città", desc:"Lista completa di reclutamento e costruzioni" });
+  scelte.push({ label:"🤖 Automatico per tutte", desc:"Scelgo io per questa e per le altre città senza ordini" });
+  const centra = () => { const h = MAP.hexes[cm.hex]; view.x = window.innerWidth/2 - h.x*view.z; view.y = window.innerHeight/2 - h.y*view.z; };
+  centra();
+  mostraModale({ titolo:"🏗️ Cosa costruiamo a "+cm.nome+"?", testo:"("+(k+1)+" di "+citta.length+") ⚒️ "+cm.prodAcc.toFixed(0)+" produzione accumulata, 👥 "+cm.pop+" abitanti", scelte }, idx => {
+    if (idx < carte.length){
+      const c = carte[idx];
+      GAME.accoda(cm.id, c.tipo==="unita" ? { tipo:"unita", id:c.id, costo:c.costo } : c);
+      AUDIO.sfx("costruito"); aggiornaTutto();
+      proponiCarteCitta(citta, k+1);
+    } else if (idx === carte.length){
+      apriPannelloCitta(cm);
+    } else {
+      for (const c of citta.slice(k)){ const item = GAME.miglioreCostruzione(c); if (item && !c.coda.length) GAME.accoda(c.id, item); }
       AUDIO.sfx("click"); aggiornaTutto();
       eseguiFineTurno();
-    });
+    }
+  });
+}
+// ---------- TURNO AUTOMATICO ----------
+// se non c'è nulla da decidere (niente eventi, truppe ferme, città senza ordini, ricerca vuota,
+// crisi in corso), il turno successivo parte da solo dopo una breve pausa: i turni "morti" durano un secondo
+let autoTurno = (() => { try { return localStorage.getItem("trinacria_auto") !== "0"; } catch(e){ return true; } })();
+let autoTimer = null;
+function impostaAuto(on){
+  autoTurno = on; try { localStorage.setItem("trinacria_auto", on ? "1" : "0"); } catch(e){}
+  const b = $("btn-auto"); if (b){ b.classList.toggle("attivo", on); b.title = on ? "Turno automatico attivo: i turni senza decisioni passano da soli" : "Turno automatico spento"; }
+  if (!on) annullaAuto();
+}
+function annullaAuto(){ if (autoTimer){ clearTimeout(autoTimer); autoTimer = null; } const b=$("btn-turno"); if (b && !inTurno){ b.textContent = "Fine Turno ⏭"; b.classList.remove("auto"); } }
+function pianificaAuto(){
+  annullaAuto();
+  const st = GAME.st;
+  if (!autoTurno || !st || st.vittoria || inTurno) return;
+  if (!$("modale-sfondo").classList.contains("nascosto") || st.pending.length) return;
+  const f = st.fazioni[st.giocatore];
+  if (!f.ricerca && !(f.percorsoRicerca && f.percorsoRicerca.length) && GAME.techDisponibili(st.giocatore).length) return;
+  if (GAME.unitaFerme(st.giocatore).length || GAME.cittaDaGestire(st.giocatore).length) return;
+  if (GAME.suggerimenti(st.giocatore).some(s => s.prio >= 9)) return;   // crisi: fermati e guarda
+  const b = $("btn-turno"); b.textContent = "⏩ Turno automatico… (tocca per fermare)"; b.classList.add("auto");
+  autoTimer = setTimeout(() => { autoTimer = null; b.classList.remove("auto"); fineTurno(); }, 900);
 }
 // azione automatica per le truppe ferme, diversa per tipo: i lavoratori migliorano le
 // campagne vicine, i coloni cercano una città indipendente indifesa da fondare, le truppe
@@ -1268,6 +1306,7 @@ function eseguiFineTurno(){
     if (!eventoMostrato && (!GAME.st.fumetti || !GAME.st.fumetti.length) && Math.random()<0.22) battuta("ambiente");
     if (!GAME.st.vittoria && !eventoMostrato) valutaConsigli();
     controllaFinePartita();
+    if (!eventoMostrato) pianificaAuto();
   }, 60);
 }
 
@@ -1515,6 +1554,21 @@ function apriAggiornamento(){
   });
 }
 
+function apriObiettivi(){
+  const st = GAME.st; if (!st) return;
+  const p = GAME.punteggio(st.giocatore);
+  const lista = GAME.statoObiettivi(st.giocatore);
+  let html = `<div class="p-sotto muto">Ogni obiettivo vale 25 punti (+50 se completi tutti e tre quelli di un'era) e dà oro e cultura. Punteggio: città ×10, meraviglie ×15, tecnologie ×2, battaglie vinte ×3, invasori cacciati ×40.</div>
+    <div class="p-riga"><b>${p.totale} punti</b> — ${p.citta} città · ${p.meraviglie} meraviglie · ${p.techs} tecnologie · ${p.obiettivi} obiettivi</div>`;
+  let eraCorr = -1;
+  for (const o of lista){
+    if (o.era !== eraCorr){ eraCorr = o.era; html += `<div class="p-sez">${D().ERE[o.era].nome}${o.attuale?" (in corso)":""}</div>`; }
+    html += `<div class="p-riga ${o.fatto?"":"muto"}">${o.fatto?"✅":"⬜"} ${o.testo}</div>`;
+  }
+  const classifica = st.fazioni.filter(f=>!f.eliminata).map(f=>({f,p:GAME.punteggio(f.id)})).sort((a,b)=>b.p.totale-a.p.totale);
+  html += `<div class="p-sez">Classifica</div>` + classifica.map((x,i)=>`<div class="p-riga ${x.f.id===st.giocatore?"":"muto"}">${i+1}. ${x.f.nome} — ${x.p.totale} punti</div>`).join("");
+  mostraModale({ titolo:"🎯 Obiettivi", html:`<div class="m-scroll">${html}</div>`, scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
+}
 function apriAggiornamentoMigliorie(){
   const st = GAME.st; if (!st) return;
   const f = st.fazioni[st.giocatore];
@@ -1730,6 +1784,7 @@ function apriMenu(){
     <button class="btn-lista" id="btn-guardaroba">👗 Guardaroba del Sovrano</button>
     <button class="btn-lista" id="btn-esercito">⚔️ Aggiorna Esercito${nAggiorn?" ("+nAggiorn+")":""}</button>
     <button class="btn-lista" id="btn-migliorie">🏭 Ammoderna Migliorie${nAggiornM?" ("+nAggiornM+")":""}</button>
+    <button class="btn-lista" id="btn-obiettivi">🎯 Obiettivi e punteggio (${GAME.punteggio(GAME.st.giocatore).totale} punti)</button>
     <button class="btn-lista" id="btn-sponsor">📣 Diventa Sponsor (demo)</button>
     <button class="btn-lista" id="btn-aiuto">❓ Come si gioca</button>
     <button class="btn-lista" id="btn-nuova">🔄 Nuova partita</button>`;
@@ -1752,6 +1807,7 @@ function apriMenu(){
   $("btn-guardaroba").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriGuardaroba(); };
   $("btn-esercito").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriAggiornamento(); };
   $("btn-migliorie").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriAggiornamentoMigliorie(); };
+  $("btn-obiettivi").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriObiettivi(); };
   $("btn-aiuto").onclick = () => {
     $("modale-sfondo").classList.add("nascosto");
     mostraModale({ titolo:"❓ Come si gioca", testo:
