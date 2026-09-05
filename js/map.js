@@ -415,10 +415,16 @@ function coloreFazione2(st, fid){
 
 // ---- RENDER ----
 // entrata per-frame: mare + cache-mondo (blit a due livelli) + livello animato
+// Sopra questo zoom la cache (cotta a BS px/km) andrebbe ingrandita e sgranerebbe: da qui in su
+// il terreno si disegna dal vivo, alla risoluzione dello schermo — pochi esagoni in vista, costo basso.
+const ZOOM_LIVE = 13;
 function frame(ctx, v, st, sel){
   const rz = R*v.z;
   drawSea(ctx, v);
-  blit(ctx, v, st);
+  if (v.z >= ZOOM_LIVE){
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    renderTerreno(ctx, v, st, rz);
+  } else blit(ctx, v, st);
   renderDynamic(ctx, v, st, sel, rz);
 }
 // compat: rendering completo diretto (senza cache)
@@ -759,6 +765,8 @@ function renderDynamic(ctx, v, st, sel, rz){
       disegnaEsercito(ctx, v, rz, lista, st, sel);
     }
   }
+  // vita sulla mappa: solo da vicino, dove c'è spazio per vederla davvero
+  if (rz > 34) vitaSullaMappa(ctx, v, st, rz, W, H);
   // effetti (particelle, testi)
   FX.render(ctx, v);
   // ---- etichette: si disegnano in ordine di importanza e chi si sovrappone viene saltato ----
@@ -832,6 +840,123 @@ function renderDynamic(ctx, v, st, sel, rz){
     }
   }
   poiNomi.length = 0;
+}
+
+// ---- VITA SULLA MAPPA (solo a zoom alto): barche, carretti, greggi, contadini, onde ----
+// Tutto deterministico dalla posizione (nessuno stato da salvare): il moto viene dal tempo,
+// così la scena è viva ma identica a ogni ricarica della partita.
+// direzione del largo per un esagono costiero: media dei vicini che NON esistono (= mare).
+// Calcolata una volta sola e memorizzata sull'esagono (niente stato da salvare).
+function dirMare(h){
+  if (h._mare !== undefined) return h._mare;
+  let vx=0, vy=0;
+  for (const [c,r] of vicinatiCR(h.col,h.row)){
+    if (grid[c+","+r] !== undefined) continue;
+    const p = hexCentro(c, r);
+    vx += p.x - h.x; vy += p.y - h.y;
+  }
+  const len = Math.hypot(vx,vy);
+  h._mare = len > 1e-6 ? { x:vx/len, y:vy/len } : null;
+  return h._mare;
+}
+
+function vitaSullaMappa(ctx, v, st, rz, W, H){
+  const t = performance.now()/1000;
+  const dentro = (s) => s.x>-rz && s.y>-rz && s.x<W+rz && s.y<H+rz;
+  ctx.save();
+  // 1) onde lungo la costa
+  ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = Math.max(1, rz*0.035); ctx.lineCap="round";
+  for (const h of hexes){
+    if (!h.costa) continue;
+    const s = w2s(v, h.x, h.y); if (!dentro(s)) continue;
+    for (let k=0;k<2;k++){
+      const f = rngSeme(h.i*17+k*5);
+      const on = ((t*0.6 + f) % 1);
+      if (on > 0.55) continue;
+      const a = f*6.283, rr = rz*(1.05 + on*0.25);
+      const ox = s.x+Math.cos(a)*rr, oy = s.y+Math.sin(a)*rr;
+      ctx.globalAlpha = (1 - on/0.55) * 0.5;
+      ctx.beginPath(); ctx.arc(ox, oy, rz*0.16, 0.6, 2.5); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  // 2) barche che vanno e vengono davanti ai porti (comuni costieri)
+  //    rotta SEMPRE verso il largo: la direzione del mare è la media dei vicini mancanti.
+  for (const cm of st ? st.comuni : []){
+    const h = hexes[cm.hex];
+    if (!h.costa || cm.pop < 4) continue;
+    const s = w2s(v, h.x, h.y); if (!dentro(s)) continue;
+    const m = dirMare(h); if (!m) continue;
+    const n = cm.pop >= 12 ? 3 : (cm.pop >= 7 ? 2 : 1);
+    for (let k=0;k<n;k++){
+      const f = rngSeme(cm.id*31+k*11);
+      const fase = (t*0.05 + f) % 1;                       // va e torna lungo una rotta
+      const d = rz*(1.5 + 2.4*Math.abs(Math.sin(fase*Math.PI)));
+      const lat = rz*(f-0.5)*1.6;                          // ventaglio di rotte
+      const bx = s.x + m.x*d - m.y*lat, by = s.y + (m.y*d + m.x*lat)*0.7;
+      const scafo = rz*0.16;
+      ctx.fillStyle = "rgba(20,14,8,0.5)";
+      ctx.beginPath(); ctx.ellipse(bx, by+scafo*0.5, scafo*1.1, scafo*0.35, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = "#6b4a28";
+      ctx.beginPath(); ctx.moveTo(bx-scafo, by); ctx.quadraticCurveTo(bx, by+scafo*0.7, bx+scafo, by);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#f2e6cd";                            // vela latina
+      ctx.beginPath(); ctx.moveTo(bx, by-scafo*1.9); ctx.lineTo(bx+scafo*0.85, by-scafo*0.1); ctx.lineTo(bx-scafo*0.2, by-scafo*0.1); ctx.closePath(); ctx.fill();
+    }
+  }
+  // 3) carretti che viaggiano sulle strade
+  ctx.lineCap = "round";
+  for (let i=0;i<strade.length;i++){
+    const r = strade[i];
+    const f = rngSeme(i*13);
+    if (f > 0.45) continue;                                  // non su tutte: solo alcune trazzere
+    const fase = ((t*0.03 + f*3) % 1);
+    const p = fase < 0.5 ? fase*2 : (1-fase)*2;              // avanti e indietro
+    const wx = r.ax + (r.bx-r.ax)*p, wy = r.ay + (r.by-r.ay)*p;
+    const s = w2s(v, wx, wy); if (!dentro(s)) continue;
+    const sc = rz*0.1;
+    ctx.fillStyle = "rgba(20,14,8,0.4)";
+    ctx.beginPath(); ctx.ellipse(s.x, s.y+sc*0.9, sc*1.4, sc*0.4, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#8a5a2a"; ctx.fillRect(s.x-sc, s.y-sc*0.6, sc*1.7, sc*0.9);   // cassa
+    ctx.fillStyle = "#c9a227"; ctx.fillRect(s.x-sc, s.y-sc*0.6, sc*1.7, sc*0.25);  // telo giallo
+    ctx.fillStyle = "#4a3320";
+    ctx.beginPath(); ctx.arc(s.x-sc*0.6, s.y+sc*0.35, sc*0.3, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(s.x+sc*0.4, s.y+sc*0.35, sc*0.3, 0, 7); ctx.fill();
+    ctx.fillStyle = "#d8cbb0";                                                       // mulo
+    ctx.beginPath(); ctx.ellipse(s.x+sc*1.5, s.y-sc*0.1, sc*0.5, sc*0.3, 0, 0, 7); ctx.fill();
+  }
+  // 4) chi lavora la terra: greggi sui pascoli, contadini nei campi, vendemmia nei vigneti
+  if (rz > 46){
+    for (const h of hexes){
+      if (!h.imp) continue;
+      const s = w2s(v, h.x, h.y); if (!dentro(s)) continue;
+      const imp = h.imp;
+      const greggi = imp==="pascolo" || imp==="rifugio_pastori";
+      const campi = imp==="campo" || imp==="fattoria" || imp==="orto" || imp==="manifattura_molini";
+      const vigna = imp==="vigneto" || imp==="cantina" || imp==="vigna_vulcanica" || imp==="bottaia_export";
+      if (!greggi && !campi && !vigna) continue;
+      const n = greggi ? 5 : 3;
+      for (let k=0;k<n;k++){
+        const f1 = rngSeme(h.i*23+k*7), f2 = rngSeme(h.i*29+k*3);
+        const ang = f1*6.283, rad = Math.sqrt(f2)*rz*0.55;
+        const dx = s.x + Math.cos(ang)*rad, dy = s.y + Math.sin(ang)*rad;
+        const vag = Math.sin(t*0.5 + f1*6.283) * rz*0.04;   // si spostano piano
+        if (greggi){
+          ctx.fillStyle = "#f0ece0";
+          ctx.beginPath(); ctx.ellipse(dx+vag, dy, rz*0.045, rz*0.032, 0, 0, 7); ctx.fill();
+          ctx.fillStyle = "#3a3028";
+          ctx.beginPath(); ctx.arc(dx+vag+rz*0.04, dy-rz*0.012, rz*0.016, 0, 7); ctx.fill();
+        } else {
+          const chino = Math.sin(t*1.6 + k) > 0;             // si chinano a lavorare
+          ctx.fillStyle = vigna ? "#7a4a8a" : "#c9b98a";
+          ctx.fillRect(dx-rz*0.012, dy-rz*(chino?0.055:0.075), rz*0.024, rz*(chino?0.055:0.075));
+          ctx.fillStyle = "#e8c9a0";
+          ctx.beginPath(); ctx.arc(dx, dy-rz*(chino?0.065:0.085), rz*0.018, 0, 7); ctx.fill();
+        }
+      }
+    }
+  }
+  ctx.restore();
 }
 
 // gestore anti-sovrapposizione delle etichette (box in coordinate schermo, un frame alla volta)
@@ -1052,7 +1177,9 @@ function disegnaEsercito(ctx, v, rz, lista, st, sel){
   if (mossa) ctx.globalAlpha = 0.65;   // truppe già mosse: leggermente smorzate
 
   const n = Math.min(lista.length, 5);
-  const sSize = rz*1.15;               // soldatini più grandi
+  // soldatini più grandi, ma con crescita smorzata oltre rz 40: a zoom estremo un uomo alto
+  // quanto una cattedrale rovina la scala della scena (resta comunque ben leggibile).
+  const sSize = rz <= 40 ? rz*1.15 : 46 + (rz-40)*0.42;
   const cluster = [[0,-0.12],[-0.44,0.08],[0.44,0.08],[-0.22,0.30],[0.22,0.30]];
   const ordine = [1,2,0,3,4];
   for (const oi of ordine){

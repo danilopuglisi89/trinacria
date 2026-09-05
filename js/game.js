@@ -1705,7 +1705,7 @@ function controllaEra(){
     }
     for (const cm of st.comuni) cm.integr = Math.max(0, cm.integr-25);
     aggiungiLog("🔱 Inizia l'"+era.nome+" ("+annoStr(era.da)+")! I tempi cambiano, le genti mormorano.", "era");
-    st.pending.push({ titolo:"🔱 "+era.nome, img:"era_"+st.era, testo:"Un'epoca nuova cala sulla Sicilia. Nuove tecnologie, nuove genti, nuovi padroni. Le popolazioni guardano con sospetto i nuovi costumi (integrazione -25).\n\n🎯 Obiettivi dell'era:\n• "+obiettiviEra(st.era).map(o=>o.testo).join("\n• ")+"\n\nPunteggio attuale: "+punteggio(st.giocatore).totale,
+    st.pending.push({ titolo:"🔱 "+era.nome, img:"era_"+st.era, vox:"nar_era_"+st.era, testo:"Un'epoca nuova cala sulla Sicilia. Nuove tecnologie, nuove genti, nuovi padroni. Le popolazioni guardano con sospetto i nuovi costumi (integrazione -25).\n\n🎯 Obiettivi dell'era:\n• "+obiettiviEra(st.era).map(o=>o.testo).join("\n• ")+"\n\nPunteggio attuale: "+punteggio(st.giocatore).totale,
       scelte:[{label:"La storia avanza", eff:"nulla"}] });
     // suggerisci l'aggiornamento delle truppe del giocatore alle unità della nuova era (solo se sostenibile)
     const upg = unitaAggiornabili(st.giocatore);
@@ -1747,7 +1747,7 @@ function controllaInvasioni(annoPrec){
           st.unita = st.unita.filter(u=>u.fazione!==ang.id);
           for (const c of st.comuni) if (c.fazione===ang.id) c.fazione = -1;
           aggiungiLog("🔥 VESPRI SICILIANI! Al suono dei vespri, il popolo insorge: gli Angioini sono massacrati in tutta l'isola!", "era");
-          st.pending.push({ titolo:"🔥 I Vespri Siciliani", img:"ev_vespri", testo:"Palermo, lunedì di Pasqua 1282. Un soldato francese insulta una sposa: la folla lo uccide. In poche ore l'isola intera insorge al grido di «Antudo!» — gli Angioini sono cacciati per sempre.\n\nMa dal mare arriva Pietro d'Aragona...", scelte:[{label:"Antudo!", eff:"nulla"}] });
+          st.pending.push({ titolo:"🔥 I Vespri Siciliani", img:"ev_vespri", vox:"nar_vespri", testo:"Palermo, lunedì di Pasqua 1282. Un soldato francese insulta una sposa: la folla lo uccide. In poche ore l'isola intera insorge al grido di «Antudo!» — gli Angioini sono cacciati per sempre.\n\nMa dal mare arriva Pietro d'Aragona...", scelte:[{label:"Antudo!", eff:"nulla"}] });
         }
       }
       const fid = 100 + st.invasori.length;
@@ -1775,7 +1775,7 @@ function controllaInvasioni(annoPrec){
       }
       aggiungiLog("🚨 "+inv.titolo+"!", "era");
       spara("invasione", { luogo: inv.sbarco });
-      st.pending.push({ titolo:"🚨 "+inv.titolo, testo:inv.testo, invasore:fid, img:"ev_sbarco",
+      st.pending.push({ titolo:"🚨 "+inv.titolo, testo:inv.testo, invasore:fid, img:"ev_sbarco", vox:"nar_sbarco",
         scelte:[ {label:"Resisteremo!", desc:"Che vengano: la Sicilia non si piega", eff:"nulla"},
                  {label:"Paga un tributo ("+(40+st.era*25)+" oro)", desc:"Gli invasori ignoreranno le tue terre per 25 turni", eff:"tributo", costoOro:40+st.era*25} ] });
       // le IA decidono da sole
@@ -1799,7 +1799,7 @@ function controllaEventiStorici(annoPrec){
         if (cm.fazione>=0 && cm.fazione<100) target = cm.fazione; else continue;
       }
       if (target === st.giocatore){
-        st.pending.push({ titolo:ev.titolo, testo:ev.testo, scelte:ev.scelte, storico:ev.id });
+        st.pending.push({ titolo:ev.titolo, testo:ev.testo, scelte:ev.scelte, storico:ev.id, vox:"nar_"+ev.id });
       } else {
         applicaEffetto(ev.scelte[0].eff, target);
         aggiungiLog("📯 "+ev.titolo+" — presso "+st.fazioni[target].nome+".", "info");
@@ -1818,7 +1818,7 @@ function controllaEventiStorici(annoPrec){
         if (cm.edifici.length && rnd()<0.5) cm.edifici.splice(Math.floor(rnd()*cm.edifici.length),1);
       }
     }
-    st.pending.push({ titolo:"💥 Il Terremoto del 1693", testo:"L'11 gennaio 1693 la terra si squarcia: il Val di Noto è raso al suolo, sessantamila morti. Ma dalle macerie nascerà il barocco più bello del mondo — le città colpite si ricostruiranno più splendide di prima (+4 cultura permanente).", scelte:[{label:"Ricostruiremo", eff:"nulla"}] });
+    st.pending.push({ titolo:"💥 Il Terremoto del 1693", vox:"nar_terremoto", testo:"L'11 gennaio 1693 la terra si squarcia: il Val di Noto è raso al suolo, sessantamila morti. Ma dalle macerie nascerà il barocco più bello del mondo — le città colpite si ricostruiranno più splendide di prima (+4 cultura permanente).", scelte:[{label:"Ricostruiremo", eff:"nulla"}] });
   }
   // peste 1347
   if (annoPrec < 1347 && st.anno >= 1347 && !st.peste){
@@ -1826,7 +1826,7 @@ function controllaEventiStorici(annoPrec){
     st.peste = { infetti:[me.id], turni: 12 };
     spara("peste", {});
     aggiungiLog("☠️ LA PESTE NERA sbarca a Messina con le galee genovesi!", "era");
-    st.pending.push({ titolo:"☠️ La Peste Nera", img:"ev_peste", testo:"Ottobre 1347: dodici galee genovesi attraccano a Messina. Sulle navi, marinai con strani bubboni neri. In poche settimane la città muore — e da qui la peste conquisterà tutta Europa.\n\nCome rispondi?",
+    st.pending.push({ titolo:"☠️ La Peste Nera", img:"ev_peste", vox:"nar_peste", testo:"Ottobre 1347: dodici galee genovesi attraccano a Messina. Sulle navi, marinai con strani bubboni neri. In poche settimane la città muore — e da qui la peste conquisterà tutta Europa.\n\nCome rispondi?",
       scelte:[ {label:"Quarantena", desc:"-50% oro per 10 turni, la peste si diffonde più lentamente", eff:"quarantena"},
                {label:"Il commercio non si ferma", desc:"Tutto l'oro, ma la peste correrà veloce", eff:"nulla"} ] });
   }
@@ -1915,7 +1915,7 @@ function eventiCasuali(){
     const d = scegli(pool.length ? pool : D().DILEMMI);
     recenti.push(d.id);
     st.ultimoDilemma = st.turno;
-    st.pending.push({ titolo:"⚖️ "+d.titolo, testo:d.testo, scelte:d.scelte.map(s => ({ ...s })) });
+    st.pending.push({ titolo:"⚖️ "+d.titolo, testo:d.testo, vox:"nar_dil_"+d.id, scelte:d.scelte.map(s => ({ ...s })) });
   }
 }
 

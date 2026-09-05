@@ -530,3 +530,10 @@ body[class^="era-"] #cons-nome { color: var(--epoca, #d9c48a); }
   #modale { padding:16px; }
   .m-titolo { font-size:20px; }
 }
+
+/* --- audio: cursori di volume nel menu --- */
+.m-audio{ display:flex; flex-direction:column; gap:8px; padding:6px 2px 10px; }
+.m-audio label{ display:flex; align-items:center; gap:10px; font-size:14px; color:#e8dcc0; }
+.m-audio input[type=range]{ flex:1; accent-color:#c9a227; }
+.m-audio .m-check{ font-size:13px; opacity:.9; }
+.m-audio .m-check input{ accent-color:#c9a227; }

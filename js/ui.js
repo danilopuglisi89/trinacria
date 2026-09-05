@@ -152,6 +152,14 @@ function entraInGioco(){
   view.y = window.innerHeight/2 - h.y*view.z;
   sel = { hex:-1, unita:[], raggio:null };
   aggiornaTutto();
+  // audio: il click su "INIZIA" è il gesto che sblocca la riproduzione nel browser.
+  // Musica dell'era in corso + presentazione di Don Calorio, e si scaldano le battute frequenti.
+  if (!AUDIO.musicaOn && AUDIO.haMusica){
+    AUDIO.toggleMusica(GAME.st.era);
+    $("btn-musica").textContent = "🔊";
+  } else if (AUDIO.musicaOn) AUDIO.temaEra(GAME.st.era);
+  AUDIO.precarica(["don_ambiente_1","don_ambiente_2","don_ambiente_3","don_vinta_1","don_persa_1","don_rivolta_1"]);
+  if (GAME.st.turno <= 1) setTimeout(() => AUDIO.parla("don_benvenuto"), 900);
 }
 
 // ---------- LOOP ----------
@@ -174,7 +182,7 @@ function initGioco(){
   $("btn-diplo").onclick = apriDiplomazia;
   $("btn-menu").onclick = apriMenu;
   $("btn-musica").onclick = () => {
-    const on = AUDIO.toggleMusica();
+    const on = AUDIO.toggleMusica(GAME.st ? GAME.st.era : 0);
     $("btn-musica").textContent = on ? "🔊" : "🔇";
   };
   document.addEventListener("keydown", e => {
@@ -267,7 +275,7 @@ function muoviPuntatore(e){
     const pts = [...puntatori.values()];
     const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
     const cx = (pts[0].x+pts[1].x)/2, cy = (pts[0].y+pts[1].y)/2;
-    view.z = Math.max(2, Math.min(30, pinch.z0 * (dist/pinch.dist)));
+    view.z = Math.max(2, Math.min(42, pinch.z0 * (dist/pinch.dist)));
     view.x = cx - pinch.world.x*view.z;
     view.y = cy - pinch.world.y*view.z;
     ridisegna();
@@ -313,7 +321,7 @@ function annullaPuntatore(e){
 function rotella(e){
   e.preventDefault();
   const fattore = e.deltaY < 0 ? 1.15 : 1/1.15;
-  const nuovo = Math.max(2, Math.min(30, view.z*fattore));
+  const nuovo = Math.max(2, Math.min(42, view.z*fattore));
   const w = MAP.s2w(view, e.clientX, e.clientY);
   view.z = nuovo;
   view.x = e.clientX - w.x*view.z;
@@ -974,6 +982,13 @@ function battuta(tipo, ctx){
   if (chiT==="cal") chi = { tipo:"calorio" };
   else if (chiT==="riv") chi = { tipo:"rivale", fid: (ctx&&ctx.fid!==undefined)?ctx.fid:0 };
   fumetto(chi, testo, tipo==="ambiente"?3200:3800);
+  // voce solo quando parla Don Calorio in un momento che vale la pena sentire
+  if (chiT==="cal"){
+    if (tipo==="ambiente") { if (Math.random() < 0.5) AUDIO.parlaUna("don_ambiente", 8); }
+    else if (tipo==="invasione") AUDIO.parlaUna("don_invasori", 2);
+    else if (tipo==="colonizzazione"||tipo==="conquista") AUDIO.parlaUna("don_citta_presa", 3);
+    else if (tipo==="costruito") AUDIO.parlaUna("don_meraviglia", 2);
+  }
 }
 
 // valuta le proposte concrete e le mostra con Accetta / Rifiuta / Più tardi
@@ -1000,6 +1015,13 @@ function proponiAzione(prop){
     "<button class='cons-btn cons-dopo'>⏳ Più tardi</button></div>";
   box.classList.remove("nascosto");
   box.classList.remove("cons-in"); void box.offsetWidth; box.classList.add("cons-in");
+  // voce solo per le crisi vere: rivolta, casse vuote, carestia (le altre restano scritte)
+  if (prop.prio >= 8){
+    const id = String(prop.id||"") + " " + String(prop.testo||"").toLowerCase();
+    if (/rivolt|malcontent|ribell/.test(id))         AUDIO.parlaUna("don_rivolta", 3);
+    else if (/oro|denar|casse|tass|gabell/.test(id)) AUDIO.parlaUna("don_oro", 2);
+    else if (/cibo|gran|fame|carest/.test(id))       AUDIO.parlaUna("don_fame", 2);
+  }
   if (consTimer) clearTimeout(consTimer);
   consTimer = setTimeout(() => box.classList.add("nascosto"), 20000);
   box.querySelector(".cons-si").onclick = (e) => {
@@ -1111,6 +1133,7 @@ function processaPending(){
   if (!st.pending.length){ if (typeof pianificaAuto === "function") pianificaAuto(); return; }
   const evt = st.pending.shift();
   AUDIO.sfx("campana");
+  if (evt.vox) AUDIO.parla(evt.vox);      // narratore: solo sugli eventi che contano
   // tocco cinematografico sugli eventi maggiori (ere, invasioni, disastri)
   if (window.FX && evt.titolo && /^[🔱🚨💥☠🔥⚱👑]/.test(evt.titolo)){
     FX.cinema(1.6);
@@ -1294,9 +1317,16 @@ function eseguiFineTurno(){
   inTurno = true;
   $("btn-turno").disabled = true;
   $("btn-turno").textContent = "⏳ La Sicilia si muove...";
+  const eraPrima = GAME.st.era;
   setTimeout(() => {
     GAME.fineTurno();
     AUDIO.sfx("turno");
+    if (GAME.st.era !== eraPrima){          // cambio d'era: nuovo tema e battuta del consigliere
+      AUDIO.temaEra(GAME.st.era);
+      AUDIO.parla("don_era_" + GAME.st.era);
+      inGuerraPrima = false;                // il tema di battaglia va rivalutato sulla nuova era
+    }
+    aggiornaMusicaGuerra();
     sel = { hex:-1, unita:[], raggio:null };
     chiudiPannello();
     aggiornaTutto();
@@ -1313,6 +1343,19 @@ function eseguiFineTurno(){
   }, 60);
 }
 
+// Il tema di battaglia sostituisce quello dell'era finché il giocatore è in guerra con
+// qualcuno (o ha invasori dentro casa); tornata la pace, si riprende il tema dell'era.
+let inGuerraPrima = false;
+function aggiornaMusicaGuerra(){
+  const st = GAME.st; if (!st || !AUDIO.musicaOn) return;
+  const f = st.fazioni[st.giocatore];
+  const guerra = Object.values(f.diplo||{}).some(d => d.stato === "guerra")
+    || st.comuni.some(c => c.fazione >= 100);
+  if (guerra === inGuerraPrima) return;
+  inGuerraPrima = guerra;
+  if (guerra) AUDIO.temaBattaglia(); else AUDIO.fineBattaglia();
+}
+
 // evidenzia e centra sullo scontro più importante del turno IA che tocca il giocatore
 function mostraEventiTurno(){
   const st = GAME.st;
@@ -1322,6 +1365,7 @@ function mostraEventiTurno(){
   centraSu(ev.hex);
   if (window.FX){ FX.pulse(h.x, h.y, ev.vinta?"#6fbf6f":"#e05540", 24); FX.battle(h.x, h.y, ev.vinta); }
   AUDIO.sfx(ev.vinta ? "vittoria" : "battaglia");
+  AUDIO.parlaUna(ev.vinta ? "don_vinta" : "don_persa", 3);
   const dove = ev.nome ? (" a "+ev.nome) : "";
   consigliere("scontro", ev.vinta
     ? "«Bona nova, Maestà! Li nostri hannu vintu"+dove+"! 🛡️»"
@@ -1334,7 +1378,7 @@ function controllaFinePartita(){
   const st = GAME.st;
   if (!st.vittoria || st.continua) return;
   if (st.vittoria==="vinta"){
-    AUDIO.sfx("vittoria");
+    AUDIO.sfx("vittoria"); AUDIO.parla("don_vittoria");
     mostraModale({ titolo:"🔱 TRINACRIA È TUA!",
       testo:"Da Messina a Marsala, da Cefalù a Pachino, ogni campanile suona per te.\n\n"+
         st.fazioni[st.giocatore].leader.nome+" di "+st.fazioni[st.giocatore].nome+" regna sulla Sicilia unita, nell'anno "+GAME.annoStr(st.anno)+", dopo "+st.turno+" turni di sangue, grano e gloria.\n\n«Cu' avi 'a Sicilia, avi u munnu.»",
@@ -1343,7 +1387,7 @@ function controllaFinePartita(){
         else st.continua = true;
       });
   } else {
-    AUDIO.sfx("sconfitta");
+    AUDIO.sfx("sconfitta"); AUDIO.parla("don_sconfitta");
     mostraModale({ titolo:"⚰️ La tua dinastia si spegne",
       testo:"L'ultima città è caduta, l'ultimo stendardo è bruciato. La storia della Sicilia continuerà — ma senza di te.\n\n«Cu' nesci, arrinesci... ma tu nun ha' nisciutu.»",
       scelte:[{label:"Nuova partita", eff:"nuova"}] }, () => location.reload());
@@ -1826,6 +1870,14 @@ function apriMenu(){
     if (s.vuoto) continue;
     html += `<button class="btn-lista" data-carica="${s.chiave}">📂 ${s.chiave==="auto"?"Autosalvataggio":s.chiave.toUpperCase()} — ${s.info}</button>`;
   }
+  const A = AUDIO.imp;
+  html += `<div class="m-sez">Audio</div>
+    <div class="m-audio">
+      <label>🎵 Musica <input type="range" id="vol-mus" min="0" max="100" value="${Math.round(A.musica*100)}"></label>
+      <label>🗣️ Voci <input type="range" id="vol-voce" min="0" max="100" value="${Math.round(A.voce*100)}"></label>
+      <label>🔔 Effetti <input type="range" id="vol-fx" min="0" max="100" value="${Math.round(A.effetti*100)}"></label>
+      <label class="m-check"><input type="checkbox" id="voce-on" ${A.voceOn?"checked":""}> Don Calorio e il narratore parlano</label>
+    </div>`;
   // il governo del regno sta tutto in 👑 Regno e 🍴 Corte: qui restano partita e utilità
   html += `<div class="m-sez">Partita</div>
     <button class="btn-lista" id="btn-aiuto">❓ Come si gioca</button>
@@ -1833,6 +1885,11 @@ function apriMenu(){
     <button class="btn-lista" id="btn-nuova">🔄 Nuova partita</button>`;
   mostraModale({ titolo:"☰ Menu", html:`<div class="m-scroll">${html}</div>`,
     scelte:[{label:"Torna al gioco", eff:"nulla"}] }, ()=>{});
+  const sl = (id, set) => { const e = $(id); if (e) e.oninput = () => set(e.value/100); };
+  sl("vol-mus",  x => AUDIO.volMusica = x);
+  sl("vol-voce", x => AUDIO.volVoce   = x);
+  sl("vol-fx",   x => AUDIO.volEffetti= x);
+  if ($("voce-on")) $("voce-on").onchange = e => AUDIO.voceAttiva = e.target.checked;
   document.querySelectorAll("[data-salva]").forEach(b => b.onclick = () => {
     SAVE.salva(b.dataset.salva);
     $("modale-sfondo").classList.add("nascosto");
