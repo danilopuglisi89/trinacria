@@ -129,6 +129,12 @@ button { font-family:inherit; cursor:pointer; }
 }
 #btn-auto.attivo { background:linear-gradient(#5aa06a,#2f7a44); color:#f4f1e6; opacity:1; }
 
+/* voci dei pannelli-hub (👑 Regno, 🍴 Corte): icona grande + nome + stato */
+.hub-voce { display:flex; align-items:center; gap:12px; text-align:left; padding:12px 14px; }
+.hub-ico { font-size:26px; flex:0 0 32px; text-align:center; }
+.hub-txt { flex:1; line-height:1.35; }
+.hub-voce.urgente { border-color:#d9a520; box-shadow:0 0 0 1px rgba(217,165,32,0.35) inset; }
+
 #minimappa-box {
   position:absolute; bottom:12px; left:12px; z-index:11;
   display:flex; flex-direction:column; align-items:flex-start; gap:0;

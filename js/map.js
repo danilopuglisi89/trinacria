@@ -559,10 +559,10 @@ function renderTerreno(ctx, v, st, rz){
     for (const h of hexes){
       const own = st.comuni[h.comune].fazione;
       if (own===-1 || !vis(h)) continue;
-      const frontiera = vicini(h.i).some(j => st.comuni[hexes[j].comune].fazione !== own) ||
-                         vicinatiCR(h.col,h.row).some(([nc,nr]) => grid[nc+","+nr]===undefined);
+      // velo leggerissimo: il possesso si legge dal confine e dal suo alone, la texture resta protagonista
+      const frontiera = vicini(h.i).some(j => st.comuni[hexes[j].comune].fazione !== own);
       const s = w2s(v, h.x, h.y);
-      ctx.fillStyle = coloreFazione(st, own) + (frontiera ? "1c" : "3d");
+      ctx.fillStyle = coloreFazione(st, own) + (frontiera ? "10" : "18");
       ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.fill();
     }
     disegnaConfini(ctx, v, st, rz, W, H);
@@ -623,10 +623,13 @@ function renderTerreno(ctx, v, st, rz){
       } else {
         ART.citta(ctx, s.x, s.y, rz, cm, coloreFazione(st, cm.fazione), coloreFazione2(st, cm.fazione), hasCatt);
       }
-      // capitale: stella
-      if (st.fazioni[cm.fazione] && st.fazioni[cm.fazione].capitale === cm.id){
-        ctx.fillStyle="#ffd700"; ctx.font="bold "+Math.floor(rz*0.7)+"px serif"; ctx.textAlign="center";
-        ctx.fillText("★", s.x - rz*0.75, s.y - rz*0.95);
+      // capitale: stella sopra la città, centrata e con contorno scuro (si stacca dai tetti)
+      if (isCap){
+        const fs = Math.max(11, rz*0.6);
+        ctx.font = "bold "+Math.floor(fs)+"px serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.lineWidth = Math.max(2, fs*0.22); ctx.strokeStyle = "rgba(20,14,6,0.85)"; ctx.lineJoin="round";
+        ctx.strokeText("★", s.x, s.y - rz*1.35);
+        ctx.fillStyle = "#ffd700"; ctx.fillText("★", s.x, s.y - rz*1.35);
       }
       // barra assedio
       if (cm.mura>0 && cm.muraHP < cm.mura*100){
@@ -701,9 +704,9 @@ function renderDynamic(ctx, v, st, sel, rz){
       if (cm.fazione!==st.giocatore || cm.coda.length) continue;
       const h = hexes[cm.hex]; if (!vis(h)) continue;
       const s = w2s(v, h.x, h.y);
-      ctx.globalAlpha = 0.55 + puls*0.45;
-      ctx.font = Math.floor(rz*0.85)+"px serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
-      ctx.fillText("🔨", s.x + rz*0.7, s.y - rz*1.15);
+      ctx.globalAlpha = 0.45 + puls*0.35;
+      ctx.font = Math.floor(Math.min(24, rz*0.6))+"px serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText("🔨", s.x + rz*0.75, s.y - rz*1.0);
       ctx.globalAlpha = 1;
     }
   }
@@ -729,7 +732,9 @@ function renderDynamic(ctx, v, st, sel, rz){
       if (st.nebbia && !GAME.hexEsplorato(cm.hex)) continue;
       const s = w2s(v, h.x, h.y);
       const col = coloreFazione(st, cm.fazione);
-      if (cm.fazione>=0) ART.bandiera(ctx, s.x + rz*0.9, s.y, rz, col, cm.id);
+      // bandiera solo dove conta: capitali e città grandi (i borghi restano puliti)
+      const isCap = st.fazioni[cm.fazione] && st.fazioni[cm.fazione].capitale === cm.id;
+      if (cm.fazione>=0 && (isCap || cm.tier>=3)) ART.bandiera(ctx, s.x + rz*0.9, s.y, rz, col, cm.id);
       // fumo che sale dai tetti delle città vive (di rado, per non appesantire)
       if (cm.fazione>=0 && cm.fazione<100 && cm.pop>=4 && rz>7 && Math.random()<0.012)
         FX.smoke(h.x + (Math.random()-0.5)*R, h.y - R*0.4, 0.6);
@@ -756,37 +761,95 @@ function renderDynamic(ctx, v, st, sel, rz){
   }
   // effetti (particelle, testi)
   FX.render(ctx, v);
-  // etichette dei luoghi (geografia, coste, siti) — LOD per tipo/zoom
-  ctx.textAlign="center"; ctx.textBaseline="middle";
-  for (const l of luoghi){
-    if (v.z < l.zMin) continue;
-    const s = w2s(v, l.x, l.y);
-    if (s.x<-20||s.y<-20||s.x>W+20||s.y>H+20) continue;
-    etichettaLuogo(ctx, l, s.x, s.y, v.z);
-  }
-  // etichette città (screen-space, nitide)
+  // ---- etichette: si disegnano in ordine di importanza e chi si sovrappone viene saltato ----
+  LBL.reset();
+  // 1) città (le più grandi per prime)
   if (st && rz > 7){
     ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+    const cittaVisibili = st.comuni.filter(cm => {
+      if (rz < 11 && cm.tier < 3) return false;
+      if (rz < 9 && cm.tier < 4) return false;
+      if (st.nebbia && !GAME.hexEsplorato(cm.hex)) return false;
+      return vis(hexes[cm.hex]);
+    }).sort((a,b)=>b.tier-a.tier);
+    for (const cm of cittaVisibili){
+      const s = w2s(v, hexes[cm.hex].x, hexes[cm.hex].y);
+      const fs = cm.tier>=4?14:(cm.tier===3?12:10.5);
+      const y = s.y+rz*1.55;
+      ctx.font = (cm.tier>=3?"bold ":"")+fs+"px Georgia";
+      if (!LBL.prova(s.x, y-fs*0.5, ctx.measureText(cm.nome).width+10, fs+6)) continue;
+      etichetta(ctx, cm.nome, s.x, y, fs, cm.tier>=3, cm.fazione, st);
+    }
+    // ...poi i tetti delle città si riservano il loro spazio: nessun'altra etichetta ci finirà sopra
     for (const cm of st.comuni){
-      if (rz < 11 && cm.tier < 3) continue;
-      if (rz < 9 && cm.tier < 4) continue;
-      if (st.nebbia && !GAME.hexEsplorato(cm.hex)) continue;
       const h = hexes[cm.hex]; if (!vis(h)) continue;
       const s = w2s(v, h.x, h.y);
-      const fs = cm.tier>=4?14:(cm.tier===3?12:10.5);
-      etichetta(ctx, cm.nome, s.x, s.y+rz*1.55, fs, cm.tier>=3, cm.fazione, st);
+      const k = 1 + Math.max(0, Math.min(3, cm.tier-1))*0.28;
+      LBL.occupa(s.x, s.y - rz*0.25, rz*2.0*k, rz*1.4*k);
     }
-    // targhe dei monumenti-simbolo (icona + nome), ben visibili a zoom alto, sulla loro casella propria
+    // 2) targhe dei monumenti-simbolo (icona + nome) sulla loro casella propria
     if (rz > 9){
       for (const m of monumenti){
         if (st.nebbia && !GAME.hexEsplorato(m.hex)) continue;
         const h = hexes[m.hex]; if (!vis(h)) continue;
         const s = w2s(v, h.x, h.y);
+        ctx.font = "600 11px Georgia";
+        const w = ctx.measureText(m.etichetta).width + 14;
+        if (!LBL.prova(s.x, s.y - rz*1.55, w, 20)) continue;
         targaMonumento(ctx, m.etichetta, s.x, s.y - rz*1.55);
       }
     }
   }
+  // 3) luoghi geografici (monti, fiumi, golfi…)
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  for (const l of luoghi){
+    if (v.z < l.zMin) continue;
+    const s = w2s(v, l.x, l.y);
+    if (s.x<-20||s.y<-20||s.x>W+20||s.y>H+20) continue;
+    const stl = STILE_LUOGO[l.tipo] || STILE_LUOGO.sito;
+    ctx.font = stl.fs+"px Georgia";
+    if (!LBL.prova(s.x, s.y, ctx.measureText(l.nome).width+10, stl.fs+4)) continue;
+    etichettaLuogo(ctx, l, s.x, s.y, v.z);
+  }
+  // 4) targhette degli sponsor (dopo città e monumenti: non devono mai coprirli)
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  for (const s of sponsorNomi){
+    ctx.font = "bold 11px Georgia";
+    const w = ctx.measureText(s.n).width + 12;
+    if (!LBL.prova(s.x, s.y, w, 18)) continue;
+    ctx.fillStyle = "rgba(24,18,10,0.85)"; ART.roundRect(ctx, s.x-w/2, s.y-8, w, 16, 5); ctx.fill();
+    ctx.strokeStyle = s.col; ctx.lineWidth = 1.2; ART.roundRect(ctx, s.x-w/2, s.y-8, w, 16, 5); ctx.stroke();
+    ctx.fillStyle = "#f4ead0"; ctx.fillText(s.n, s.x, s.y+0.5);
+  }
+  sponsorNomi.length = 0;
+  // 5) nomi dei POI di contorno: solo se resta spazio (i pallini sono già disegnati sopra)
+  if (v.z >= 14){
+    ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font = "10px Georgia";
+    for (const p of poiNomi){
+      if (!LBL.prova(p.x, p.y, ctx.measureText(p.n).width+8, 14)) continue;
+      ctx.fillStyle = "rgba(20,15,8,0.55)"; ctx.fillText(p.n, p.x, p.y);
+      ctx.fillStyle = "#e8dcc0"; ctx.fillText(p.n, p.x, p.y-0.6);
+    }
+  }
+  poiNomi.length = 0;
 }
+
+// gestore anti-sovrapposizione delle etichette (box in coordinate schermo, un frame alla volta)
+const LBL = (() => {
+  let box = [];
+  return {
+    reset(){ box.length = 0; },
+    occupa(cx, cy, w, h){ box.push({ x1:cx-w/2, y1:cy-h/2, x2:cx+w/2, y2:cy+h/2 }); },
+    prova(cx, cy, w, h){
+      const x1 = cx-w/2, y1 = cy-h/2, x2 = cx+w/2, y2 = cy+h/2;
+      for (const b of box) if (x1 < b.x2 && x2 > b.x1 && y1 < b.y2 && y2 > b.y1) return false;
+      box.push({ x1, y1, x2, y2 });
+      return true;
+    }
+  };
+})();
+const poiNomi = [];       // nomi dei POI in attesa: disegnati per ultimi, se resta spazio
+const sponsorNomi = [];   // idem per le targhette sponsor
 
 // targhetta dorata con il nome del monumento-simbolo
 function targaMonumento(ctx, testo, x, y){
@@ -876,8 +939,12 @@ function etichetta(ctx, testo, x, y, fs, bold, fid, st){
 // confini in stile atlante storico: un'ombra scura sotto (per staccare dal terreno) e
 // una linea nitida del colore del regno sopra, un filo più spessa dove due regni veri si toccano
 // (frontiera "calda") che dove un regno confina con terra indipendente non ancora rivendicata.
-function disegnaConfini(ctx, v, st, rz, W, H){
-  const segmenti = [];
+// Confine di regno: linea netta continua SOLO verso terra altrui (mai contro il mare: la costa
+// è già un confine naturale) più un alone del colore del regno che sfuma verso l'interno, così
+// il possesso si legge anche con il velo sul territorio quasi trasparente.
+// I segmenti coprono l'intero lato dell'esagono e vengono uniti in polilinee: niente più trattini.
+function latiConfine(v, st, rz, W, H){
+  const per = {};   // colore -> lista di lati {a:{x,y}, b:{x,y}}
   for (const h of hexes){
     const own = st.comuni[h.comune].fazione;
     if (own===-1) continue;
@@ -886,30 +953,47 @@ function disegnaConfini(ctx, v, st, rz, W, H){
     const dirs = vicinatiCR(h.col,h.row);
     for (let d=0; d<dirs.length; d++){
       const j = grid[dirs[d][0]+","+dirs[d][1]];
-      const altro = (j===undefined) ? -2 : st.comuni[hexes[j].comune].fazione;
-      if (altro !== own){
-        const nx = (j===undefined) ? null : hexes[j];
-        const tx = nx ? (nx.x+h.x)/2 : h.x, ty = nx ? (nx.y+h.y)/2 : h.y;
-        const ss = w2s(v, tx, ty);
-        const ang = Math.atan2(ss.y-s.y, ss.x-s.x);
-        const ex = s.x+Math.cos(ang)*rz*0.86, ey = s.y+Math.sin(ang)*rz*0.86;
-        segmenti.push({
-          x1: ex - Math.sin(ang)*rz*0.52, y1: ey + Math.cos(ang)*rz*0.52,
-          x2: ex + Math.sin(ang)*rz*0.52, y2: ey - Math.cos(ang)*rz*0.52,
-          col: coloreFazione(st, own), caldo: altro>=0
-        });
-      }
+      if (j===undefined) continue;                       // mare / fuori mappa: nessuna linea
+      const altro = st.comuni[hexes[j].comune].fazione;
+      if (altro === own) continue;
+      const nx = hexes[j];
+      const dx = (nx.x-h.x), dy = (nx.y-h.y);
+      const a2 = Math.atan2(dy, dx);
+      // punto medio del lato condiviso (apotema = rz*0.866) e mezza corda = lato/2 = rz*0.5
+      const mx = s.x + Math.cos(a2)*rz*0.866, my = s.y + Math.sin(a2)*rz*0.866;
+      const px = -Math.sin(a2)*rz*0.5, py = Math.cos(a2)*rz*0.5;
+      const col = coloreFazione(st, own);
+      (per[col] = per[col] || []).push({ a:{x:mx-px, y:my-py}, b:{x:mx+px, y:my+py},
+                                          n:{x:Math.cos(a2), y:Math.sin(a2)} });
     }
   }
-  ctx.lineCap = "round";
-  // passata 1: ombra scura sotto, per staccare il confine dal mosaico del terreno
-  ctx.strokeStyle = "rgba(20,14,8,0.55)"; ctx.lineWidth = Math.max(2.4, rz*0.24);
-  for (const sg of segmenti){ ctx.beginPath(); ctx.moveTo(sg.x1,sg.y1); ctx.lineTo(sg.x2,sg.y2); ctx.stroke(); }
-  // passata 2: linea nitida del colore del regno
-  for (const sg of segmenti){
-    ctx.strokeStyle = sg.col;
-    ctx.lineWidth = sg.caldo ? Math.max(1.8, rz*0.19) : Math.max(1.3, rz*0.13);
-    ctx.beginPath(); ctx.moveTo(sg.x1,sg.y1); ctx.lineTo(sg.x2,sg.y2); ctx.stroke();
+  return per;
+}
+function disegnaConfini(ctx, v, st, rz, W, H){
+  const per = latiConfine(v, st, rz, W, H);
+  const spess = Math.max(1.6, rz*0.16);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const col of Object.keys(per)){
+    const lati = per[col];
+    // 1) alone verso l'interno del regno: banda sfumata che entra nel territorio
+    ctx.save();
+    const prof = rz*1.05;                       // quanto l'alone entra nel territorio
+    for (const l of lati){
+      const g = ctx.createLinearGradient(l.a.x - l.n.x*prof, l.a.y - l.n.y*prof, l.a.x, l.a.y);
+      g.addColorStop(0, col+"00"); g.addColorStop(0.55, col+"3a"); g.addColorStop(1, col+"8c");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y);
+      ctx.lineTo(l.b.x - l.n.x*prof, l.b.y - l.n.y*prof);
+      ctx.lineTo(l.a.x - l.n.x*prof, l.a.y - l.n.y*prof);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    // 2) ombra sottile + linea netta del colore del regno (un solo path: giunzioni pulite)
+    ctx.beginPath();
+    for (const l of lati){ ctx.moveTo(l.a.x, l.a.y); ctx.lineTo(l.b.x, l.b.y); }
+    ctx.strokeStyle = "rgba(18,12,6,0.5)"; ctx.lineWidth = spess + Math.max(1.2, rz*0.05); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = spess; ctx.stroke();
   }
 }
 
@@ -1075,15 +1159,8 @@ function disegnaSponsor(ctx, v, st, rz){
     ctx.lineWidth=2.5; ctx.strokeStyle=sp.colore; ctx.stroke();
     // emoji categoria (segnaposto del logo)
     ctx.font = Math.floor(SP_R*1.2)+"px serif"; ctx.fillText(sp.cat, c.x, c.y+1);
-    // etichetta nome a zoom alto
-    if (rz > 9){
-      ctx.font = "bold 11px Georgia";
-      const w = ctx.measureText(sp.nome).width + 12;
-      const ly = c.y - SP_R - 13;
-      ctx.fillStyle = "rgba(24,18,10,0.85)"; ART.roundRect(ctx, c.x-w/2, ly-8, w, 16, 5); ctx.fill();
-      ctx.strokeStyle = sp.colore; ctx.lineWidth=1.2; ART.roundRect(ctx, c.x-w/2, ly-8, w, 16, 5); ctx.stroke();
-      ctx.fillStyle = "#f4ead0"; ctx.fillText(sp.nome, c.x, ly+0.5);
-    }
+    // etichetta nome: in coda al gestore etichette (cede il passo a città e monumenti)
+    if (rz > 9) sponsorNomi.push({ n: sp.nome, x: c.x, y: c.y - SP_R - 13, col: sp.colore });
   }
 }
 // indice dello sponsor sotto (sx,sy) in px-schermo, oppure -1
@@ -1111,12 +1188,8 @@ function disegnaPOI(ctx, v, st, rz){
     ctx.fillStyle = "rgba(28,44,58,0.92)"; ctx.fill();
     ctx.lineWidth = 1.4; ctx.strokeStyle = "rgba(240,230,200,0.7)"; ctx.stroke();
     ctx.font = "10px serif"; ctx.fillStyle = "#fff"; ctx.fillText(p.c, s.x, s.y+0.5);
-    // nome solo a zoom molto alto
-    if (v.z >= 14){
-      ctx.font = "10px Georgia"; ctx.fillStyle = "rgba(20,15,8,0.55)";
-      ctx.fillText(p.n, s.x, s.y-13);
-      ctx.fillStyle = "#e8dcc0"; ctx.fillText(p.n, s.x, s.y-13.6);
-    }
+    // nome solo a zoom molto alto: in coda, lo disegna il gestore etichette se resta spazio
+    if (v.z >= 14) poiNomi.push({ n: p.n, x: s.x, y: s.y-13 });
   }
 }
 function poiAt(v, sx, sy){

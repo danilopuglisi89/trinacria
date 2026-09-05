@@ -51,3 +51,11 @@ Scelte di Danilo: tutto in AI **mappa compresa**, stile fedele al mosaico bizant
 - **Asset**: 21 texture terreno (world-anchored, `TEX_KM=R*2.5`), 32 città (4 stili × 8 tier), 12 monumenti generici + 27 reali (`mon_c_<slug>`), 36 unità, 111 icone, 7 stemmi, 7 ritratti + Don Calorio, 6 illustrazioni-evento rigenerate + 5 cambi d'era (`era_1..5.jpg`) + `intro_bg.jpg` + favicon; capsule Steam in `desktop/steam_art/`.
 - **Resta procedurale**: sovrano personalizzabile/guardaroba (combinatorio), effetti FX, hillshade/fiumi/strade/confini, bandiere, segnalini a zoom basso.
 - Crediti spesi: ~136 su 596.
+
+## Ripulitura mappa e menu (settembre 2026, v57)
+Scelte di Danilo: confine con linea + alone verso l'interno; velo territorio molto leggero; menu in 4 voci; bandiere solo su capitali e città grandi.
+- **Confini** (`latiConfine`/`disegnaConfini` in map.js): nessuna linea contro il mare (prima il "fuori griglia" era trattato come vicino diverso → trattini lungo tutta la costa); i lati coprono l'intero lato dell'esagono e si disegnano in un unico path per colore (giunzioni pulite, niente tratteggio); alone `createLinearGradient` che entra di `rz*1.05` nel territorio.
+- **Velo territorio**: da 24% (`3d`) a 6-9% (`10`/`18`): le texture a mosaico restano protagoniste.
+- **Etichette anti-sovrapposizione** (`LBL` in map.js): ordine di priorità città → box dei tetti riservato (`LBL.occupa`) → targhe monumenti → luoghi geografici → sponsor → POI; chi non trova spazio non viene disegnato. Nomi POI e targhe sponsor accodati in `poiNomi`/`sponsorNomi` e disegnati per ultimi.
+- **Mappa più pulita**: bandiera solo su capitali e città tier ≥ 3; stella della capitale centrata sopra la città con contorno scuro; martello "città senza ordini" ridotto (max 24 px) e più trasparente.
+- **Menu in 4 voci** (index.html + ui.js): 👑 **Regno** (ricerca · obiettivi · aggiorna esercito · ammoderna migliorie), 🍴 **Corte** (cucina · poteri · guardaroba), 🤝 **Diplomazia**, ☰ **Menu** (salva/carica · come si gioca · sponsor · nuova partita). Gli hub (`apriHub`/`vociRegno`/`vociCorte`) mostrano lo stato di ogni voce e evidenziano in oro ciò che richiede attenzione; il pulsante Regno riporta la % di ricerca e il numero di aggiornamenti in sospeso.

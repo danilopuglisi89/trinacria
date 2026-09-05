@@ -169,9 +169,8 @@ function initGioco(){
   $("btn-turno").onclick = () => { if (autoTimer){ annullaAuto(); AUDIO.sfx("click"); return; } fineTurno(); };
   const ba = $("btn-auto");
   if (ba){ ba.onclick = () => { impostaAuto(!autoTurno); AUDIO.sfx("click"); if (autoTurno) pianificaAuto(); }; impostaAuto(autoTurno); }
-  $("btn-ricerca").onclick = apriRicerca;
-  $("btn-cucina").onclick = apriCucina;
-  $("btn-poteri").onclick = apriPoteri;
+  $("btn-regno").onclick = apriRegno;
+  $("btn-corte").onclick = apriCorte;
   $("btn-diplo").onclick = apriDiplomazia;
   $("btn-menu").onclick = apriMenu;
   $("btn-musica").onclick = () => {
@@ -830,18 +829,22 @@ function aggiornaTopbar(){
     const sc = sovCv.getContext("2d");
     ART.sovrano(sc, 20, 23, 38, 44, f.leader.look, st.giocatore);
   }
-  // ricerca (lampeggia se nessuna in corso)
-  let ric = "📜 Ricerca";
-  const btnRic = $("btn-ricerca");
-  if (f.ricerca){
-    const tt = D().TECH.find(x=>x.id===f.ricerca);
-    ric = `📜 ${tt.nome} ${Math.min(100,Math.round(f.sciAcc/GAME.costoTech(tt)*100))}%`;
-    btnRic.classList.remove("pulsa");
-  } else if (GAME.techDisponibili(st.giocatore).length){
-    ric = "📜 Scegli ricerca!";
-    btnRic.classList.add("pulsa");
-  } else btnRic.classList.remove("pulsa");
-  btnRic.textContent = ric;
+  // pulsante Regno: mostra la ricerca in corso e lampeggia se manca (o se ci sono aggiornamenti)
+  const btnRegno = $("btn-regno");
+  if (btnRegno){
+    let txt = "👑 Regno";
+    const daFare = GAME.unitaAggiornabili(st.giocatore).length + GAME.migliorieAggiornabili(st.giocatore).length;
+    if (f.ricerca){
+      const tt = D().TECH.find(x=>x.id===f.ricerca);
+      txt = `👑 Regno · 📜 ${Math.min(100,Math.round(f.sciAcc/GAME.costoTech(tt)*100))}%`;
+      btnRegno.classList.remove("pulsa");
+    } else if (GAME.techDisponibili(st.giocatore).length){
+      txt = "👑 Regno · 📜 scegli ricerca!";
+      btnRegno.classList.add("pulsa");
+    } else btnRegno.classList.remove("pulsa");
+    if (daFare) txt += " ·  " + daFare + "▲";
+    btnRegno.textContent = txt;
+  }
 }
 function aggiornaRegistro(){
   const st = GAME.st;
@@ -1638,6 +1641,51 @@ function applicaPotereSuHex(i){
   }
 }
 
+// ---------- HUB: 👑 REGNO (governo) e 🍴 CORTE (sapore e sovrano) ----------
+// Tutto ciò che serve a governare sta in due sole voci, con lo stato scritto sul pulsante:
+// niente più funzioni sparse fra la barra in alto e il menu dei salvataggi.
+function vociRegno(){
+  const st = GAME.st, fid = st.giocatore, f = st.fazioni[fid];
+  const nU = GAME.unitaAggiornabili(fid).length, nM = GAME.migliorieAggiornabili(fid).length;
+  const p = GAME.punteggio(fid);
+  const obEra = GAME.obiettiviEra(st.era), fatti = obEra.filter(o => GAME.stat().obiettivi.includes(o.id)).length;
+  const tt = f.ricerca ? D().TECH.find(x=>x.id===f.ricerca) : null;
+  return [
+    { icona:"📜", nome:"Ricerca", stato: tt ? tt.nome+" — "+Math.min(100,Math.round(f.sciAcc/GAME.costoTech(tt)*100))+"%"
+        : (GAME.techDisponibili(fid).length ? "nessuna in corso!" : "tutto scoperto"), fn: apriRicerca, urgente: !tt && GAME.techDisponibili(fid).length>0 },
+    { icona:"🎯", nome:"Obiettivi e punteggio", stato: p.totale+" punti — "+fatti+"/"+obEra.length+" obiettivi di quest'era", fn: apriObiettivi },
+    { icona:"⚔️", nome:"Aggiorna esercito", stato: nU ? nU+" truppe possono passare alle armi della tua era" : "truppe già al passo coi tempi", fn: apriAggiornamento, urgente: nU>0 },
+    { icona:"🏭", nome:"Ammoderna migliorie", stato: nM ? nM+" migliorie possono ammodernarsi" : "campagne già aggiornate", fn: apriAggiornamentoMigliorie, urgente: nM>0 }
+  ];
+}
+function vociCorte(){
+  const st = GAME.st, fid = st.giocatore;
+  const cuc = GAME.cucina(fid);
+  const poteri = GAME.poteriStato().filter(x=>x.pronto).length;
+  const g = GAME.guardarobaStato ? GAME.guardarobaStato() : [];
+  const nSblocchi = g.filter(x => x.sbloccato).length;
+  return [
+    { icona:"🍴", nome:"Cucina di Sicilia", stato: cuc.dop.length+"/"+D().DOP.length+" prodotti tipici · "+cuc.piatti.length+" piatti sbloccati", fn: apriCucina },
+    { icona:"✨", nome:"Poteri del Sovrano", stato: poteri ? poteri+" pronti all'uso" : "tutti in ricarica", fn: apriPoteri, urgente: poteri>0 },
+    { icona:"👗", nome:"Guardaroba del Sovrano", stato: nSblocchi+" capi sbloccati su "+g.length, fn: apriGuardaroba }
+  ];
+}
+function apriHub(titolo, voci){
+  const html = voci.map((v,i) =>
+    `<button class="btn-lista hub-voce ${v.urgente?"urgente":""}" data-hub="${i}">
+       <span class="hub-ico">${v.icona}</span>
+       <span class="hub-txt"><b>${v.nome}</b><br><span class="muto">${v.stato}</span></span>
+     </button>`).join("");
+  mostraModale({ titolo, html:`<div class="m-scroll">${html}</div>`, scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
+  document.querySelectorAll("[data-hub]").forEach(b => b.onclick = () => {
+    AUDIO.sfx("click");
+    $("modale-sfondo").classList.add("nascosto");
+    voci[parseInt(b.dataset.hub)].fn();
+  });
+}
+function apriRegno(){ apriHub("👑 Il tuo Regno", vociRegno()); }
+function apriCorte(){ apriHub("🍴 La Corte", vociCorte()); }
+
 function apriRicerca(){
   const st = GAME.st;
   const f = st.fazioni[st.giocatore];
@@ -1778,17 +1826,12 @@ function apriMenu(){
     if (s.vuoto) continue;
     html += `<button class="btn-lista" data-carica="${s.chiave}">📂 ${s.chiave==="auto"?"Autosalvataggio":s.chiave.toUpperCase()} — ${s.info}</button>`;
   }
-  const nAggiorn = GAME.unitaAggiornabili(GAME.st.giocatore).length;
-  const nAggiornM = GAME.migliorieAggiornabili(GAME.st.giocatore).length;
-  html += `<div class="m-sez"></div>
-    <button class="btn-lista" id="btn-guardaroba">👗 Guardaroba del Sovrano</button>
-    <button class="btn-lista" id="btn-esercito">⚔️ Aggiorna Esercito${nAggiorn?" ("+nAggiorn+")":""}</button>
-    <button class="btn-lista" id="btn-migliorie">🏭 Ammoderna Migliorie${nAggiornM?" ("+nAggiornM+")":""}</button>
-    <button class="btn-lista" id="btn-obiettivi">🎯 Obiettivi e punteggio (${GAME.punteggio(GAME.st.giocatore).totale} punti)</button>
-    <button class="btn-lista" id="btn-sponsor">📣 Diventa Sponsor (demo)</button>
+  // il governo del regno sta tutto in 👑 Regno e 🍴 Corte: qui restano partita e utilità
+  html += `<div class="m-sez">Partita</div>
     <button class="btn-lista" id="btn-aiuto">❓ Come si gioca</button>
+    <button class="btn-lista" id="btn-sponsor">📣 Diventa Sponsor (demo)</button>
     <button class="btn-lista" id="btn-nuova">🔄 Nuova partita</button>`;
-  mostraModale({ titolo:"💾 Menu", html:`<div class="m-scroll">${html}</div>`,
+  mostraModale({ titolo:"☰ Menu", html:`<div class="m-scroll">${html}</div>`,
     scelte:[{label:"Torna al gioco", eff:"nulla"}] }, ()=>{});
   document.querySelectorAll("[data-salva]").forEach(b => b.onclick = () => {
     SAVE.salva(b.dataset.salva);
@@ -1804,10 +1847,6 @@ function apriMenu(){
   });
   $("btn-nuova").onclick = () => location.reload();
   $("btn-sponsor").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriSponsorForm(); };
-  $("btn-guardaroba").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriGuardaroba(); };
-  $("btn-esercito").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriAggiornamento(); };
-  $("btn-migliorie").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriAggiornamentoMigliorie(); };
-  $("btn-obiettivi").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriObiettivi(); };
   $("btn-aiuto").onclick = () => {
     $("modale-sfondo").classList.add("nascosto");
     mostraModale({ titolo:"❓ Come si gioca", testo:
@@ -1815,7 +1854,8 @@ function apriMenu(){
       "⚔️ Clicca le tue truppe → gli esagoni si illuminano → clicca dove muovere o chi attaccare (vedrai l'anteprima della battaglia).\n\n"+
       "🏘️ Clicca una tua città per reclutare truppe e costruire edifici e meraviglie. Clicca un esagono del tuo territorio per costruire fattorie, miniere e vigneti.\n\n"+
       "🧱 Le città murate resistono: bombarda le mura con le macchine d'assedio, poi assalta.\n\n"+
-      "📜 Scegli sempre una ricerca. 🤝 Usa la diplomazia: i patti proteggono le spalle.\n\n"+
+      "👑 Regno: ricerca, obiettivi, aggiornamento di truppe e migliorie. 🍴 Corte: cucina, poteri del sovrano, guardaroba. 🤝 Diplomazia: patti, commerci e guerre.\n\n"+
+      "⏩ Il pulsante accanto a Fine Turno accende il turno automatico: i turni senza decisioni passano da soli e si fermano appena serve la tua testa.\n\n"+
       "😊 Tieni basso il malcontento (templi, integrazione culturale) o il popolo insorgerà.\n\n"+
       "🏆 Vinci eliminando le fazioni rivali (e cacciando gli invasori) o controllando il 75% dei comuni.\n\n"+
       "⏭ Invio = Fine turno. Esc = deseleziona.",
