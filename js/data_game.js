@@ -589,6 +589,46 @@ const GRANDI = {
   ]
 };
 
+// ---- EDITTI (le carte politiche) ----
+// Ogni venti turni il gioco chiede al giocatore che cosa sia adesso: un regno di grano o di
+// mercanti, di baroni o di monaci. Nessun secondo albero da studiare: gli editti si sbloccano
+// dalle tecnologie che gia' esistono, e ogni era apre uno slot in piu'. Hanno tutti un
+// prezzo — un editto che dia solo vantaggi non e' una scelta, e' un regalo.
+const EDITTI = [
+  { id:"latifondo_e", nome:"Il Latifondo",        icona:"\u{1F33E}", tech:"latifondo",     eff:{ ciboPct:0.20, malcontento:1 },
+    testo:"Il grano riempie i granai, non i cuori: +20% cibo, +1 malcontento." },
+  { id:"corvee",      nome:"Corvée",              icona:"\u26CF\uFE0F", tech:"ingegneria_r", eff:{ prodPct:0.20, oroPct:-0.10 },
+    testo:"Braccia requisite per le opere: +20% produzione, −10% oro." },
+  { id:"duana",       nome:"Duana de Secretis",   icona:"\u{1F4DC}", tech:"duana",        eff:{ oroPct:0.20, fedelta:-1 },
+    testo:"Il fisco normanno non perdona nessuno: +20% oro, −1 fedeltà al turno." },
+  { id:"milizie",     nome:"Milizie comunali",    icona:"\u{1F6E1}\uFE0F", tech:"diritto",  eff:{ combatPct:0.15, oroPct:-0.05 },
+    testo:"Ogni città arma i suoi: +15% in battaglia, −5% oro." },
+  { id:"mecenatismo", nome:"Mecenatismo",         icona:"\u{1F3AD}", tech:"poesia_greca", eff:{ culturaPct:0.25, oroPct:-0.10 },
+    testo:"Poeti a corte e marmo agli scultori: +25% cultura, −10% oro." },
+  { id:"studia",      nome:"Studia Generalia",    icona:"\u{1F393}", tech:"universita",   eff:{ sciPct:0.25, prodPct:-0.10 },
+    testo:"Chi studia non lavora la pietra: +25% scienza, −10% produzione." },
+  { id:"annona",      nome:"Annona",              icona:"\u{1F35E}", tech:"moneta",       eff:{ caseExtra:2, oroPct:-0.10 },
+    testo:"Pane calmierato per il popolo: +2 case in ogni città, −10% oro." },
+  { id:"feste",       nome:"Pane e Feste",        icona:"\u{1F389}", tech:"terme",        eff:{ serviziExtra:1, oroPct:-0.08 },
+    testo:"Giochi, terme e sagre: +1 servizio ovunque, −8% oro." },
+  { id:"tolleranza",  nome:"Tolleranza",          icona:"\u262E\uFE0F", tech:"monasteri", eff:{ malcontento:-2, fedelta:1 },
+    testo:"Greci, arabi e latini sotto una sola corona: −2 malcontento, +1 fedeltà." },
+  { id:"cabotaggio",  nome:"Cabotaggio",          icona:"\u26F5", tech:"navigazione",     eff:{ oroPct:0.12, combatPct:-0.05 },
+    testo:"Ogni scafo che tocca la costa paga dazio: +12% oro, −5% in battaglia." },
+  { id:"vespro",      nome:"Vespro Armato",       icona:"\u{1F514}", tech:"araldica",     eff:{ combatPct:0.20, culturaPct:-0.10 },
+    testo:"Al suono della campana, tutti alle armi: +20% in battaglia, −10% cultura." },
+  { id:"servizio",    nome:"Servizio militare",   icona:"\u2694\uFE0F", tech:"legioni",  eff:{ mantPct:-0.25, ciboPct:-0.08 },
+    testo:"Si serve per dovere, non per paga: −25% mantenimento, −8% cibo." },
+  { id:"colonizza_e", nome:"Terre ai coloni",     icona:"\u{1F6E4}\uFE0F", tech:"strade", eff:{ growthPct:0.15, fedelta:1 },
+    testo:"Chi disboda la terra la tiene: +15% crescita, +1 fedeltà." },
+  { id:"baroni",      nome:"Baroni fedeli",       icona:"\u{1F3F0}", tech:"castelli",     eff:{ fedelta:2, ciboPct:-0.10 },
+    testo:"Feudi in cambio di lealtà: +2 fedeltà, −10% cibo." },
+  { id:"stato_e",     nome:"Stato moderno",       icona:"\u{1F3DB}\uFE0F", tech:"stato", eff:{ mantPct:-0.20, oroPct:0.10 },
+    testo:"Segretari, registri, catasti: −20% mantenimento, +10% oro." },
+  { id:"mercantil",   nome:"Mercantilismo",       icona:"\u2696\uFE0F", tech:"mercantilismo", eff:{ oroPct:0.25, culturaPct:-0.15 },
+    testo:"Conta solo quanto entra nelle casse: +25% oro, −15% cultura." }
+];
+
 // ---- INVASIONI STORICHE ----
 // sbarco: comune vicino a cui appaiono; unita: quante; anno
 const INVASIONI = [
@@ -767,6 +807,6 @@ const POTERI = [
 ];
 
 return { ERE, VELOCITA, CULTURE, FAZIONI, LEADER_STORICI, NOMI_EREDI, TRATTI, EROI,
-         TECH, UNITA, LINEA_ERA, LINEA_NAVALE, EDIFICI, EDIFICI_LOCALI, QUARTIERI, CAT_GRANDI, GRANDI, MIGLIORIE, MIGLIORIE_LINEA, MERAVIGLIE, INVASIONI,
+         TECH, UNITA, LINEA_ERA, LINEA_NAVALE, EDIFICI, EDIFICI_LOCALI, QUARTIERI, CAT_GRANDI, GRANDI, EDITTI, MIGLIORIE, MIGLIORIE_LINEA, MERAVIGLIE, INVASIONI,
          EVENTI_STORICI, EVENTI_CASUALI, DILEMMI, OBIETTIVI, DOP, PIATTI, SAGRE, POTERI, GUARDAROBA_EXTRA };
 })();

@@ -577,3 +577,19 @@ body[class^="era-"] #cons-nome { color: var(--epoca, #d9c48a); }
 .gr-riga{ display:flex; gap:8px; align-items:flex-start; margin:4px 0 8px; }
 .gr-volto{ flex:0 0 auto; border-radius:4px; border:1px solid rgba(230,200,130,0.35); background:rgba(0,0,0,0.25); }
 .gr-testo{ flex:1 1 auto; min-width:0; font-size:12px; line-height:1.4; }
+
+.fuori{ color:#d8b45a; }
+.btn-compra-hex{ border-color:rgba(230,200,120,0.5); }
+
+/* Ricerca a cascata */
+.m-prog{ height:6px; border-radius:4px; background:rgba(255,255,255,0.12); overflow:hidden; margin:4px 0; }
+.m-prog i{ display:block; height:100%; background:linear-gradient(90deg,#6aa9d8,#a8d8ff); }
+.m-tech.futura{ opacity:0.55; cursor:default; }
+.m-tech.incoda{ border-color:rgba(200,170,90,0.55); }
+.m-sblocca{ display:block; font-size:11px; color:#9fd0a8; margin-top:2px; }
+
+/* Editti */
+.ed-attivo{ position:relative; padding:8px 30px 8px 10px; margin:2px 0 6px;
+            border:1px solid rgba(230,200,120,0.35); border-radius:8px; background:rgba(230,200,120,0.07); }
+.ed-attivo .btn-x{ position:absolute; right:6px; top:6px; }
+.btn-lista.ed-on{ opacity:0.55; }

@@ -716,15 +716,20 @@ function nomeTerra(t){
 function apriPannelloHex(i){
   const st = GAME.st;
   const h = MAP.hexes[i];
-  const cm = st.comuni[h.comune];
-  const mia = cm.fazione === st.giocatore;
+  const cm = st.comuni[h.comune];                       // il paese piu' vicino: e' geografia
+  // Chi possiede DAVVERO la casella e' h.citta. Prima il pannello guardava il comune
+  // geografico, e offriva migliorie su caselle fuori dal regno: bottoni che non facevano
+  // nulla (anzi, lanciavano) perche' il motore le rifiutava.
+  const propr = h.citta >= 0 ? st.comuni[h.citta] : null;
+  const mia = !!(propr && propr.fazione === st.giocatore);
   let html = `<div class="p-titolo">${nomeTerra(h.terra)}</div>
-    <div class="p-sotto">Territorio di ${cm.nome} ${proprietario(cm)}</div>`;
+    <div class="p-sotto">${propr ? "Territorio di "+propr.nome+" "+proprietario(propr)
+                                 : "<span class='fuori'>Fuori dai regni</span> — presso "+cm.nome}</div>`;
   if (h.fiume) html += `<div>💧 Fiume: +1 cibo, difesa +10%</div>`;
   if (h.costa) html += `<div>🌊 Costa: +oro</div>`;
   if (h.res) html += `<div>${ico(RES_INFO[h.res], "res_"+h.res)} <b>${RES_INFO[h.res].nome}</b></div>`;
   if (h.imp) html += `<div>${ico(D().MIGLIORIE[h.imp], h.imp)} ${D().MIGLIORIE[h.imp].nome} — ${D().MIGLIORIE[h.imp].eff}</div>`;
-  if (mia && h.imp && cm.hex!==i){
+  if (mia && h.imp && propr.hex!==i){
     const f = st.fazioni[st.giocatore];
     const nuovoId = GAME.prossimaMiglioria(h.imp, st.giocatore);
     if (nuovoId){
@@ -746,7 +751,27 @@ function apriPannelloHex(i){
     if (a.dettagli.length)
       html += `<div class="p-riga muto">Grazie a: ${a.dettagli.map(d=>d.testo+" ×"+d.n).join(", ")}</div>`;
   }
-  if (mia && !h.imp && !h.quart && cm.hex!==i){
+  // casella libera: la si puo' comprare, e il pannello dice quanto renderebbe
+  if (!propr && !h.mare && h.terra!=="lago"){
+    const p = GAME.puoComprareCasella(i, st.giocatore);
+    const r = GAME.resaCasella(i);
+    const voci = [];
+    if (r.cibo) voci.push("🌾"+(+r.cibo.toFixed(1)));
+    if (r.prod) voci.push("⚒️"+(+r.prod.toFixed(1)));
+    if (r.oro) voci.push("💰"+(+r.oro.toFixed(1)));
+    if (r.cultura) voci.push("🎭"+(+r.cultura.toFixed(1)));
+    html += `<div class="p-sez">Fuori dal regno</div>
+      <div class="p-riga muto">Finché non è tua non rende nulla e non si può migliorare.</div>
+      <div class="p-riga">Una volta dentro il regno renderebbe ${voci.length?voci.join(" "):"poco"}.</div>`;
+    if (p.costo !== undefined){
+      const oro = Math.floor(st.fazioni[st.giocatore].oro);
+      html += `<button class="btn-lista btn-compra-hex" id="btn-compra-hex" ${p.ok?"":"disabled"}>🪙 Compra questa casella — ${p.costo} oro
+        <span class="muto">(ne hai ${oro}${p.ok?"":" — non bastano"})</span></button>`;
+    } else {
+      html += `<div class="p-riga muto">${p.motivo}</div>`;
+    }
+  }
+  if (mia && !h.imp && !h.quart && propr.hex!==i){
     html += `<div class="p-sez">Costruisci miglioria (oro: ${Math.floor(st.fazioni[st.giocatore].oro)})</div>
       <div class="p-riga muto">💰 Paga subito in oro, oppure 🔨 manda un lavoratore: costruisce gratis (ma ci mette il suo tempo).</div>`;
     const f = st.fazioni[st.giocatore];
@@ -762,6 +787,12 @@ function apriPannelloHex(i){
     }
   }
   apri(html);
+  const bCompra = $("btn-compra-hex");
+  if (bCompra) bCompra.onclick = () => {
+    if (GAME.compraCasella(i, GAME.st.giocatore)){
+      AUDIO.sfx("costruito"); incrAiuto(); apriPannelloHex(i); aggiornaTutto();
+    }
+  };
   document.querySelectorAll("[data-mig]").forEach(b => b.onclick = () => {
     if (GAME.migliora(i, b.dataset.mig)){ AUDIO.sfx("costruito"); apriPannelloHex(i); aggiornaTutto(); }
   });
@@ -2108,6 +2139,44 @@ function applicaPotereSuHex(i){
   }
 }
 
+// ---------- EDITTI ----------
+function apriEditti(){
+  const st = GAME.st, fid = st.giocatore, f = st.fazioni[fid];
+  const max = GAME.slotEditti(f);
+  f.editti = f.editti || [];
+  const disp = GAME.edittiDisponibili(fid);
+  const costo = GAME.costoCambioEditto();
+  let html = `<div class="p-titolo">📜 Editti del Regno</div>
+    <div class="p-sotto">${max} ${max===1?"editto":"editti"} in vigore. Ogni era ne concede uno in più; lo Stato moderno un altro ancora.</div>`;
+  for (let i=0;i<max;i++){
+    const id = f.editti[i];
+    const e = id ? D().EDITTI.find(x=>x.id===id) : null;
+    html += `<div class="p-sez">Seggio ${i+1}</div>`;
+    if (e) html += `<div class="ed-attivo">${e.icona} <b>${e.nome}</b><br><span class="muto">${e.testo}</span>
+        <button class="btn-x" data-revoca="${i}">✕</button></div>`;
+    else html += `<div class="p-riga muto">Vuoto — scegline uno qui sotto (il primo è gratis).</div>`;
+  }
+  html += `<div class="p-sez">Da proclamare <span class="muto">(cambiare un seggio già occupato costa ${costo} oro)</span></div>`;
+  if (!disp.length) html += `<div class="p-riga muto">Nessun editto ancora sbloccato: servono le tecnologie.</div>`;
+  for (const e of disp){
+    const attivo = f.editti.includes(e.id);
+    html += `<button class="btn-lista ${attivo?'ed-on':''}" data-editto="${e.id}" ${attivo?"disabled":""}>
+      ${e.icona} ${e.nome} <span class="muto">${e.testo}${attivo?" — in vigore":""}</span></button>`;
+  }
+  apri(html);
+  document.querySelectorAll("[data-revoca]").forEach(b => b.onclick = () => {
+    GAME.revocaEditto(fid, parseInt(b.dataset.revoca)); AUDIO.sfx("click"); apriEditti(); aggiornaTutto();
+  });
+  document.querySelectorAll("[data-editto]").forEach(b => b.onclick = () => {
+    // va nel primo seggio libero; se sono tutti pieni, sostituisce l'ultimo (pagando)
+    let slot = -1;
+    for (let i=0;i<max;i++) if (!f.editti[i]){ slot = i; break; }
+    if (slot < 0) slot = max-1;
+    if (GAME.attivaEditto(fid, b.dataset.editto, slot)){ AUDIO.sfx("costruito"); incrAiuto(); }
+    else consigliere("cons", "Non basta l'oro per cambiare editto, Maestà.", 2800);
+    apriEditti(); aggiornaTutto();
+  });
+}
 // ---------- GRANDI SICILIANI ----------
 // Non e' una lista della spesa: e' una corsa. Il pannello dice a che punto sei, quanto rendi
 // al turno e quanto e' avanti il rivale piu' vicino — cosi' si capisce se conviene insistere.
@@ -2156,6 +2225,12 @@ function vociRegno(){
   return [
     { icona:"📜", nome:"Ricerca", stato: tt ? tt.nome+" — "+Math.min(100,Math.round(f.sciAcc/GAME.costoTech(tt)*100))+"%"
         : (GAME.techDisponibili(fid).length ? "nessuna in corso!" : "tutto scoperto"), fn: apriRicerca, urgente: !tt && GAME.techDisponibili(fid).length>0 },
+    { icona:"📜", nome:"Editti", stato: (function(){
+        const f = st.fazioni[fid], max = GAME.slotEditti(f);
+        const usati = (f.editti||[]).filter(Boolean).length;
+        const nomi = (f.editti||[]).filter(Boolean).map(id => (D().EDITTI.find(x=>x.id===id)||{}).nome).join(", ");
+        return usati ? nomi+" ("+usati+"/"+max+")" : "nessuno in vigore — "+max+" "+(max===1?"seggio libero":"seggi liberi");
+      })(), fn: apriEditti, urgente: (st.fazioni[fid].editti||[]).filter(Boolean).length < GAME.slotEditti(st.fazioni[fid]) && GAME.edittiDisponibili(fid).length>0 },
     { icona:"🏅", nome:"Grandi Siciliani", stato: (function(){
         const s = GAME.statoGrandi(fid);
         const miei = s.reduce((a,x)=>a+x.miei.length, 0);
@@ -2250,39 +2325,94 @@ function apriHub(titolo, voci){
 function apriRegno(){ apriHub("👑 Il tuo Regno", vociRegno()); }
 function apriCorte(){ apriHub("🍴 La Corte", vociCorte()); }
 
+// Menu della ricerca a cascata. Prima elencava tutte e cinquantacinque le tecnologie, era
+// dopo era, comprese quelle irraggiungibili: un muro di testo in cui la scelta vera — le tre
+// o quattro che puoi davvero cominciare adesso — spariva. Ora si vede quello che puoi
+// studiare ORA, e sotto solo cio' che quelle scelte aprirebbero: un passo alla volta.
+function schedaTech(t, st, f, stato){
+  const ct = GAME.costoTech(t, st.giocatore);
+  const badge = t.ramo ? `<span class="m-ramo ramo-${t.ramo}">${t.ramo}</span>` : "";
+  const intuita = f.intuizioni && f.intuizioni[t.id];
+  const intu = t.intuizione ? (intuita
+      ? `<span class="m-intu fatta">💡 ${t.intuizione.testo} — fatto, −40%</span>`
+      : `<span class="m-intu">💡 ${t.intuizione.testo} → −40%</span>`) : "";
+  // sbloccatiDaTech restituisce una STRINGA gia' formattata ("🔓 Ora puoi: ..."), non un elenco
+  const sblocca = GAME.sbloccatiDaTech ? GAME.sbloccatiDaTech(t.id) : "";
+  const cosa = sblocca ? `<span class="m-sblocca">${sblocca}</span>` : "";
+  if (stato === "incorso"){
+    const pct = Math.min(100, Math.round(f.sciAcc/ct*100));
+    return `<div class="m-tech incorso">
+      <b>${t.nome}</b>${badge} <span class="muto">${Math.round(f.sciAcc)}/${ct}📜</span>
+      <div class="m-prog"><i style="width:${pct}%"></i></div>
+      <span class="m-desc">${t.desc}</span>${intu}</div>`;
+  }
+  if (stato === "dopo"){
+    const manca = (t.req||[]).filter(r => !f.techs.includes(r))
+      .map(r => (D().TECH.find(x=>x.id===r)||{}).nome || r);
+    return `<div class="m-tech futura">
+      <b>${t.nome}</b>${badge} <span class="muto">${ct}📜</span>
+      <span class="m-req">dopo ${manca.join(" e ")}</span></div>`;
+  }
+  const inCoda = stato === "coda";
+  return `<button class="m-tech ${inCoda?'incoda':''}" data-tech="${t.id}">
+    <b>${t.nome}</b>${badge} <span class="muto">${ct}📜${inCoda?" — in coda":""}</span>
+    <span class="m-desc">${t.desc}</span>${cosa}${intu}</button>`;
+}
 function apriRicerca(){
   const st = GAME.st;
   const f = st.fazioni[st.giocatore];
   const percorso = GAME.percorsoRicercaStato(st.giocatore);
+  const inCoda = new Set(percorso.map(x=>x.id));
+  const disp = GAME.techDisponibili(st.giocatore).filter(t => t.id !== f.ricerca);
+  const sci = GAME.reseFazione(st.giocatore).scienza;
   let html = "";
+
+  // 1) quella in corso, con la barra
+  const corrente = f.ricerca ? D().TECH.find(x=>x.id===f.ricerca) : null;
+  if (corrente){
+    const ct = GAME.costoTech(corrente, st.giocatore);
+    const mancano = Math.max(0, Math.ceil((ct - f.sciAcc) / Math.max(0.1, sci)));
+    html += `<div class="m-sez">In corso — pronta fra ${mancano} turni</div>`;
+    html += schedaTech(corrente, st, f, "incorso");
+  } else if (disp.length){
+    html += `<div class="m-sez rosso">Nessuna ricerca in corso: scegline una</div>`;
+  }
+
+  // 2) il percorso pianificato
   if (percorso.length){
-    html += `<div class="m-sez">🛤️ Percorso pianificato (dopo quella in corso)</div>`;
+    html += `<div class="m-sez">🛤️ Poi, in ordine</div>`;
     percorso.forEach((t,k) => { html += `<div class="coda-item">${k+1}. ${t.nome} <button class="btn-x" data-togli="${t.id}">✕</button></div>`; });
   }
-  html += `<div class="m-sez"></div><button class="btn-lista" id="btn-suggerisci-perc">🎓 Suggeriscimi un percorso (le 4 più economiche)</button>`;
-  for (let e=0; e<=st.era; e++){
-    html += `<div class="m-era">${D().ERE[e].nome}</div><div class="m-tech-gruppo">`;
-    for (const t of D().TECH.filter(x=>x.era===e)){
-      const fatta = f.techs.includes(t.id);
-      const inCorso = f.ricerca===t.id;
-      const inCoda = percorso.some(x=>x.id===t.id);
-      const ct = GAME.costoTech(t, st.giocatore);
-      const badge = t.ramo ? `<span class="m-ramo ramo-${t.ramo}">${t.ramo}</span>` : "";
-      // albero: senza i prerequisiti la tecnologia si vede ma non si sceglie
-      const mancanti = (t.req||[]).filter(r => !f.techs.includes(r));
-      const bloccata = !fatta && mancanti.length > 0;
-      const reqTxt = bloccata ? `<span class="m-req">🔒 richiede ${mancanti.map(r => (D().TECH.find(x=>x.id===r)||{}).nome || r).join(", ")}</span>` : "";
-      // intuizione: l'azione che sconta del 40%, e se e' gia' scattata
-      const intu = t.intuizione ? (f.intuizioni && f.intuizioni[t.id]
-          ? `<span class="m-intu fatta">💡 ${t.intuizione.testo} — fatto, −40%</span>`
-          : `<span class="m-intu">💡 ${t.intuizione.testo} → −40%</span>`) : "";
-      html += `<button class="m-tech ${fatta?'fatta':''} ${inCorso?'incorso':''} ${bloccata?'bloccata':''}" data-tech="${t.id}" ${(fatta||inCorso||inCoda||bloccata)?"disabled":""}>
-        <b>${t.nome}</b>${badge} <span class="muto">${ct}📜${inCorso?" — "+Math.min(100,Math.round(f.sciAcc/ct*100))+"%":(inCoda?" — in coda":"")}</span>
-        <span class="m-desc">${t.desc}</span>${reqTxt}${fatta?"":intu}</button>`;
-    }
+
+  // 3) quello che si puo' cominciare adesso
+  if (disp.length){
+    html += `<div class="m-sez">Puoi studiarla ora</div><div class="m-tech-gruppo">`;
+    for (const t of disp.sort((a,b)=>GAME.costoTech(a,st.giocatore)-GAME.costoTech(b,st.giocatore)))
+      html += schedaTech(t, st, f, inCoda.has(t.id) ? "coda" : "libera");
+    html += `</div>`;
+  } else if (!corrente){
+    html += `<div class="m-sez">Hai scoperto tutto quello che si poteva scoprire.</div>`;
+  }
+
+  // 4) la cascata: solo cio' che le scelte qui sopra aprirebbero
+  const idDisp = new Set(disp.map(t=>t.id));
+  if (corrente) idDisp.add(corrente.id);
+  const dopo = D().TECH.filter(t => {
+    if (f.techs.includes(t.id) || idDisp.has(t.id)) return false;
+    const manca = (t.req||[]).filter(r => !f.techs.includes(r));
+    return manca.length > 0 && manca.every(r => idDisp.has(r));
+  });
+  if (dopo.length){
+    html += `<div class="m-sez">Si aprono subito dopo</div><div class="m-tech-gruppo">`;
+    for (const t of dopo) html += schedaTech(t, st, f, "dopo");
     html += `</div>`;
   }
-  mostraModale({ titolo:"📜 Ricerca — scienza: +"+GAME.reseFazione(st.giocatore).scienza.toFixed(1)+"/turno",
+
+  html += `<div class="m-sez"></div><button class="btn-lista" id="btn-suggerisci-perc">🎓 Suggeriscimi un percorso (le 4 più economiche)</button>`;
+  const fatte = f.techs.length;
+  html += `<div class="p-riga muto">Scoperte finora: ${fatte} su ${D().TECH.length}.</div>`;
+
+  mostraModale({ titolo:"📜 Ricerca — +"+sci.toFixed(1)+" scienza al turno",
     html:`<div class="m-scroll">${html}</div>`, scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
   document.querySelectorAll("[data-tech]").forEach(b => b.onclick = () => {
     GAME.accodaRicerca(st.giocatore, b.dataset.tech);

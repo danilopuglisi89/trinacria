@@ -413,6 +413,28 @@ function build(){
     if (cand.length) cand[Math.floor(rngSeme(cm.id*7)*cand.length)].res = cm.res;
     else hexes[cm.hex].res = cm.res;
   }
+  // Risorse sparse sul territorio, oltre a quella "firma" di ogni comune. Con una sola risorsa
+  // per comune (69 su diecimila caselle) guardare la mappa per decidere quale casella comprare
+  // non serviva a niente: se ne incontrava una ogni tanto. Ora ce n'e' una ogni trenta caselle
+  // circa, distribuite secondo il terreno, mai attaccate fra loro e deterministiche (la mappa
+  // non viene salvata ma rigenerata: se cambiassero a ogni caricamento sarebbe un disastro).
+  const PER_TERRA = {
+    plain:    ["grano","grano","vino","agrumi","mandorle","miele"],
+    hill:     ["vino","mandorle","zolfo","miele","ceramica","pistacchio"],
+    mountain: ["marmo","zolfo","marmo"],
+    forest:   ["miele","mandorle","ceramica"],
+    volcano:  ["pistacchio","vino"]
+  };
+  for (const h of terre){
+    if (h.res || h.lago) continue;
+    if (rngSeme(h.i*31 + 5) > 0.034) continue;               // ~3,4% delle caselle di terra
+    if (vicini(h.i).some(j => hexes[j].res)) continue;       // mai due attaccate
+    let lista;
+    if (h.costa) lista = ["pesce","tonno","sale","pesce"];
+    else lista = PER_TERRA[h.terra];
+    if (!lista || !lista.length) continue;
+    h.res = lista[Math.floor(rngSeme(h.i*17 + 3) * lista.length)];
+  }
   // monumenti famosi: NON sulla città stessa, ma su una casella del suo territorio,
   // vicina ma non attaccata (adiacente) al centro abitato — come un vero sito fuori dal borgo
   monumenti = [];
@@ -856,6 +878,28 @@ function renderDynamic(ctx, v, st, sel, rz){
       ART.hexPath(ctx, s.x, s.y, rz+1);
       ctx.fillStyle = GAME.hexEsplorato(h.i) ? "rgba(9,14,20,0.55)" : "rgba(6,10,14,0.96)";
       ctx.fill();
+    }
+  }
+  // Risorse sulle caselle GIA' SCOPERTE: si ridisegnano SOPRA il velo, altrimenti il velo
+  // le spegne e non si puo' decidere quale casella valga la pena comprare. Quelle fuori dai
+  // regni prendono un cerchietto dorato: sono le occasioni.
+  if (st && rz > 7){
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    for (const h of terre){
+      if (!h.res || h.imp || h.quart) continue;
+      if (!vis(h)) continue;
+      if (st.nebbia && !GAME.hexEsplorato(h.i)) continue;
+      const velata = st.nebbia && !GAME.hexVisibile(h.i);
+      const s = w2s(v, h.x, h.y);
+      if (h.citta < 0){
+        ctx.beginPath(); ctx.arc(s.x, s.y+rz*0.05, rz*0.42, 0, 7);
+        ctx.strokeStyle = "rgba(240,205,110,0.55)"; ctx.lineWidth = Math.max(1, rz*0.05); ctx.stroke();
+      }
+      ctx.globalAlpha = velata ? 0.75 : 1;
+      if (!(SPRITES.abilitato.icone && SPRITES.drawFit(ctx, "icona_res_"+h.res, s.x, s.y+rz*0.05, null, rz*0.8))){
+        ctx.font = Math.floor(rz*0.68)+"px serif"; ctx.fillText(RES_INFO[h.res].icona, s.x, s.y+rz*0.05);
+      }
+      ctx.globalAlpha = 1;
     }
   }
   const puls = 0.5 + 0.5*Math.sin(performance.now()*0.005);

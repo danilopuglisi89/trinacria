@@ -68,6 +68,8 @@ function turnoIA(){
     gestioneCittaIA(f);
     if (!f.eroeVivo && f.oro > GAME.costoEroe()+100 && rnd()<0.3) GAME.reclutaEroe(f.id);
     if (f.oro > 160 && rnd()<0.5) miglioriaIA(f);
+    if (rnd()<0.5) compraCaselleIA(f);
+    if (rnd()<0.15) GAME.edittiIA(f);
     muoviUnitaIA(f.id, bersagliFazione(f));
   }
 }
@@ -98,7 +100,10 @@ function diplomaziaIA(f){
     const stretto = senzaSpazio(f.id);
     const vantaggio = stretto ? 1.05 : 1.20;
     const sogliaUmore = stretto ? 0 : -6;
-    const prob = (stretto ? 0.10 : 0.04) * aggr();
+    // `aggr()` restituisce un OGGETTO: moltiplicarlo dava NaN, e `rnd() < NaN` e' sempre falso.
+    // Risultato: fra due IA non scoppiava MAI una guerra, in nessuna partita.
+    const mult = st.difficolta==="facile" ? 0.6 : (st.difficolta==="difficile" ? 1.6 : 1);
+    const prob = (stretto ? 0.10 : 0.04) * mult;
     if (!faseProtetta() && d.stato==="pace" && !guerraInCorso && confinanti(f.id, g.id) &&
         GAME.forzaTotale(f.id) > GAME.forzaTotale(g.id)*vantaggio &&
         d.atteggiamento < sogliaUmore && rnd()<prob){
@@ -121,7 +126,7 @@ function diplomaziaIA(f){
           scelte:[ {label:"Accetta", eff:"dip:commercio:"+f.id}, {label:"Rifiuta", eff:"nulla"} ] });
     }
     // rivalità di confine
-    if (confinanti(f.id,g.id) && rnd()<(senzaSpazio(f.id) ? 0.30 : 0.14)) d.atteggiamento -= 1;
+    if (confinanti(f.id,g.id) && rnd()<(senzaSpazio(f.id) ? 0.40 : 0.25)) d.atteggiamento -= 1;
   }
 }
 
@@ -260,6 +265,32 @@ function gestioneCittaIA(f){
   }
 }
 
+// L'IA compra caselle come il giocatore: preferisce quelle con una risorsa, poi le piu'
+// generose. Senza questo ramo il giocatore avrebbe uno sbocco per l'oro che all'IA manca,
+// e i regni ricchi continuerebbero ad accumulare monete senza spenderle.
+function compraCaselleIA(f){
+  const st = GAME.st;
+  if (f.oro < 400) return;
+  const mie = st.comuni.filter(c => c.fondata && c.fazione === f.id);
+  if (!mie.length) return;
+  const cm = scegli(mie);
+  const cand = [];
+  for (const h of GAME.territorioDi(cm.id)){
+    for (const j of MAP.vicini(h.i)){
+      const v = MAP.hexes[j];
+      if (!v || v.mare || v.terra === "lago" || v.citta >= 0) continue;
+      if (cand.some(x => x.i === j)) continue;
+      const r = GAME.resaCasella(j);
+      cand.push({ i:j, val: r.cibo + r.prod + r.oro*1.2 + r.cultura + (v.res ? 3 : 0) });
+    }
+  }
+  if (!cand.length) return;
+  cand.sort((a,b) => b.val - a.val);
+  // un regno ricco compra a mani basse: e' l'unico modo perche' l'oro smetta di accumularsi
+  // senza sbocco nelle ere tarde, e intanto i confini si muovono davvero
+  const quante = f.oro > 4000 ? 3 : (f.oro > 1200 ? 2 : 1);
+  for (let k=0; k<quante && k<cand.length; k++) GAME.compraCasella(cand[k].i, f.id);
+}
 function miglioriaIA(f){
   const st = GAME.st;
   const miei = MAP.terre.filter(h => h.citta>=0 && st.comuni[h.citta].fazione===f.id && !h.imp && h.i!==st.comuni[h.citta].hex);

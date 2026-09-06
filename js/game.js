@@ -240,8 +240,10 @@ function techBonusReset(){ _techMemo = {}; }
 function techBonus(fid){
   if (_techMemo[fid]) return _techMemo[fid];
   const f = st.fazioni[fid];
-  const b = { oroPct:0, sciPct:0, culturaPct:0, ciboPct:0, combatPct:0, growthPct:0, malcontento:0 };
+  const b = { oroPct:0, sciPct:0, culturaPct:0, ciboPct:0, combatPct:0, growthPct:0, malcontento:0,
+              prodPct:0, mantPct:0, fedelta:0, caseExtra:0, serviziExtra:0 };
   if (f) for (const id of f.techs){ const t = D().TECH.find(x=>x.id===id); if (t && t.bonus){ for (const k in t.bonus) b[k]=(b[k]||0)+t.bonus[k]; } }
+  { const be = bonusEditti(f); for (const k in be) b[k] = (b[k]||0) + be[k]; }
   _techMemo[fid] = b;
   return b;
 }
@@ -342,6 +344,7 @@ function reseComune(cm){
     if (cb.ciboPct) f *= (1 + cb.ciboPct);
     const tb = techBonus(faz.id);
     if (tb.ciboPct) f *= (1 + tb.ciboPct);
+    if (tb.prodPct) p *= (1 + tb.prodPct);
   }
   // bonus fazione
   if (bonusId==="grano") f+=2;
@@ -401,6 +404,7 @@ function reseFazione(fid){
   mant += edifici * (1 + st.era*0.35);
   if (fd.bonusId==="stretto") mant *= 0.85;
   if (f.techs.includes("stato")) mant *= 0.75;
+  { const tb = techBonus(fid); if (tb.mantPct) mant *= (1 + tb.mantPct); }
   if (st.effettiTemp["quarantena"] && fid===st.giocatore) oro *= 0.5;
   if (fid_effetto("grandeOro", fid)) oro *= 1.25;
   // cucina: piatti + sagre (bonus % oro e cultura)
@@ -745,9 +749,11 @@ function compraSubito(cmId){
 function migliora(hexIdx, impId, gratis){
   const h = MAP.hexes[hexIdx];
   const cm = h.citta >= 0 ? st.comuni[h.citta] : null;   // solo il territorio posseduto si migliora
-  const f = cm ? st.fazioni[cm.fazione] : null;
+  const f = cm && cm.fazione>=0 && cm.fazione<100 ? st.fazioni[cm.fazione] : null;
   const im = D().MIGLIORIE[impId];
-  if (!im || h.imp) return false;
+  if (!im || h.imp || h.quart) return false;
+  if (!f) return false;              // casella fuori da ogni regno: prima si compra
+  if (cm.hex === hexIdx) return false;
   if (!gratis && f.oro < im.costo) return false;
   if (im.tech && !f.techs.includes(im.tech)) return false;
   if (!im.terreni.includes(h.terra)) return false;
@@ -1767,6 +1773,159 @@ function etaMult(faz){
   return { cibo:1, cultura:1, unrest:0 };
 }
 
+// ---------- EDITTI ----------
+// Gli effetti entrano nello stesso sacchetto di techBonus, cosi' tutto cio' che gia' lo
+// consuma (oro, cibo, cultura, scienza, malcontento, crescita) li vede senza altre modifiche.
+function slotEditti(f){
+  return Math.min(4, 1 + Math.floor(st.era/2) + (f && f.techs.includes("stato") ? 1 : 0));
+}
+function edittiDisponibili(fid){
+  const f = st.fazioni[fid];
+  return D().EDITTI.filter(e => !e.tech || f.techs.includes(e.tech));
+}
+function costoCambioEditto(){ return 40 + st.era*35; }
+function attivaEditto(fid, id, slot){
+  const f = st.fazioni[fid];
+  const e = D().EDITTI.find(x => x.id === id);
+  if (!e) return false;
+  if (e.tech && !f.techs.includes(e.tech)) return false;
+  f.editti = f.editti || [];
+  if (slot === undefined || slot < 0 || slot >= slotEditti(f)) return false;
+  if (f.editti.includes(id) && f.editti[slot] !== id) return false;   // mai due volte lo stesso
+  // cambiare idea costa: il primo insediamento di uno slot vuoto e' gratis
+  if (f.editti[slot]){
+    const c = costoCambioEditto();
+    if (f.oro < c) return false;
+    f.oro -= c;
+  }
+  f.editti[slot] = id;
+  techBonusReset();
+  if (fid === st.giocatore) aggiungiLog(e.icona+" Editto proclamato: "+e.nome+".", "bene");
+  return true;
+}
+function revocaEditto(fid, slot){
+  const f = st.fazioni[fid];
+  if (!f.editti || !f.editti[slot]) return false;
+  f.editti[slot] = null;
+  techBonusReset();
+  return true;
+}
+function bonusEditti(f){
+  const b = {};
+  if (!f || !f.editti) return b;
+  const max = slotEditti(f);
+  for (let i=0; i<max; i++){
+    const id = f.editti[i];
+    if (!id) continue;
+    const e = D().EDITTI.find(x => x.id === id);
+    if (!e) continue;
+    for (const k in e.eff) b[k] = (b[k]||0) + e.eff[k];
+  }
+  return b;
+}
+// l'IA sceglie gli editti che le somigliano: chi e' in guerra si arma, chi e' in pace produce
+function edittiIA(f){
+  const max = slotEditti(f);
+  f.editti = f.editti || [];
+  let vuoti = 0;
+  for (let i=0;i<max;i++) if (!f.editti[i]) vuoti++;
+  if (!vuoti) return;
+  const inGuerra = Object.values(f.diplo||{}).some(d => d.stato === "guerra");
+  const gia = new Set(f.editti.filter(Boolean));
+  const disp = edittiDisponibili(f.id).filter(e => !gia.has(e.id));
+  if (!disp.length) return;
+  const voto = e => {
+    let v = 0;
+    const x = e.eff;
+    v += (x.oroPct||0)*10 + (x.ciboPct||0)*8 + (x.prodPct||0)*9 + (x.sciPct||0)*8 + (x.culturaPct||0)*5;
+    v += (x.combatPct||0)*(inGuerra ? 20 : 4);
+    v += (x.fedelta||0)*2 - (x.malcontento||0)*2 + (x.caseExtra||0)*2 + (x.serviziExtra||0)*2;
+    v -= (x.mantPct||0)*8;
+    return v;
+  };
+  // fra le tre migliori si sceglie a caso: con il solo punteggio tutti i regni finivano con
+  // gli stessi quattro editti e si somigliavano tutti
+  disp.sort((a,b) => voto(b) - voto(a));
+  const scelto = disp[Math.floor(rnd() * Math.min(3, disp.length))];
+  for (let i=0;i<max;i++) if (!f.editti[i]){ attivaEditto(f.id, scelto.id, i); return; }
+}
+
+// ---------- ACQUISTO DELLE CASELLE ----------
+// Una casella fuori dal regno non rende nulla e non si puo' migliorare: l'unica cosa che si
+// puo' fare e' comprarla. I confini crescono da soli con la popolazione (lentamente); l'oro
+// serve a prendere SUBITO quella che ti interessa — la collina col marmo, la costa col tonno.
+// Prezzo: sale con la distanza dal centro e con quante caselle la citta' ha gia', cosi'
+// allargarsi all'infinito costa sempre di piu'.
+const RAGGIO_ACQUISTO = 5;          // esagoni dal centro citta': oltre, non si compra
+function costoCasella(cm, hexIdx){
+  const h = MAP.hexes[hexIdx];
+  if (!h) return 0;
+  const d = MAP.distKm(cm.hex, hexIdx) / (MAP.R*2);
+  const gia = territorioDi(cm.id).length;
+  let c = 45 + Math.round(d*18) + gia*4;
+  if (h.res) c += 45;                              // una risorsa vale il suo prezzo
+  if (h.terra === "mountain") c = Math.round(c*0.8);
+  return c;
+}
+// si puo' comprare? (ritorna il motivo del no, cosi' il pannello lo puo' spiegare)
+function puoComprareCasella(hexIdx, fid){
+  const h = MAP.hexes[hexIdx];
+  if (!h || h.mare || h.terra === "lago") return { ok:false, motivo:"Non è terra su cui si possa mettere piede." };
+  if (h.citta >= 0){
+    const p = st.comuni[h.citta];
+    return { ok:false, motivo: p.fazione === fid ? "È già tua." : "Appartiene a un altro regno." };
+  }
+  // dev'essere attaccata al territorio di una TUA citta', ed entro il suo raggio
+  let best = null;
+  for (const j of MAP.vicini(hexIdx)){
+    const v = MAP.hexes[j];
+    if (!v || v.citta < 0) continue;
+    const cm = st.comuni[v.citta];
+    if (!cm || cm.fazione !== fid || !cm.fondata) continue;
+    const d = MAP.distKm(cm.hex, hexIdx) / (MAP.R*2);
+    if (d > RAGGIO_ACQUISTO) continue;
+    const c = costoCasella(cm, hexIdx);
+    if (!best || c < best.costo) best = { cm, costo:c };
+  }
+  if (!best) return { ok:false, motivo:"Troppo lontana: si comprano solo le caselle che toccano il tuo territorio." };
+  const f = st.fazioni[fid];
+  return { ok: f.oro >= best.costo, costo: best.costo, cm: best.cm,
+           motivo: f.oro >= best.costo ? null : "Non hai abbastanza oro." };
+}
+function compraCasella(hexIdx, fid){
+  const p = puoComprareCasella(hexIdx, fid);
+  if (!p.ok) return false;
+  const f = st.fazioni[fid];
+  f.oro -= p.costo;
+  rivendica(hexIdx, p.cm.id);
+  MAP.invalidate();
+  if (fid === st.giocatore){
+    const h = MAP.hexes[hexIdx];
+    aggiungiLog("🪙 Casella acquistata per "+p.cm.nome+" ("+p.costo+" oro).", "bene");
+    if (window.FX){ FX.constructionPop(h.x, h.y); FX.floatText(h.x, h.y-4, "-"+p.costo+" 💰", "#e0c060"); }
+  }
+  return true;
+}
+// quanto renderebbe una casella una volta dentro il regno: serve al pannello per far decidere
+function resaCasella(hexIdx){
+  const h = MAP.hexes[hexIdx];
+  const r = { cibo:0, prod:0, oro:0, cultura:0 };
+  if (!h || h.mare) return r;
+  if (h.terra==="plain"){ r.cibo=2; r.prod=1; }
+  else if (h.terra==="hill"){ r.cibo=1; r.prod=1; }
+  else if (h.terra==="mountain"){ r.prod=2; }
+  else if (h.terra==="forest"){ r.cibo=1; r.prod=1; }
+  else if (h.terra==="volcano"){ r.prod=1; }
+  else if (h.terra==="lago"){ r.cibo=2; r.oro=0.5; }
+  if (h.fiume) r.cibo+=1;
+  if (h.costa) r.oro+=0.5;
+  if (h.res){
+    const ri = RES_INFO[h.res];
+    r.cibo+=ri.cibo||0; r.prod+=ri.prod||0; r.oro+=ri.oro||0; r.cultura+=ri.cultura||0;
+  }
+  return r;
+}
+
 // ---------- GRANDI SICILIANI ----------
 // I quartieri e gli edifici generano punti in quattro categorie. Il costo del prossimo
 // personaggio e' GLOBALE e sale a ogni reclutamento: e' una corsa, non una lista della spesa.
@@ -1930,6 +2089,7 @@ function caseComune(cm){
   if (cm.edifici.includes("porto")){ n += 1; d.push({ t:"porto", v:1 }); }
   if (faz && faz.techs.includes("acquedotti")){ n += 2; d.push({ t:"acquedotti", v:2 }); }
   if (faz && faz.caseGrande){ n += faz.caseGrande; d.push({ t:"lascito dei Grandi", v:faz.caseGrande }); }
+  if (faz){ const tb = techBonus(faz.id); if (tb.caseExtra){ n += tb.caseExtra; d.push({ t:"editto", v:tb.caseExtra }); } }
   if (faz && faz.techs.includes("terme")){ n += 1; d.push({ t:"terme", v:1 }); }
   if (faz && faz.techs.includes("qanat")){ n += 1; d.push({ t:"qanat", v:1 }); }
   for (const hq of quartieriDi(cm.id)){
@@ -1970,6 +2130,7 @@ function serviziComune(cm){
   svaghi = Math.min(2, svaghi);
   if (svaghi){ n += svaghi; d.push({ t:"luoghi di ritrovo", v:svaghi }); }
   if (quartieriDi(cm.id).some(h => h.quart==="agora")){ n += 1; d.push({ t:"Agorà", v:1 }); }
+  if (faz){ const tb = techBonus(faz.id); if (tb.serviziExtra){ n += tb.serviziExtra; d.push({ t:"editto", v:tb.serviziExtra }); } }
   return { richiesti, offerti:n, mancano: Math.max(0, richiesti-n), dett:d };
 }
 
@@ -2049,6 +2210,7 @@ function fedeltaDelta(cm){
     else if (em.unrest > 0){ delta -= 2; dett.push({ t:"età oscura", v:-2 }); }
   }
   if (faz && faz.techs.includes("diritto")){ delta += 1; dett.push({ t:"Diritto Romano", v:+1 }); }
+  if (faz){ const tb = techBonus(faz.id); if (tb.fedelta){ delta += tb.fedelta; dett.push({ t:"editti", v:tb.fedelta }); } }
   return { delta: Math.max(-6, Math.min(6, delta)), dett, verso:-1 };
 }
 // Le rese calano quando il popolo non ti vuole piu': e' la vera conseguenza della fedelta'.
@@ -3245,7 +3407,14 @@ function fineTurno(){
       if (d.stato==="patto" && --d.turniPatto<=0) d.stato="pace";
       if (d.stato==="guerra") d.turniGuerra++;
       if (d.commercio>0) d.commercio--;
-      d.atteggiamento += d.atteggiamento<0?0.5:(d.atteggiamento>0?-0.2:0);
+      // Il rancore si riassorbe, ma PIANO. Con +0,5 a turno il risentimento di confine
+      // (-1 ogni sette turni circa) veniva cancellato tre volte piu' in fretta di quanto
+      // nascesse: l'atteggiamento restava inchiodato a zero e nessuna IA arrivava mai alla
+      // soglia di guerra. Insieme al bug del NaN, questo teneva l'isola in pace per sempre.
+      d.atteggiamento += d.atteggiamento<0 ? 0.10 : (d.atteggiamento>0 ? -0.20 : 0);
+      // e non si diventa amici per sempre: patti e accordi commerciali sommavano +15 e +8
+      // ogni volta, e dopo cento turni tutti si volevano bene a +36. La simpatia va rinnovata.
+      d.atteggiamento = Math.max(-60, Math.min(25, d.atteggiamento));
     }
     for (const k of Object.keys(f.accordi)) if (f.accordi[k]>0) f.accordi[k]--;
   }
@@ -3507,6 +3676,8 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   costruzioniDisponibili, unitaDisponibili, accoda, compraSubito, migliora,
   quartieriDisponibili, caselleQuartiere, adiacenzaQuartiere, puoQuartiere, quartiereDef, quartieriDi, tettoQuartieri,
   fedeltaDelta, fedeltaMult, pressioniSu, resetIndiceTerritorio, caseComune, serviziComune, statoGrandi,
+  compraCasella, puoComprareCasella, costoCasella, resaCasella,
+  slotEditti, edittiDisponibili, attivaEditto, revocaEditto, costoCambioEditto, edittiIA,
   techDisponibili, techSbloccateDa, checkIntuizione, ricerca, ETA_INFO, etaMult, liberaCovo, get covi(){ return st ? st.covi : []; }, statU, costoEroe, reclutaEroe, limiteEsercito, limiteLavoratori, truppeFazione, cittaDi,
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,
   miglioramentoAutomatico, azioneLavoratore, esisteMiglioriaPossibile,

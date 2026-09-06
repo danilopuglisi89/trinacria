@@ -93,3 +93,40 @@ L'indice del territorio (`indiceTerritorio`, una Map città → caselle possedut
 scansione di tutti i 10.405 esagoni di terra che `reseComune` faceva per ogni città a ogni
 turno. **Il turno è passato da 190 a 21 millisecondi.** Vale la regola già imparata con
 `vicini()` e `indiceUnita()`: mai scorrere un array globale dentro un ciclo per-entità.
+
+---
+
+## Fase 4 — Caselle da comprare, risorse visibili, Editti, ricerca a cascata (v153→v163)
+
+**Le caselle si comprano.** Una casella fuori dal regno non rende nulla e non si può migliorare:
+l'unica cosa che si può fare è comprarla con l'oro. Il prezzo sale con la distanza dal centro e
+con quante caselle la città ha già; si comprano solo quelle che toccano il tuo territorio,
+entro cinque esagoni dalla città. Il pannello dice quanto renderebbe una volta dentro il regno,
+così la decisione si prende guardando la mappa. I confini continuano a crescere da soli con la
+popolazione: l'oro serve a prendere *subito* quella che ti interessa. Anche l'IA compra, tanto
+più quanto è ricca, ed è finalmente uno sbocco per l'oro che si accumulava senza scopo.
+
+**Le risorse si vedono.** Erano una per comune, 69 su diecimila caselle: troppo rade perché
+guardare la mappa servisse a scegliere. Ora sono circa 360, distribuite per terreno (pesce e
+sale sulla costa, marmo e zolfo sui monti, vino e mandorle sulle colline), mai due attaccate,
+e si ridisegnano **sopra il velo della nebbia** sulle caselle già scoperte, con un cerchietto
+dorato su quelle fuori dai regni: sono le occasioni da comprare.
+
+**Editti.** Sedici carte politiche sbloccate dalle tecnologie che già esistono. Un seggio
+all'inizio, uno in più ogni due ere, un altro ancora con lo Stato moderno. Hanno tutti un
+prezzo: il Latifondo dà cibo e malcontento, la Corvée produzione e meno oro, il Mecenatismo
+cultura e meno oro. Il primo seggio è gratis, cambiare idea costa. L'IA sceglie fra le tre che
+le somigliano di più, così i regni non finiscono tutti uguali.
+
+**Ricerca a cascata.** Il menù elencava tutte e cinquantacinque le tecnologie, era dopo era,
+comprese quelle irraggiungibili. Ora mostra la ricerca in corso con i turni che mancano, poi
+solo quelle che **puoi cominciare adesso** (con costo, cosa sbloccano e l'intuizione che le
+sconta), e sotto quelle che quelle scelte aprirebbero, ognuna con scritto dopo quale.
+
+**Due bug che tenevano l'isola in pace per sempre.** La probabilità di guerra fra IA
+moltiplicava per un oggetto invece che per un numero: valeva `NaN`, e un confronto con `NaN` è
+sempre falso, quindi nessuna IA ha mai dichiarato guerra a un'altra. In più il rancore di
+confine calava di uno ogni quattro turni ma si riassorbiva di mezzo punto ogni turno: l'umore
+restava inchiodato a zero, sotto la soglia di guerra non ci arrivava mai. Corretti entrambi,
+e la simpatia ora ha un tetto, perché patti e accordi commerciali sommandosi rendevano tutti
+amici per sempre.
