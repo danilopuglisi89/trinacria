@@ -182,7 +182,9 @@ function avviaPartita(opts){
     "Manda i coloni a piantare nuove città — prenderanno il nome del luogo in cui sorgono — e in ventiquattro secoli fatti la Sicilia.\n\n«"+
     D().FAZIONI[GAME.st.giocatore].motto+"»",
     scelte:[{label:"All'armi, picciotti!", eff:"nulla"}] }, ()=>{
-      consigliere("benvenuto", "«Maestà, sugnu Don Calorio, u vostru consigghieri. Cliccati 'na truppa e po' 'na casella verdi p'a moviri. Iu vi dicu chi fari, nun v'agitati.»", 11000);
+      // Prima partita: si propone sempre il tutorial guidato (sette passi verificati).
+      if (!proponiTutorial())
+        consigliere("benvenuto", "«Maestà, sugnu Don Calorio, u vostru consigghieri. Cliccati 'na truppa e po' 'na casella verdi p'a moviri. Iu vi dicu chi fari, nun v'agitati.»", 11000);
     });
 }
 
@@ -970,6 +972,7 @@ function aggiornaRegistro(){
     `<div class="log-riga log-${l.tipo}"><span class="muto">${l.anno}</span> ${l.testo}</div>`).join("");
 }
 function aggiornaTutto(){
+  tutorialControlla();          // il tutorial guidato avanza solo quando l'azione e' stata fatta davvero
   aggiornaTopbar();
   aggiornaRegistro();
   aggiornaListaArmata();
@@ -1146,8 +1149,102 @@ function proponiAzione(prop){
   };
 }
 // tutorial contestuale al primo uso
+// ================= TUTORIAL GUIDATO =================
+// Non una scheda che spiega e sparisce: una sequenza di passi in cui il gioco CONTROLLA che
+// l'azione sia stata davvero eseguita prima di andare avanti. Finche' non la fai, il passo
+// resta li'. Cosi' alla fine del tutorial i comandi si conoscono per averli usati.
+const PASSI_TUT = [
+  { id:"seleziona", titolo:"Scegli una truppa",
+    testo:"Clicca su una delle tue truppe, accanto alla città. Le caselle dove può andare si accendono di verde.",
+    ok: () => sel.unita.length > 0 },
+  { id:"muovi", titolo:"Falla camminare",
+    testo:"Ora clicca una casella verde: la truppa ci si sposta. Ogni unità ha un tot di movimento per turno, e la montagna ne consuma di più della pianura.",
+    ok: (st) => st.unita.some(u => u.fazione===st.giocatore && u.camminato) },
+  { id:"esplora", titolo:"Manda l'esploratore a vedere",
+    testo:"La mappa è coperta dalla nebbia: vedi solo attorno a casa tua. Seleziona l'<b>Esploratore</b> — vede più lontano di tutti — e mandalo verso il buio.",
+    ok: (st, dati) => Object.keys(st.esplorato).length > dati.esploratoIniziale + 12 },
+  { id:"fonda", titolo:"Fonda la tua seconda città",
+    testo:"Il <b>Colono</b> serve a questo. Portalo a qualche casella di distanza dalla capitale e premi «Fonda qui la città di…». Prenderà il nome del luogo dove sorge.",
+    ok: (st) => st.comuni.filter(c => c.fazione===st.giocatore && c.fondata).length >= 2 },
+  { id:"produci", titolo:"Metti al lavoro una città",
+    testo:"Clicca una tua città e scegli cosa produrre: altre truppe, un colono per espanderti ancora, o un edificio che la faccia crescere.",
+    ok: (st) => st.comuni.some(c => c.fazione===st.giocatore && c.coda.length > 0) },
+  { id:"ricerca", titolo:"Decidi cosa studiare",
+    testo:"Apri <b>👑 Regno → Ricerca</b> e scegli una tecnologia. Le tecnologie sbloccano truppe, edifici e migliorie: senza, resti fermo all'età della pietra.",
+    ok: (st) => { const f = st.fazioni[st.giocatore]; return !!f.ricerca || (f.percorsoRicerca && f.percorsoRicerca.length > 0); } },
+  { id:"turno", titolo:"Chiudi il turno",
+    testo:"Quando hai finito, premi <b>Fine Turno</b> in basso a destra. Il mondo si muove: le altre città crescono, i rivali agiscono, passano gli anni.",
+    ok: (st, dati) => st.turno > dati.turnoIniziale }
+];
+let tutDati = null;
+
+function tutorialAttivo(){ return !!(GAME.st && GAME.st.tut && GAME.st.tut.attivo); }
+
+function avviaTutorial(){
+  const st = GAME.st;
+  st.tut = { attivo:true, passo:0 };
+  tutDati = { esploratoIniziale: Object.keys(st.esplorato).length, turnoIniziale: st.turno };
+  mostraPassoTut();
+}
+function fineTutorial(completato){
+  const st = GAME.st;
+  if (st && st.tut) st.tut.attivo = false;
+  $("tutorial-card").classList.add("nascosto");
+  try { localStorage.setItem("trinacria_tut_fatto", "1"); } catch(e){}
+  if (completato){
+    AUDIO.sfx("vittoria");
+    mostraModale({ titolo:"🎓 Sai giocare",
+      testo:"Hai mosso le truppe, esplorato, fondato una città, messo al lavoro la produzione, scelto cosa studiare e chiuso il turno. Il resto si impara giocando.\n\n"+
+            "Se ti perdi, Don Calorio è sempre lì che suggerisce, e in ☰ Menu → Come si gioca trovi tutto scritto.",
+      scelte:[{label:"Antudo!", eff:"nulla"}] }, ()=>{});
+  }
+}
+function mostraPassoTut(){
+  const st = GAME.st;
+  if (!tutorialAttivo()) return;
+  const p = PASSI_TUT[st.tut.passo];
+  if (!p){ fineTutorial(true); return; }
+  const card = $("tutorial-card");
+  card.innerHTML = `<div class="tut-titolo">🎓 Passo ${st.tut.passo+1} di ${PASSI_TUT.length} — ${p.titolo}</div>`+
+                   `<div class="tut-testo">${p.testo}</div>`+
+                   `<button class="tut-ok" id="tut-salta">Salta il tutorial</button>`;
+  card.classList.remove("nascosto");
+  card.classList.remove("tut-in"); void card.offsetWidth; card.classList.add("tut-in");
+  const b = $("tut-salta");
+  if (b) b.onclick = () => fineTutorial(false);
+}
+// chiamata dopo ogni azione: se il passo corrente e' stato eseguito, si avanza
+function tutorialControlla(){
+  const st = GAME.st;
+  if (!tutorialAttivo() || !tutDati) return;
+  const p = PASSI_TUT[st.tut.passo];
+  if (!p) { fineTutorial(true); return; }
+  let fatto = false;
+  try { fatto = !!p.ok(st, tutDati); } catch(e){ fatto = false; }
+  if (!fatto) return;
+  st.tut.passo++;
+  AUDIO.sfx("costruito");
+  if (st.tut.passo >= PASSI_TUT.length){ fineTutorial(true); return; }
+  mostraPassoTut();
+}
+// domanda iniziale: solo alla prima partita, e comunque richiamabile dal Menu
+function proponiTutorial(){
+  let gia = false;
+  try { gia = localStorage.getItem("trinacria_tut_fatto") === "1"; } catch(e){}
+  if (gia) return false;
+  mostraModale({ titolo:"🎓 Prima partita?",
+    testo:"Posso guidarti nei primi passi: muovere le truppe, esplorare con la nebbia, fondare una città, far produrre, studiare e chiudere il turno.\n\n"+
+          "Sono sette passi brevi, e a ognuno controllo che l'abbia fatto davvero. Puoi saltarlo quando vuoi.",
+    scelte:[{label:"Sì, guidami", eff:"nulla"},{label:"No, so già giocare", eff:"no"}] },
+    idx => { if (idx===0) avviaTutorial(); else fineTutorial(false); });
+  return true;
+}
+
 function tutorial(id, titolo, testo){
   const st = GAME.st; if (!st) return;
+  // Durante il tutorial guidato le schede contestuali tacciono: userebbero lo stesso riquadro
+  // e cancellerebbero il passo in corso a meta' spiegazione.
+  if (tutorialAttivo()) return;
   st.visti = st.visti || {};
   if (st.visti[id]) return;
   st.visti[id] = true;
@@ -2050,10 +2147,13 @@ function apriMenu(){
   // il governo del regno sta tutto in 👑 Regno e 🍴 Corte: qui restano partita e utilità
   html += `<div class="m-sez">Partita</div>
     <button class="btn-lista" id="btn-aiuto">❓ Come si gioca</button>
+    <button class="btn-lista" id="btn-tutorial">🎓 Rifai il tutorial guidato</button>
     <button class="btn-lista" id="btn-sponsor">📣 Diventa Sponsor (demo)</button>
     <button class="btn-lista" id="btn-nuova">🔄 Nuova partita</button>`;
   mostraModale({ titolo:"☰ Menu", html:`<div class="m-scroll">${html}</div>`,
     scelte:[{label:"Torna al gioco", eff:"nulla"}] }, ()=>{});
+  const bTut = $("btn-tutorial");
+  if (bTut) bTut.onclick = () => { $("modale-sfondo").classList.add("nascosto"); avviaTutorial(); };
   const sl = (id, set) => { const e = $(id); if (e) e.oninput = () => set(e.value/100); };
   sl("vol-mus",  x => AUDIO.volMusica = x);
   sl("vol-voce", x => AUDIO.volVoce   = x);
