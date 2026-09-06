@@ -356,6 +356,65 @@ function disegnaCaselleScelta(ctx){
   ctx.fillStyle = "#fff6d0"; ctx.fillText(scelta.nome, sc.x, sc.y - rz*1.1);
   ctx.restore();
 }
+// ---------- TAPPETO D'AMBIENTE ----------
+// I pesi degli strati (onde, vento, cicale, brusio, magli) si leggono da CIO' CHE SI VEDE:
+// si campionano trentacinque punti dello schermo e si guarda su che casella cadono. Costa
+// pochissimo e si aggiorna due volte al secondo, non a ogni fotogramma.
+let ambT = 0, ambUltimo = null;
+function contaEsplorato(){
+  const st = GAME.st;
+  if (!st || !st.esplorato) return 0;
+  let n = 0;
+  for (const h of MAP.terre) if (GAME.hexEsplorato(h.i)) n++;
+  return n;
+}
+function aggiornaAmbiente(dt){
+  if (!AUDIO.musicaOn || !GAME.st) return;
+  ambT += dt;
+  if (ambT < 0.5) return;
+  ambT = 0;
+  const pesi = pesiAmbiente();
+  if (!pesi) return;
+  const chiave = Object.keys(pesi).map(function(k){ return pesi[k].toFixed(2); }).join(",");
+  if (chiave === ambUltimo) return;
+  ambUltimo = chiave;
+  AUDIO.ambiente(pesi);
+}
+// Peso di ogni strato d'ambiente, letto da cio' che sta davvero sullo schermo.
+function pesiAmbiente(){
+  if (!GAME.st) return null;
+  const W = window.innerWidth, H = window.innerHeight;
+  const st = GAME.st;
+  let mare=0, alto=0, verde=0, citta=0, fucina=0, tot=0;
+  for (let ix=0; ix<7; ix++){
+    for (let iy=0; iy<5; iy++){
+      const sx = (ix+0.5)*W/7, sy = (iy+0.5)*H/5;
+      const i = MAP.hexAt(view, sx, sy);
+      if (i === undefined || i < 0) continue;
+      const h = MAP.hexes[i];
+      if (!h) continue;
+      if (st.nebbia && !GAME.hexEsplorato(i)){ tot++; continue; }
+      tot++;
+      if (h.mare || h.lago) mare++;
+      else if (h.terra === "mountain" || h.terra === "volcano") alto++;
+      else if (h.terra === "forest" || h.terra === "plain" || h.terra === "hill") verde++;
+      if (h.quart === "fucina") fucina += 1;
+      if (h.citta >= 0){
+        const cm = st.comuni[h.citta];
+        if (cm && cm.fondata && (cm.hex === i || h.quart)) citta += 1;
+      }
+    }
+  }
+  if (!tot) return null;
+  // il vento cresce con l'altura, le cicale con la campagna, il brusio con l'abitato
+  return {
+    onde:    Math.min(1, mare/tot * 1.2),
+    vento:   Math.min(1, alto/tot * 1.6 + 0.10),
+    cicale:  Math.min(1, verde/tot * 0.9) * (view.z > 9 ? 1 : 0.35),
+    mercato: Math.min(1, citta/tot * 2.2) * (view.z > 8 ? 1 : 0.3),
+    fucina:  Math.min(1, fucina/tot * 3)  * (view.z > 8 ? 1 : 0)
+  };
+}
 let ultimoT = 0;
 function loop(t){
   const dt = ultimoT ? Math.min(0.05, (t-ultimoT)/1000) : 0.016;
@@ -379,6 +438,7 @@ function loop(t){
       // minimappa: aggiornata ~8 volte al secondo (non serve ogni frame)
       mmT += dt;
       if (mmCtx && mmT > 0.12){ mmT = 0; MAP.disegnaMinimappa(mmCtx, mmCanvas.width, mmCanvas.height, view, GAME.st); }
+      aggiornaAmbiente(dt);
     }
   }
   catch(e){ window.__loopErr = (e && e.message) + " | " + ((e&&e.stack)||"").split("\n").slice(0,3).join(" << "); }
@@ -520,9 +580,14 @@ function selezionaHex(i){
 
 function eseguiMovimento(i){
   const st = GAME.st;
+  const espPrima = contaEsplorato();
   GAME.muovi(sel.unita, i);
   GAME.calcolaVisibilita();
-  AUDIO.sfx("click"); incrAiuto();
+  const u1 = st.unita.find(x => x.id === sel.unita[0]);
+  AUDIO.sfx(u1 && GAME.eNavale(u1) ? "nave" : "marcia");
+  // se la marcia ha scoperto mappa nuova, si sente la nebbia aprirsi
+  if (contaEsplorato() > espPrima + 2) AUDIO.sfx("scoperta");
+  incrAiuto();
   aggiornaTutto();
   const u0 = st.unita.find(u=>u.id===sel.unita[0]);
   if (u0 && u0.mov>0){
@@ -790,8 +855,8 @@ function apriPannelloHex(i){
   const bCompra = $("btn-compra-hex");
   if (bCompra) bCompra.onclick = () => {
     if (GAME.compraCasella(i, GAME.st.giocatore)){
-      AUDIO.sfx("costruito"); incrAiuto(); apriPannelloHex(i); aggiornaTutto();
-    }
+      AUDIO.sfx("moneta"); incrAiuto(); apriPannelloHex(i); aggiornaTutto();
+    } else AUDIO.sfx("errore");
   };
   document.querySelectorAll("[data-mig]").forEach(b => b.onclick = () => {
     if (GAME.migliora(i, b.dataset.mig)){ AUDIO.sfx("costruito"); apriPannelloHex(i); aggiornaTutto(); }
@@ -901,7 +966,8 @@ function apriPannelloCitta(cm){
   if (mia){
     document.querySelectorAll("[data-rec]").forEach(b => b.onclick = () => {
       const ok = GAME.accoda(cm.id, { tipo:"unita", id:b.dataset.rec, costo:parseInt(b.dataset.costo) });
-      if (ok) AUDIO.sfx("click"); else consigliere("cons", "Esercito al completo, Maestà: sciogli o impegna qualche truppa prima di reclutarne altre.", 3000);
+      if (ok) AUDIO.sfx("unita");
+      else { AUDIO.sfx("errore"); consigliere("cons", "Esercito al completo, Maestà: sciogli o impegna qualche truppa prima di reclutarne altre.", 3000); }
       apriPannelloCitta(cm); aggiornaTutto();
     });
     document.querySelectorAll("[data-cos]").forEach(b => b.onclick = () => {
@@ -1320,6 +1386,7 @@ function chiediNomeCitta(u){
   setTimeout(() => { const el=$("nome-citta-nuova"); if (el){ el.focus(); el.select(); } }, 60);
 }
 function concludiFondazione(u, nome){
+  AUDIO.sfx("fondazione");
   const r = GAME.fondaCitta(u.id, nome);
   if (r.ok){
     AUDIO.sfx("vittoria"); AUDIO.parlaUna("don_citta_presa", 3);
@@ -1529,7 +1596,8 @@ function processaPending(){
   if (!st) return;
   if (!st.pending.length){ if (typeof pianificaAuto === "function") pianificaAuto(); return; }
   const evt = st.pending.shift();
-  AUDIO.sfx("campana");
+  // il rintocco grande e' del cambio d'era; gli altri eventi hanno la campana normale
+  AUDIO.sfx(evt.titolo && /^[⏳🔱👑]/.test(evt.titolo) ? "era" : "campana");
   if (evt.vox) AUDIO.parla(evt.vox);      // narratore: solo sugli eventi che contano
   // tocco cinematografico sugli eventi maggiori (ere, invasioni, disastri)
   if (window.FX && evt.titolo && /^[🔱🚨💥☠🔥⚱👑]/.test(evt.titolo)){
@@ -2097,7 +2165,7 @@ function confermaPosa(i){
   const cm = GAME.st.comuni[p.cmId];
   annullaPosa();
   GAME.accoda(cm.id, { tipo:"quartiere", id:p.qid, costo:p.costo, hex:i });
-  AUDIO.sfx("click");
+  AUDIO.sfx("quartiere");
   if (c.imp) aggiungiLogUI("Il quartiere prenderà il posto della miglioria su quella casella.");
   apriPannelloCitta(cm); aggiornaTutto();
 }
@@ -2538,6 +2606,7 @@ function apriMenu(){
       <label>🎵 Musica <input type="range" id="vol-mus" min="0" max="100" value="${Math.round(A.musica*100)}"></label>
       <label>🗣️ Voci <input type="range" id="vol-voce" min="0" max="100" value="${Math.round(A.voce*100)}"></label>
       <label>🔔 Effetti <input type="range" id="vol-fx" min="0" max="100" value="${Math.round(A.effetti*100)}"></label>
+      <label>🌊 Ambiente <input type="range" id="vol-amb" min="0" max="100" value="${Math.round(A.ambiente*100)}"></label>
       <label class="m-check"><input type="checkbox" id="voce-on" ${A.voceOn?"checked":""}> Don Calorio e il narratore parlano</label>
     </div>`;
   // il governo del regno sta tutto in 👑 Regno e 🍴 Corte: qui restano partita e utilità
@@ -2554,6 +2623,7 @@ function apriMenu(){
   sl("vol-mus",  x => AUDIO.volMusica = x);
   sl("vol-voce", x => AUDIO.volVoce   = x);
   sl("vol-fx",   x => AUDIO.volEffetti= x);
+  sl("vol-amb",  x => AUDIO.volAmbiente= x);
   if ($("voce-on")) $("voce-on").onchange = e => AUDIO.voceAttiva = e.target.checked;
   document.querySelectorAll("[data-salva]").forEach(b => b.onclick = () => {
     SAVE.salva(b.dataset.salva);
@@ -2585,6 +2655,6 @@ function apriMenu(){
   };
 }
 
-return { initAvvio, initGioco, aggiornaTutto, processaPending, ridisegna,
+return { initAvvio, initGioco, aggiornaTutto, processaPending, ridisegna, pesiAmbiente,
          get view(){ return view; } };
 })();

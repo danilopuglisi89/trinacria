@@ -2443,6 +2443,7 @@ function liberaCovo(hexIdx, fid){
   f.cont = f.cont || { vinte:0, conquiste:0, briganti:0 }; f.cont.briganti++;
   if (fid === st.giocatore){
     aggiungiLog("🏕️ Covo di briganti spazzato via! Bottino: +"+premio+" oro.", "bene");
+    if (window.AUDIO) AUDIO.sfx("covo");
     const h = MAP.hexes[hexIdx];
     if (window.FX){ FX.confetti(h.x, h.y); FX.floatText(h.x, h.y-4, "+"+premio+" 💰", "#e0c060"); }
     spara("vittoriaBattaglia");
