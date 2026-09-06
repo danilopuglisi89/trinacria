@@ -11,7 +11,7 @@
 "id": "terreno_256",
 "file": "terreno_256.webp",
 "w": 2048,
-"h": 774,
+"h": 758,
 "group": "terreno"
 },
 {
@@ -96,7 +96,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_forest_0": {
+"terra_hill_0": {
 "atlas": "terreno_64",
 "x": 67,
 "y": 1,
@@ -106,7 +106,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_forest_1": {
+"terra_hill_1": {
 "atlas": "terreno_64",
 "x": 133,
 "y": 1,
@@ -116,7 +116,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_forest_2": {
+"terra_hill_2": {
 "atlas": "terreno_64",
 "x": 199,
 "y": 1,
@@ -126,7 +126,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_hill_0": {
+"terra_hill_3": {
 "atlas": "terreno_64",
 "x": 265,
 "y": 1,
@@ -136,7 +136,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_hill_1": {
+"terra_mountain_0": {
 "atlas": "terreno_64",
 "x": 331,
 "y": 1,
@@ -146,7 +146,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_hill_2": {
+"terra_mountain_1": {
 "atlas": "terreno_64",
 "x": 397,
 "y": 1,
@@ -156,7 +156,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_hill_3": {
+"terra_mountain_2": {
 "atlas": "terreno_64",
 "x": 463,
 "y": 1,
@@ -166,7 +166,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_mountain_0": {
+"terra_mountain_3": {
 "atlas": "terreno_64",
 "x": 529,
 "y": 1,
@@ -176,7 +176,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_mountain_1": {
+"terra_plain_0": {
 "atlas": "terreno_64",
 "x": 595,
 "y": 1,
@@ -186,7 +186,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_mountain_2": {
+"terra_plain_1": {
 "atlas": "terreno_64",
 "x": 661,
 "y": 1,
@@ -196,7 +196,7 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_mountain_3": {
+"terra_plain_2": {
 "atlas": "terreno_64",
 "x": 727,
 "y": 1,
@@ -206,82 +206,82 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_plain_0": {
+"terra_secca_0": {
 "atlas": "terreno_64",
 "x": 793,
 "y": 1,
 "w": 64,
-"h": 64,
-"ax": 0.5,
-"ay": 0.5,
-"group": "terreno"
-},
-"terra_plain_1": {
-"atlas": "terreno_64",
-"x": 859,
-"y": 1,
-"w": 64,
-"h": 64,
-"ax": 0.5,
-"ay": 0.5,
-"group": "terreno"
-},
-"terra_plain_2": {
-"atlas": "terreno_64",
-"x": 925,
-"y": 1,
-"w": 64,
-"h": 64,
-"ax": 0.5,
-"ay": 0.5,
-"group": "terreno"
-},
-"terra_secca_0": {
-"atlas": "terreno_64",
-"x": 991,
-"y": 1,
-"w": 64,
-"h": 64,
+"h": 60,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
 },
 "terra_secca_1": {
 "atlas": "terreno_64",
-"x": 1057,
+"x": 859,
 "y": 1,
 "w": 64,
-"h": 64,
+"h": 60,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
 },
 "terra_secca_2": {
 "atlas": "terreno_64",
-"x": 1123,
+"x": 925,
 "y": 1,
 "w": 64,
-"h": 64,
+"h": 60,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_volcano_0": {
+"terra_forest_1": {
 "atlas": "terreno_64",
-"x": 1189,
+"x": 991,
 "y": 1,
 "w": 64,
-"h": 64,
+"h": 59,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
 },
 "terra_volcano_1": {
 "atlas": "terreno_64",
+"x": 1057,
+"y": 1,
+"w": 64,
+"h": 55,
+"ax": 0.5,
+"ay": 0.5,
+"group": "terreno"
+},
+"terra_forest_0": {
+"atlas": "terreno_64",
+"x": 1123,
+"y": 1,
+"w": 64,
+"h": 54,
+"ax": 0.5,
+"ay": 0.5,
+"group": "terreno"
+},
+"terra_forest_2": {
+"atlas": "terreno_64",
+"x": 1189,
+"y": 1,
+"w": 64,
+"h": 54,
+"ax": 0.5,
+"ay": 0.5,
+"group": "terreno"
+},
+"terra_volcano_0": {
+"atlas": "terreno_64",
 "x": 1255,
 "y": 1,
 "w": 64,
-"h": 64,
+"h": 54,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
@@ -291,7 +291,7 @@
 "x": 1321,
 "y": 1,
 "w": 64,
-"h": 64,
+"h": 54,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
@@ -306,41 +306,11 @@
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_forest_0_hi": {
+"terra_hill_0_hi": {
 "atlas": "terreno_256",
 "x": 259,
 "y": 1,
-"w": 256,
-"h": 256,
-"ax": 0.5,
-"ay": 0.5,
-"group": "terreno"
-},
-"terra_forest_1_hi": {
-"atlas": "terreno_256",
-"x": 517,
-"y": 1,
-"w": 256,
-"h": 256,
-"ax": 0.5,
-"ay": 0.5,
-"group": "terreno"
-},
-"terra_forest_2_hi": {
-"atlas": "terreno_256",
-"x": 775,
-"y": 1,
-"w": 256,
-"h": 256,
-"ax": 0.5,
-"ay": 0.5,
-"group": "terreno"
-},
-"terra_hill_0_hi": {
-"atlas": "terreno_256",
-"x": 1033,
-"y": 1,
-"w": 256,
+"w": 254,
 "h": 256,
 "ax": 0.5,
 "ay": 0.5,
@@ -348,9 +318,9 @@
 },
 "terra_hill_1_hi": {
 "atlas": "terreno_256",
-"x": 1291,
+"x": 515,
 "y": 1,
-"w": 256,
+"w": 254,
 "h": 256,
 "ax": 0.5,
 "ay": 0.5,
@@ -358,9 +328,9 @@
 },
 "terra_hill_2_hi": {
 "atlas": "terreno_256",
-"x": 1549,
+"x": 771,
 "y": 1,
-"w": 256,
+"w": 254,
 "h": 256,
 "ax": 0.5,
 "ay": 0.5,
@@ -368,9 +338,9 @@
 },
 "terra_hill_3_hi": {
 "atlas": "terreno_256",
-"x": 1,
-"y": 259,
-"w": 256,
+"x": 1027,
+"y": 1,
+"w": 254,
 "h": 256,
 "ax": 0.5,
 "ay": 0.5,
@@ -378,8 +348,8 @@
 },
 "terra_mountain_0_hi": {
 "atlas": "terreno_256",
-"x": 259,
-"y": 259,
+"x": 1283,
+"y": 1,
 "w": 256,
 "h": 256,
 "ax": 0.5,
@@ -388,8 +358,8 @@
 },
 "terra_mountain_1_hi": {
 "atlas": "terreno_256",
-"x": 517,
-"y": 259,
+"x": 1541,
+"y": 1,
 "w": 256,
 "h": 256,
 "ax": 0.5,
@@ -398,7 +368,7 @@
 },
 "terra_mountain_2_hi": {
 "atlas": "terreno_256",
-"x": 775,
+"x": 1,
 "y": 259,
 "w": 256,
 "h": 256,
@@ -408,7 +378,7 @@
 },
 "terra_mountain_3_hi": {
 "atlas": "terreno_256",
-"x": 1033,
+"x": 259,
 "y": 259,
 "w": 256,
 "h": 256,
@@ -418,7 +388,7 @@
 },
 "terra_plain_0_hi": {
 "atlas": "terreno_256",
-"x": 1291,
+"x": 517,
 "y": 259,
 "w": 256,
 "h": 256,
@@ -428,7 +398,7 @@
 },
 "terra_plain_1_hi": {
 "atlas": "terreno_256",
-"x": 1549,
+"x": 775,
 "y": 259,
 "w": 256,
 "h": 256,
@@ -438,8 +408,8 @@
 },
 "terra_plain_2_hi": {
 "atlas": "terreno_256",
-"x": 1,
-"y": 517,
+"x": 1033,
+"y": 259,
 "w": 256,
 "h": 256,
 "ax": 0.5,
@@ -448,50 +418,80 @@
 },
 "terra_secca_0_hi": {
 "atlas": "terreno_256",
-"x": 259,
-"y": 517,
+"x": 1291,
+"y": 259,
 "w": 256,
-"h": 256,
+"h": 240,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
 },
 "terra_secca_1_hi": {
 "atlas": "terreno_256",
-"x": 517,
-"y": 517,
+"x": 1549,
+"y": 259,
 "w": 256,
-"h": 256,
+"h": 240,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
 },
 "terra_secca_2_hi": {
 "atlas": "terreno_256",
-"x": 775,
+"x": 1,
 "y": 517,
 "w": 256,
-"h": 256,
+"h": 240,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
 },
-"terra_volcano_0_hi": {
+"terra_forest_1_hi": {
 "atlas": "terreno_256",
-"x": 1033,
+"x": 259,
 "y": 517,
 "w": 256,
-"h": 256,
+"h": 238,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
 },
 "terra_volcano_1_hi": {
 "atlas": "terreno_256",
+"x": 517,
+"y": 517,
+"w": 256,
+"h": 220,
+"ax": 0.5,
+"ay": 0.5,
+"group": "terreno"
+},
+"terra_forest_0_hi": {
+"atlas": "terreno_256",
+"x": 775,
+"y": 517,
+"w": 256,
+"h": 216,
+"ax": 0.5,
+"ay": 0.5,
+"group": "terreno"
+},
+"terra_forest_2_hi": {
+"atlas": "terreno_256",
+"x": 1033,
+"y": 517,
+"w": 256,
+"h": 216,
+"ax": 0.5,
+"ay": 0.5,
+"group": "terreno"
+},
+"terra_volcano_0_hi": {
+"atlas": "terreno_256",
 "x": 1291,
 "y": 517,
 "w": 256,
-"h": 256,
+"h": 216,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"
@@ -501,7 +501,7 @@
 "x": 1549,
 "y": 517,
 "w": 256,
-"h": 256,
+"h": 216,
 "ax": 0.5,
 "ay": 0.5,
 "group": "terreno"

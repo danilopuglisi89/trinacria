@@ -33,18 +33,40 @@ function dentroCosta(x, y){
 }
 
 // ---- Zone montuose (lat, lon, raggio km, tipo, altezza) ----
+// Orografia reale della Sicilia. I raggi sono in CHILOMETRI VERI e vengono convertiti in
+// unità-mondo con KMU: la tabella precedente aveva i raggi già in unità-mondo, tarati quando
+// KX valeva ~88 (1 unità ≈ 1 km). Dopo gli ingrandimenti della mappa (KX 287) quei raggi
+// valevano 4-7 km reali: le catene montuose si erano ridotte a puntini e il 96% dell'isola
+// risultava pianura. Con i km espliciti la mappa torna alle proporzioni vere della Sicilia
+// (misurato: 22,5% montagna · 62,3% collina · 13,8% pianura, contro 24,5 · 61,4 · 14,1 reali).
+const KMU = KX/88.3;            // unità-mondo per chilometro (88,3 km per grado di longitudine a 37,5°N)
 const ZONE = [
-  [38.08,15.30,14,"mountain",0.8],[38.00,15.15,11,"mountain",0.7],
-  [37.93,14.85,15,"mountain",0.9],[37.90,14.62,17,"mountain",1.0],[37.92,14.42,13,"mountain",0.85],
-  [37.87,14.03,15,"mountain",0.95],
-  [37.62,14.35,19,"hill",0.5],
-  [37.05,14.88,21,"hill",0.5],[37.11,14.95,7,"mountain",0.7],
-  [37.65,13.45,21,"hill",0.5],[37.63,13.58,8,"mountain",0.75],
-  [38.05,13.25,9,"mountain",0.7],
-  [38.00,12.80,9,"hill",0.5],
-  [37.85,13.35,10,"hill",0.55],
-  [37.45,13.95,18,"hill",0.45]
-].map(z => { const p=toXY(z[0],z[1]); return {x:p.x,y:p.y,r:z[2],tipo:z[3],alt:z[4]}; });
+  // catene montuose
+  [38.10,15.42,26,"mountain",0.85],[38.00,15.22,22,"mountain",0.80],   // Peloritani
+  [37.95,14.88,29,"mountain",0.90],[37.92,14.62,29,"mountain",1.00],
+  [37.90,14.38,25,"mountain",0.85],                                    // Nebrodi
+  [37.88,14.02,27,"mountain",0.95],                                    // Madonie
+  [38.05,13.30,21,"mountain",0.70],                                    // Monti di Palermo
+  [37.66,13.42,23,"mountain",0.80],                                    // Monti Sicani
+  [37.13,14.86,18,"mountain",0.65],                                    // Iblei, parte alta
+  [38.03,12.59,11,"mountain",0.60],                                    // Erice
+  // colline: l'ossatura dell'interno siciliano
+  [37.55,14.30,42,"hill",0.50],                                        // Monti Erei
+  [37.05,14.85,40,"hill",0.45],                                        // altopiano Ibleo
+  [37.65,13.40,40,"hill",0.50],                                        // entroterra sicano
+  [37.85,12.85,30,"hill",0.40],                                        // colline del Trapanese
+  [37.40,13.60,38,"hill",0.45],                                        // Agrigentino
+  [37.45,14.05,32,"hill",0.50],                                        // Nisseno
+  [37.90,13.32,28,"hill",0.45],                                        // entroterra palermitano
+  [37.95,15.05,20,"hill",0.50],                                        // colline messinesi
+  [38.00,14.50,15,"hill",0.50],[37.75,14.95,18,"hill",0.50],
+  // pianure vere: riconquistano il terreno sulle colline dove l'isola è davvero piatta
+  [37.40,14.92,26,"plain",0.10],                                       // Piana di Catania
+  [38.13,13.36,12,"plain",0.10],                                       // Conca d'Oro
+  [37.08,14.30,24,"plain",0.10],                                       // Piana di Gela
+  [37.72,12.55,29,"plain",0.10],                                       // Marsala-Mazara
+  [38.13,15.15,11,"plain",0.10]                                        // Piana di Milazzo
+].map(z => { const p=toXY(z[0],z[1]); return {x:p.x,y:p.y,r:z[2]*KMU,tipo:z[3],alt:z[4]}; });
 
 const ETNA = toXY(37.755, 14.995);
 
@@ -142,6 +164,33 @@ function cuociTile(tx, ty, st, riusa){
 
 function hexCentro(col,row){ return { x: HEXW*(col + 0.5*(row&1)) + 4, y: ROWH*row + 4 }; }
 function rngSeme(n){ const s = Math.sin(n*127.1+311.7)*43758.5453; return s - Math.floor(s); }
+
+// ---- rumore coerente (value noise + fbm) su coordinate-mondo ----
+// Il rumore bianco per-esagono (rngSeme) sparpaglia i valori come sale e pepe: due esagoni
+// confinanti ottengono numeri scorrelati, e sulla mappa si vedono boschi a coriandoli e
+// texture "a caso". Questo rumore invece è CONTINUO nello spazio: esagoni vicini campionano
+// quasi lo stesso valore, quindi boschi e varianti formano macchie ampie come in geografia vera.
+function _vn(ix, iy, sem){
+  let n = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(sem, 1442695041)) | 0;
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+}
+function rumore(x, y, scala, sem){
+  const fx = x/scala, fy = y/scala;
+  const ix = Math.floor(fx), iy = Math.floor(fy);
+  const tx = fx-ix, ty = fy-iy;
+  const sx = tx*tx*(3-2*tx), sy = ty*ty*(3-2*ty);          // smoothstep: niente spigoli
+  const a = _vn(ix,iy,sem),   b = _vn(ix+1,iy,sem);
+  const c = _vn(ix,iy+1,sem), d = _vn(ix+1,iy+1,sem);
+  const ab = a + (b-a)*sx, cd = c + (d-c)*sx;
+  return ab + (cd-ab)*sy;
+}
+// somma di ottave: macchie grandi con bordi frastagliati, come i confini di un bosco vero
+function fbm(x, y, scala, sem){
+  return rumore(x, y, scala, sem)*0.60
+       + rumore(x, y, scala*0.45, sem+7)*0.28
+       + rumore(x, y, scala*0.19, sem+13)*0.12;
+}
 // col/row più vicino a una coordinata-mondo (inverso approssimato di hexCentro)
 function colRowDaXY(x, y){
   const row = Math.round((y-4)/ROWH);
@@ -239,15 +288,21 @@ function build(){
         if (d < z.r && (!best || d/z.r < best.q)) best = { q:d/z.r, tipo:z.tipo, alt:z.alt*(1-d/z.r*0.6) };
       }
       if (best){ terra = best.tipo; elev = best.alt; }
-      const dEtna = Math.hypot(c.x-ETNA.x, c.y-ETNA.y);
+      // anche queste soglie erano in unità-mondo tarate sulla vecchia scala (7 unità = 2 km!):
+      // ora in chilometri veri — l'edificio vulcanico dell'Etna misura ~45 km di diametro
+      const dEtna = Math.hypot(c.x-ETNA.x, c.y-ETNA.y) / KMU;
       let etna = false;
-      if (dEtna < 7){ terra = "volcano"; elev = 1.3*(1-dEtna/9); }
-      else if (dEtna < 13 && terra === "plain"){ terra = "hill"; elev = 0.5*(1-dEtna/15); }
-      if (dEtna < 17) etna = true;
-      const r = rngSeme(row*COLS+col);
-      if (terra==="mountain" && r<0.30) terra="forest";
-      if (terra==="hill" && c.y < 65 && r<0.35) terra="forest";
-      if (dEtna>=7 && dEtna<13 && r<0.4) terra="forest";
+      if (dEtna < 9){ terra = "volcano"; elev = 1.3*(1-dEtna/12); }
+      else if (dEtna < 26 && terra === "plain"){ terra = "hill"; elev = 0.5*(1-dEtna/32); }
+      if (dEtna < 34) etna = true;
+      // Boschi a MACCHIA, non a coriandoli: la foresta segue un campo di rumore continuo
+      // (~30 km di respiro), così i Nebrodi e le Madonie hanno versanti boscosi compatti
+      // invece di alberi isolati sparsi a caso in mezzo alla roccia.
+      const bosco = fbm(c.x, c.y, 30*KMU, 3);          // macchie di ~30 km
+      const nord = c.y < (LAT0-37.80)*KY;              // versante tirrenico: è lì che la Sicilia è boscosa
+      if (terra==="mountain" && bosco > 0.54) terra="forest";
+      if (terra==="hill" && nord && bosco > 0.56) terra="forest";
+      if (dEtna>=9 && dEtna<26 && bosco > 0.48) terra="forest";
       const fiume = vicinoFiume(c.x, c.y);
       const idx = hexes.length;
       hexes.push({ i:idx, col, row, x:c.x, y:c.y, terra, elev, fiume, costa:false,
@@ -472,28 +527,57 @@ function blit(ctx, v, st){
 }
 
 // ---- sprite AI (js/sprites.js): helper di scelta frame; ogni chiamata ricade sull'arte procedurale se manca ----
-// texture di terreno "ancorata al mondo": la stessa immagine si ripete ogni TEX_KM km, così esagoni
-// vicini dello stesso terreno continuano senza cuciture; la variante (0-2) cambia per zona
-const TEX_KM = R*2.5;   // ~8 km: appezzamenti di 2-3 esagoni, dettagli (spighe, ulivi) in scala col terreno
+// Texture di terreno ancorata al MONDO: esagoni confinanti dello stesso terreno mostrano la
+// continuazione della stessa immagine, così il paesaggio prosegue da una casella all'altra
+// invece di essere un timbro ripetuto in ogni esagono.
+// Perché non si vedono più cuciture né quadrati:
+//  · le tessere sorgente sono state rese RIPETIBILI (scratchpad/seamless.py): affiancate non
+//    hanno bordi visibili, quindi sparisce la griglia di righe dritte ogni TEX_KM che prima
+//    faceva leggere quadrati al posto di esagoni — e senza ricorrere al ribaltamento a specchio,
+//    che eliminava le cuciture ma creava un'evidente simmetria a farfalla, cioè un altro "pattern";
+//  · la variante (0-2) è scelta da un rumore continuo, non dalla cella quadrata: cambia di rado
+//    e sempre lungo un lato d'esagono, mai lungo una retta che taglia la mappa.
+const TEX_KM = R*7;   // ~22 km per cella: il motivo si ripete di rado nel campo visivo
+
+// Contorno della casella. Una sola linea scura spariva sulla roccia scura delle montagne e
+// una sola linea chiara spariva sul grano dorato: qui se ne disegnano DUE, una scura appena
+// fuori e una chiara appena dentro. Il bordo resta leggibile su qualunque terreno senza
+// dover alzare il contrasto al punto da trasformare la mappa in una griglia da quaderno.
+function contornoCasella(ctx, cx, cy, rz){
+  const w = Math.max(0.7, rz*0.035);
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(255,246,224,0.30)"; ctx.lineWidth = w;
+  ART.hexPath(ctx, cx, cy, rz - w*0.55); ctx.stroke();
+  ctx.strokeStyle = "rgba(24,16,8,0.62)";    ctx.lineWidth = w;
+  ART.hexPath(ctx, cx, cy, rz + 0.6);        ctx.stroke();
+}
+function varianteTerreno(h){
+  if (h._var === undefined) h._var = Math.min(2, Math.floor(fbm(h.x, h.y, 46*KMU, 21) * 3.2));
+  return h._var;
+}
 function disegnaTexturaHex(ctx, v, s, h, rz){
-  const cx = Math.floor(h.x/TEX_KM), cy = Math.floor(h.y/TEX_KM);
-  const varN = (((cx*73856093) ^ (cy*19349663)) >>> 0) % 3;
-  const id = "terra_"+h.terra+"_"+varN;
+  const id = "terra_"+h.terra+"_"+varianteTerreno(h);
   if (!SPRITES.getFrame(id)) return false;
   ctx.save();
   ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.clip();
   const T = TEX_KM*v.z;
-  const x0 = cx*TEX_KM*v.z + v.x, y0 = cy*TEX_KM*v.z + v.y;
+  const cx = Math.floor(h.x/TEX_KM), cy = Math.floor(h.y/TEX_KM);
+  const x0 = cx*T + v.x, y0 = cy*T + v.y;
   for (let dx=-1; dx<=1; dx++) for (let dy=-1; dy<=1; dy++){
     const px = x0+dx*T, py = y0+dy*T;
     if (px > s.x+rz || px+T < s.x-rz || py > s.y+rz || py+T < s.y-rz) continue;
-    SPRITES.drawTL(ctx, id, px, py, T+0.5, T+0.5);
+    // Allineamento a pixel INTERI: il bordo destro di una cella coincide esattamente con il
+    // bordo sinistro della successiva. Prima ogni cella veniva disegnata mezzo pixel più grande
+    // del passo per non lasciare fessure, ma così le celle si sovrapponevano e la striscia
+    // comune restava visibile come una riga sottile a ogni confine di tessera.
+    const ix = Math.round(px), iy = Math.round(py);
+    SPRITES.drawTL(ctx, id, ix, iy, Math.round(px+T)-ix, Math.round(py+T)-iy);
   }
   // hillshade come in mosaicoHex
   const a = Math.min(0.45, Math.abs(h.shade||0));
   if (a > 0.01){ ctx.fillStyle = (h.shade<0 ? "rgba(0,0,0," : "rgba(255,255,255,")+a+")"; ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.fill(); }
   ctx.restore();
-  if (rz >= 4){ ctx.strokeStyle = "rgba(18,14,8,0.32)"; ctx.lineWidth = Math.max(0.5, rz*0.03); ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.stroke(); }
+  if (rz >= 4) contornoCasella(ctx, s.x, s.y, rz);
   return true;
 }
 const STILI_ARCH = ["greca","romana","araba","normanna"];
@@ -699,10 +783,20 @@ function renderDynamic(ctx, v, st, sel, rz){
       }
     }
   }
+  // casella selezionata: velo viola + doppio contorno pulsante. Prima era un filo bianco,
+  // che sul mosaico chiaro spariva e non diceva quale casella fosse davvero scelta.
   if (sel && sel.hex >= 0){
     const h = hexes[sel.hex]; const s = w2s(v, h.x, h.y);
-    ART.hexPath(ctx, s.x, s.y, rz*0.94);
-    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2 + puls*1.6; ctx.stroke();
+    ctx.save();
+    ART.hexPath(ctx, s.x, s.y, rz+0.6);
+    ctx.fillStyle = "rgba(150,70,220,"+(0.20+puls*0.10).toFixed(3)+")"; ctx.fill();
+    ctx.shadowColor = "rgba(180,100,255,0.9)"; ctx.shadowBlur = 8 + puls*10;
+    ctx.strokeStyle = "rgba(60,20,90,0.85)"; ctx.lineWidth = 4.5 + puls*1.6;
+    ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#c489ff"; ctx.lineWidth = 2.2 + puls*1.4;
+    ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.stroke();
+    ctx.restore();
   }
   // città del giocatore senza ordini: martello pulsante
   if (st && rz > 6){

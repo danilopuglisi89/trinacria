@@ -27,7 +27,7 @@ function midi(n){ return 440 * Math.pow(2, (n-69)/12); }
 // { musica: { era0:"file.mp3", …, battaglia:"…" }, voce: { chiave:"file.mp3", … } }
 let MAN = null, manPronto = false;
 function init(){
-  return fetch("assets/audio/manifest.json?v=63")
+  return fetch("assets/audio/manifest.json?v=71")
     .then(r => r.ok ? r.json() : null)
     .then(j => { MAN = j; manPronto = true; return j; })
     .catch(() => { manPronto = true; return null; });

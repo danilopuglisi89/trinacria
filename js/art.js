@@ -37,8 +37,13 @@ function mosaicoHex(ctx, cx, cy, r, terra, idx, shade){
   hexPath(ctx, cx, cy, r+0.6); ctx.fill();
   // contorno sottile: definisce ogni singola casella (visibile anche a zoom moderato)
   if (r >= 4){
-    ctx.strokeStyle = "rgba(18,14,8,0.32)";
-    ctx.lineWidth = Math.max(0.5, r*0.03);
+    // doppia linea (chiara dentro, scura fuori): resta leggibile sia sul grano dorato
+    // sia sulla roccia scura — vedi contornoCasella in map.js, stessa resa
+    const w = Math.max(0.7, r*0.035);
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(255,246,224,0.30)"; ctx.lineWidth = w;
+    hexPath(ctx, cx, cy, r - w*0.55); ctx.stroke();
+    ctx.strokeStyle = "rgba(24,16,8,0.62)";    ctx.lineWidth = w;
     hexPath(ctx, cx, cy, r+0.6); ctx.stroke();
   }
   if (r < 8) return; // troppo piccolo: fondo liscio
