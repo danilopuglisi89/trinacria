@@ -1916,20 +1916,24 @@ function acquaVicina(cm){
 function caseComune(cm){
   const faz = cm.fazione>=0 && cm.fazione<100 ? st.fazioni[cm.fazione] : null;
   const d = [];
-  let n = 3; d.push({ t:"il borgo", v:3 });
+  // La base era 3 e la capitale nasceva con sette abitanti: al primo turno la citta' era
+  // gia' bloccata, prima ancora che il giocatore potesse farci qualcosa. Un abitato fondato
+  // vale sei case, la capitale due in piu' perche' e' il posto dove tutti vogliono stare.
+  let n = 5; d.push({ t:"il borgo", v:5 });
+  if (faz && faz.capitale === cm.id){ n += 2; d.push({ t:"capitale", v:2 }); }
   if (acquaVicina(cm)){ n += 2; d.push({ t:"acqua vicina", v:2 }); }
   let campi = 0;
   for (const h of territorioDi(cm.id)) if (h.imp && (D().MIGLIORIE[h.imp]||{}).cibo) campi++;
-  const bc = Math.min(4, Math.floor(campi/2));
+  const bc = Math.min(3, Math.floor(campi/2));
   if (bc){ n += bc; d.push({ t:"campi coltivati", v:bc }); }
   if (cm.edifici.includes("granaio")){ n += 2; d.push({ t:"granaio", v:2 }); }
   if (cm.edifici.includes("porto")){ n += 1; d.push({ t:"porto", v:1 }); }
-  if (faz && faz.techs.includes("acquedotti")){ n += 3; d.push({ t:"acquedotti", v:3 }); }
+  if (faz && faz.techs.includes("acquedotti")){ n += 2; d.push({ t:"acquedotti", v:2 }); }
   if (faz && faz.caseGrande){ n += faz.caseGrande; d.push({ t:"lascito dei Grandi", v:faz.caseGrande }); }
   if (faz && faz.techs.includes("terme")){ n += 1; d.push({ t:"terme", v:1 }); }
-  if (faz && faz.techs.includes("qanat")){ n += 2; d.push({ t:"qanat", v:2 }); }
+  if (faz && faz.techs.includes("qanat")){ n += 1; d.push({ t:"qanat", v:1 }); }
   for (const hq of quartieriDi(cm.id)){
-    if (hq.quart === "marina"){ n += 2; d.push({ t:"Marina", v:2 }); }
+    if (hq.quart === "marina"){ n += 1; d.push({ t:"Marina", v:1 }); }
     if (hq.quart === "fondaco"){ n += 1; d.push({ t:"Fondaco", v:1 }); }
   }
   return { n, dett:d };
@@ -1949,7 +1953,9 @@ function cittaConLusso(fid){
 }
 function serviziComune(cm){
   const faz = cm.fazione>=0 && cm.fazione<100 ? st.fazioni[cm.fazione] : null;
-  const richiesti = Math.floor(cm.pop/4);
+  // i primi quattro abitanti non chiedono nulla: una citta' appena fondata non deve nascere
+  // gia' scontenta di qualcosa che il giocatore non ha ancora avuto modo di darle
+  const richiesti = Math.max(0, Math.floor((cm.pop-4)/4));
   const d = [];
   let n = 0;
   if (faz){
