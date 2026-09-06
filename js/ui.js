@@ -793,7 +793,7 @@ function apriPannelloCitta(cm){
       const resto = Math.max(0, cm.coda[0].costo - cm.prodAcc);
       html += `<button class="btn-lista" id="btn-compra">💰 Compra subito (${Math.ceil(resto*2)} oro)</button>`;
     } else html += `<div class="muto">Coda vuota</div>`;
-    const truppeOra = GAME.truppeFazione(st.giocatore), limiteOra = GAME.limiteEsercito();
+    const truppeOra = GAME.truppeFazione(st.giocatore), limiteOra = GAME.limiteEsercito(st.giocatore);
     html += `<div class="p-sez">Recluta unità <span class="muto">(esercito: ${truppeOra}/${limiteOra})</span></div>`;
     for (const u of GAME.unitaDisponibili(cm)){
       const titolo = u.motivoPieno==="niente_da_fare" ? "Non ci sono ancora caselle da migliorare nel tuo territorio"

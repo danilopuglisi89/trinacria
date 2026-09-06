@@ -91,9 +91,17 @@ function diplomaziaIA(f){
       continue;
     }
     // dichiara guerra? (mai nella fase iniziale protetta: le IA si sviluppano in pace)
+    // Condizioni di guerra ammorbidite. Prima serviva essere il 50% piu' forti: ma con tutte
+    // le fazioni allo stesso tetto di citta' e di esercito nessuno lo e' mai, e in 161 turni
+    // non scoppiava una sola guerra. Ora basta un vantaggio credibile, e chi non ha piu'
+    // spazio per fondare diventa molto piu' propenso a prendersi le terre del vicino.
+    const stretto = senzaSpazio(f.id);
+    const vantaggio = stretto ? 1.05 : 1.20;
+    const sogliaUmore = stretto ? 0 : -6;
+    const prob = (stretto ? 0.10 : 0.04) * aggr();
     if (!faseProtetta() && d.stato==="pace" && !guerraInCorso && confinanti(f.id, g.id) &&
-        GAME.forzaTotale(f.id) > GAME.forzaTotale(g.id)*1.5 &&
-        d.atteggiamento < -10 && rnd()<0.04){
+        GAME.forzaTotale(f.id) > GAME.forzaTotale(g.id)*vantaggio &&
+        d.atteggiamento < sogliaUmore && rnd()<prob){
       GAME.dichiaraGuerra(f.id, g.id);
       continue;
     }
@@ -113,18 +121,57 @@ function diplomaziaIA(f){
           scelte:[ {label:"Accetta", eff:"dip:commercio:"+f.id}, {label:"Rifiuta", eff:"nulla"} ] });
     }
     // rivalità di confine
-    if (confinanti(f.id,g.id) && rnd()<0.1) d.atteggiamento -= 1;
+    if (confinanti(f.id,g.id) && rnd()<(senzaSpazio(f.id) ? 0.30 : 0.14)) d.atteggiamento -= 1;
   }
 }
 
+// Due regni sono "vicini" se hanno citta' a portata di marcia, non solo se i territori si
+// toccano. Con le citta' fondate e la terra di nessuno in mezzo, il confine diretto e' raro:
+// pretenderlo significava atteggiamenti mai in calo e ZERO guerre in tutta la partita.
+// In piu' la vecchia versione scorreva tutti i 10.000 esagoni di terra per ogni coppia.
+const RAGGIO_VICINANZA = 14;      // esagoni fra due citta' perche' i regni si sentano addosso
+// Memoria di turno: confinanti() e senzaSpazio() vengono interrogate per ogni coppia di
+// fazioni a ogni turno, e ciascuna scorre citta' e comuni. Ricalcolarle ogni volta faceva
+// quadruplicare il costo del turno; i loro risultati non cambiano dentro lo stesso turno.
+let _memoTurno = -1, _memoVic = {}, _memoSpazio = {};
+function memoriaTurno(){
+  const t = GAME.st.turno;
+  if (t !== _memoTurno){ _memoTurno = t; _memoVic = {}; _memoSpazio = {}; }
+}
 function confinanti(a, b){
+  memoriaTurno();
+  const k = a < b ? a+"_"+b : b+"_"+a;
+  if (_memoVic[k] === undefined) _memoVic[k] = confinantiCalc(a, b);
+  return _memoVic[k];
+}
+function confinantiCalc(a, b){
   const st = GAME.st;
-  for (const h of MAP.terre){
-    if (GAME.fazioneDiHex(h) !== a) continue;
-    for (const nb of MAP.vicini(h.i))
-      if (GAME.fazioneDiHex(MAP.hexes[nb]) === b) return true;
-  }
+  const ca = st.comuni.filter(c => c.fondata && c.fazione===a);
+  const cb = st.comuni.filter(c => c.fondata && c.fazione===b);
+  const soglia = RAGGIO_VICINANZA * MAP.R * 2;
+  for (const x of ca) for (const y of cb)
+    if (MAP.distKm(x.hex, y.hex) < soglia) return true;
   return false;
+}
+// Un regno che non ha piu' dove espandersi diventa aggressivo: e' la molla che accende le
+// guerre nelle ere tarde, quando l'isola e' spartita e crescere significa prendersela da qualcuno.
+function senzaSpazio(fid){
+  memoriaTurno();
+  if (_memoSpazio[fid] === undefined) _memoSpazio[fid] = senzaSpazioCalc(fid);
+  return _memoSpazio[fid];
+}
+function senzaSpazioCalc(fid){
+  const st = GAME.st;
+  const mie = st.comuni.filter(c => c.fondata && c.fazione===fid);
+  if (!mie.length) return false;
+  if (mie.length >= tettoCittaEra(st.era)) return true;
+  // nessun sito libero decente entro una decina di esagoni dalle proprie citta'?
+  const soglia = 12 * MAP.R * 2;
+  for (const c of st.comuni){
+    if (c.fondata) continue;
+    for (const m of mie) if (MAP.distKm(c.hex, m.hex) < soglia) return false;
+  }
+  return true;
 }
 
 function gestioneCittaIA(f){
@@ -133,7 +180,7 @@ function gestioneCittaIA(f){
   const inGuerra = Object.values(f.diplo).some(d=>d.stato==="guerra") ||
                    st.invasori.some(inv => !f.accordi["inv"+inv.id] && st.unita.some(u=>u.fazione===inv.id));
   // eserciti piccoli ma sempre aggiornati: mai più del limite di truppe del regno (uguale al giocatore)
-  const limite = GAME.limiteEsercito();
+  const limite = GAME.limiteEsercito(f.id);
   for (const cm of mieCitta){
     if (cm.coda.length) continue;
     // ogni tanto un colono, per espandersi pacificamente verso gli indipendenti indifesi vicini

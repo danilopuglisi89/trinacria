@@ -112,78 +112,82 @@ const EROI = {
 // ---- TECNOLOGIE (6 per era) ----
 const TECH = [
   // Era 0 — Greca
-  { id:"grano_t",   era:0, nome:"Agricoltura del Grano", costo:25,  desc:"Sblocca la Fattoria. +1 cibo dalle pianure." },
-  { id:"falange",   era:0, nome:"Falange Oplitica",      costo:30,  desc:"Sblocca gli Opliti." },
-  { id:"templi_t",  era:0, nome:"Templi Dorici",         costo:35,  desc:"Sblocca il Tempio e le meraviglie greche." },
-  { id:"moneta",    era:0, nome:"Monetazione",           costo:35,  desc:"Sblocca il Mercato. +10% oro." },
-  { id:"cavalli",   era:0, nome:"Allevamento dei Cavalli", costo:40, desc:"Sblocca la Cavalleria greca." },
-  { id:"poliorcetica", era:0, nome:"Poliorcetica",       costo:45,  desc:"Sblocca l'Ariete. Sblocca le Mura di pietra." },
-  { id:"navigazione", era:0, nome:"Navigazione",         costo:40,  desc:"Sblocca la Nave onerarìa e la Bireme. Permette di imbarcare i coloni per popolare le isole." },
+  { id:"grano_t", req:[],   era:0, nome:"Agricoltura del Grano", costo:25,  desc:"Sblocca la Fattoria. +1 cibo dalle pianure." },
+  { id:"falange", req:[],   era:0, nome:"Falange Oplitica",      costo:30,  desc:"Sblocca gli Opliti." },
+  { id:"templi_t", req:["moneta"],  era:0, nome:"Templi Dorici",         costo:35,  desc:"Sblocca il Tempio e le meraviglie greche." },
+  { id:"moneta", req:["ceramica_t"],    era:0, nome:"Monetazione",           costo:35,  desc:"Sblocca il Mercato. +10% oro." },
+  { id:"cavalli", req:["falange"],   era:0, nome:"Allevamento dei Cavalli", costo:40, desc:"Sblocca la Cavalleria greca." },
+  { id:"poliorcetica", req:["falange"], era:0, nome:"Poliorcetica",       costo:45,  desc:"Sblocca l'Ariete. Sblocca le Mura di pietra." },
+  { id:"navigazione", req:["ceramica_t"], era:0, nome:"Navigazione",         costo:40,  desc:"Sblocca la Nave onerarìa e la Bireme. Permette di imbarcare i coloni per popolare le isole." },
   // Era 1 — Romana
-  { id:"strade",    era:1, nome:"Strade Romane",         costo:60,  desc:"+1 movimento a tutte le unità. +5% oro." },
-  { id:"legioni",   era:1, nome:"Legioni",               costo:70,  desc:"Sblocca i Legionari e i Sagittari." },
-  { id:"latifondo", era:1, nome:"Latifondo",             costo:70,  desc:"+1 cibo dalle Fattorie. Sblocca il Granaio." },
-  { id:"acquedotti",era:1, nome:"Acquedotti",            costo:80,  desc:"+25% crescita della popolazione." },
-  { id:"baliste",   era:1, nome:"Ars Militaris",         costo:85,  desc:"Sblocca la Balista e gli Equites." },
-  { id:"diritto",   era:1, nome:"Diritto Romano",        costo:90,  desc:"-2 malcontento in tutte le città." },
+  { id:"strade", req:["moneta"],    era:1, nome:"Strade Romane",         costo:60,  desc:"+1 movimento a tutte le unità. +5% oro." },
+  { id:"legioni", req:["falange"],   era:1, nome:"Legioni",               costo:70,  desc:"Sblocca i Legionari e i Sagittari." },
+  { id:"latifondo", req:["olivicoltura","strade"], era:1, nome:"Latifondo",             costo:70,  desc:"+1 cibo dalle Fattorie. Sblocca il Granaio." },
+  { id:"acquedotti", req:["strade"],era:1, nome:"Acquedotti",            costo:80,  desc:"+25% crescita della popolazione." },
+  { id:"baliste", req:["poliorcetica","legioni"],   era:1, nome:"Ars Militaris",         costo:85,  desc:"Sblocca la Balista e gli Equites." },
+  { id:"diritto", req:["templi_t"],   era:1, nome:"Diritto Romano",        costo:90,  desc:"-2 malcontento in tutte le città." },
   // Era 2 — Bizantina
-  { id:"fortificazioni", era:2, nome:"Fortificazioni Bizantine", costo:110, desc:"Sblocca le Mura teodosiane (liv.2) e gli Skutatoi." },
-  { id:"catafratti",era:2, nome:"Catafratti",            costo:120, desc:"Sblocca i Catafratti." },
-  { id:"monasteri", era:2, nome:"Icone e Monasteri",     costo:120, desc:"Sblocca la Basilica (+3 cultura). -1 malcontento." },
-  { id:"fuocogreco",era:2, nome:"Fuoco Greco",           costo:130, desc:"Sblocca l'Onagro. +20% difesa nelle città costiere." },
-  { id:"thema",     era:2, nome:"Amministrazione dei Themata", costo:140, desc:"+15% oro. Sblocca l'Accademia." },
-  { id:"seta",      era:2, nome:"Seta e Commercio",      costo:150, desc:"Sblocca il Porto. +2 oro dalle città costiere." },
+  { id:"fortificazioni", req:["ingegneria_r"], era:2, nome:"Fortificazioni Bizantine", costo:110, desc:"Sblocca le Mura teodosiane (liv.2) e gli Skutatoi." },
+  { id:"catafratti", req:["cavalli","legioni"],era:2, nome:"Catafratti",            costo:120, desc:"Sblocca i Catafratti." },
+  { id:"monasteri", req:["diritto"], era:2, nome:"Icone e Monasteri",     costo:120, desc:"Sblocca la Basilica (+3 cultura). -1 malcontento." },
+  { id:"fuocogreco", req:["navigazione","fortificazioni"],era:2, nome:"Fuoco Greco",           costo:130, desc:"Sblocca l'Onagro. +20% difesa nelle città costiere." },
+  { id:"thema", req:["diritto"],     era:2, nome:"Amministrazione dei Themata", costo:140, desc:"+15% oro. Sblocca l'Accademia." },
+  { id:"seta", req:["commercio_r"],      era:2, nome:"Seta e Commercio",      costo:150, desc:"Sblocca il Porto. +2 oro dalle città costiere." },
   // Era 3 — Araba
-  { id:"agrumi",    era:3, nome:"Agrumi e Giardini",     costo:170, desc:"Attiva la risorsa Agrumi. Sblocca il Frutteto." },
-  { id:"qanat",     era:3, nome:"Qanat e Irrigazione",   costo:180, desc:"+1 cibo da ogni Fattoria e Frutteto." },
-  { id:"cavleggera",era:3, nome:"Cavalleria Leggera",    costo:190, desc:"Sblocca la Cavalleria leggera araba e i Fanti saraceni." },
-  { id:"scienzearabe", era:3, nome:"Casa della Scienza", costo:200, desc:"Sblocca la Casa della Scienza (+4 scienza)." },
-  { id:"algebra",   era:3, nome:"Numeri e Algebra",      costo:210, desc:"+20% scienza.", bonus:{ sciPct:0.20 } },
-  { id:"arcieria",  era:3, nome:"Arcieria Saracena",     costo:210, desc:"Sblocca gli Arcieri saraceni e il Mangano." },
+  { id:"agrumi", req:["qanat"],    era:3, nome:"Agrumi e Giardini",     costo:170, desc:"Attiva la risorsa Agrumi. Sblocca il Frutteto." },
+  { id:"qanat", req:["latifondo"],     era:3, nome:"Qanat e Irrigazione",   costo:180, desc:"+1 cibo da ogni Fattoria e Frutteto." },
+  { id:"cavleggera", req:["catafratti"],era:3, nome:"Cavalleria Leggera",    costo:190, desc:"Sblocca la Cavalleria leggera araba e i Fanti saraceni." },
+  { id:"scienzearabe", req:["filosofia"], era:3, nome:"Casa della Scienza", costo:200, desc:"Sblocca la Casa della Scienza (+4 scienza)." },
+  { id:"algebra", req:["scienzearabe"],   era:3, nome:"Numeri e Algebra",      costo:210, desc:"+20% scienza.", bonus:{ sciPct:0.20 } },
+  { id:"arcieria", req:["cavleggera"],  era:3, nome:"Arcieria Saracena",     costo:210, desc:"Sblocca gli Arcieri saraceni e il Mangano." },
   // Era 4 — Normanno-Sveva
-  { id:"cavnormanna", era:4, nome:"Cavalleria Normanna", costo:240, desc:"Sblocca i Cavalieri normanni." },
-  { id:"castelli",  era:4, nome:"Castelli Normanni",     costo:260, desc:"Sblocca il Castello e le Mura merlate (liv.3)." },
-  { id:"scuola",    era:4, nome:"Scuola Siciliana",      costo:260, desc:"+3 cultura per città. «Amor che lungiamente m'hai menato...»" },
-  { id:"balestre",  era:4, nome:"Balestre",              costo:280, desc:"Sblocca i Balestrieri e il Trabucco." },
-  { id:"duana",     era:4, nome:"Duana de Secretis",     costo:300, desc:"+20% oro (la dogana normanna)." },
-  { id:"cattedrali",era:4, nome:"Cattedrali Arabo-Normanne", costo:320, desc:"Sblocca la Cattedrale e le meraviglie normanne." },
+  { id:"cavnormanna", req:["cavleggera"], era:4, nome:"Cavalleria Normanna", costo:240, desc:"Sblocca i Cavalieri normanni." },
+  { id:"castelli", req:["fortificazioni"],  era:4, nome:"Castelli Normanni",     costo:260, desc:"Sblocca il Castello e le Mura merlate (liv.3)." },
+  { id:"scuola", req:["poesia_greca","algebra"],    era:4, nome:"Scuola Siciliana",      costo:260, desc:"+3 cultura per città. «Amor che lungiamente m'hai menato...»" },
+  { id:"balestre", req:["arcieria"],  era:4, nome:"Balestre",              costo:280, desc:"Sblocca i Balestrieri e il Trabucco." },
+  { id:"duana", req:["mercanti_a"],     era:4, nome:"Duana de Secretis",     costo:300, desc:"+20% oro (la dogana normanna)." },
+  { id:"cattedrali", req:["castelli","monasteri"],era:4, nome:"Cattedrali Arabo-Normanne", costo:320, desc:"Sblocca la Cattedrale e le meraviglie normanne." },
   // Era 5 — Aragonese
-  { id:"polvere",   era:5, nome:"Polvere da Sparo",      costo:360, desc:"Sblocca la Bombarda e i Picchieri." },
-  { id:"archibugi", era:5, nome:"Archibugi",             costo:400, desc:"Sblocca gli Archibugieri." },
-  { id:"banchi",    era:5, nome:"Banchi e Fiere",        costo:400, desc:"Sblocca il Banco (+5 oro)." },
-  { id:"barocco",   era:5, nome:"Barocco Siciliano",     costo:440, desc:"+4 cultura per città. Sblocca la ricostruzione barocca." },
-  { id:"cavpesante",era:5, nome:"Cavalleria Aragonese",  costo:440, desc:"Sblocca la Cavalleria aragonese." },
-  { id:"stato",     era:5, nome:"Stato Moderno",         costo:500, desc:"-25% mantenimento unità, -2 malcontento ovunque." },
+  { id:"polvere", req:["algebra","castelli"],   era:5, nome:"Polvere da Sparo",      costo:360, desc:"Sblocca la Bombarda e i Picchieri." },
+  { id:"archibugi", req:["polvere","balestre"], era:5, nome:"Archibugi",             costo:400, desc:"Sblocca gli Archibugieri." },
+  { id:"banchi", req:["fiere_n"],    era:5, nome:"Banchi e Fiere",        costo:400, desc:"Sblocca il Banco (+5 oro)." },
+  { id:"barocco", req:["cattedrali","stampa"],   era:5, nome:"Barocco Siciliano",     costo:440, desc:"+4 cultura per città. Sblocca la ricostruzione barocca." },
+  { id:"cavpesante", req:["araldica"],era:5, nome:"Cavalleria Aragonese",  costo:440, desc:"Sblocca la Cavalleria aragonese." },
+  { id:"stato", req:["universita","duana"],     era:5, nome:"Stato Moderno",         costo:500, desc:"-25% mantenimento unità, -2 malcontento ovunque." },
   // --- Rami tematici (bonus passivi) ---
   // Era 0
-  { id:"olivicoltura", era:0, ramo:"economia", nome:"Olivicoltura", costo:28, bonus:{ciboPct:0.08}, desc:"+8% cibo: l'olio d'oliva nutre l'isola." },
-  { id:"ceramica_t",   era:0, ramo:"economia", nome:"Ceramica e Vasellame", costo:34, bonus:{oroPct:0.08}, desc:"+8% oro: le anfore siciliane viaggiano." },
-  { id:"poesia_greca", era:0, ramo:"cultura",  nome:"Poesia e Teatro", costo:34, bonus:{culturaPct:0.12}, desc:"+12% cultura: da Stesicoro a Teocrito." },
+  { id:"olivicoltura", req:["grano_t"], era:0, ramo:"economia", nome:"Olivicoltura", costo:28, bonus:{ciboPct:0.08}, desc:"+8% cibo: l'olio d'oliva nutre l'isola." },
+  { id:"ceramica_t", req:["grano_t"],   era:0, ramo:"economia", nome:"Ceramica e Vasellame", costo:34, bonus:{oroPct:0.08}, desc:"+8% oro: le anfore siciliane viaggiano." },
+  { id:"poesia_greca", req:["templi_t"], era:0, ramo:"cultura",  nome:"Poesia e Teatro", costo:34, bonus:{culturaPct:0.12}, desc:"+12% cultura: da Stesicoro a Teocrito." },
   // Era 1
-  { id:"commercio_r",  era:1, ramo:"economia", nome:"Vie Commerciali", costo:64, bonus:{oroPct:0.10}, desc:"+10% oro: le strade portano ricchezza." },
-  { id:"ingegneria_r", era:1, ramo:"militare", nome:"Ingegneria Militare", costo:70, bonus:{combatPct:0.08}, desc:"+8% forza in battaglia." },
-  { id:"terme",        era:1, ramo:"cultura",  nome:"Terme e Ozio", costo:72, bonus:{malcontento:1, culturaPct:0.06}, desc:"-1 malcontento, +6% cultura." },
+  { id:"commercio_r", req:["strade"],  era:1, ramo:"economia", nome:"Vie Commerciali", costo:64, bonus:{oroPct:0.10}, desc:"+10% oro: le strade portano ricchezza." },
+  { id:"ingegneria_r", req:["baliste"], era:1, ramo:"militare", nome:"Ingegneria Militare", costo:70, bonus:{combatPct:0.08}, desc:"+8% forza in battaglia." },
+  { id:"terme", req:["acquedotti"],        era:1, ramo:"cultura",  nome:"Terme e Ozio", costo:72, bonus:{malcontento:1, culturaPct:0.06}, desc:"-1 malcontento, +6% cultura." },
   // Era 2
-  { id:"filosofia",    era:2, ramo:"civile",   nome:"Filosofia e Scienza", costo:120, bonus:{sciPct:0.15}, desc:"+15% scienza." },
-  { id:"diplomazia_b", era:2, ramo:"economia", nome:"Diplomazia Bizantina", costo:120, bonus:{oroPct:0.10}, desc:"+10% oro dai commerci." },
-  { id:"tattica_b",    era:2, ramo:"militare", nome:"Tattica dei Themi", costo:125, bonus:{combatPct:0.10}, desc:"+10% forza in battaglia." },
+  { id:"filosofia", req:["monasteri"],    era:2, ramo:"civile",   nome:"Filosofia e Scienza", costo:120, bonus:{sciPct:0.15}, desc:"+15% scienza." },
+  { id:"diplomazia_b", req:["thema"], era:2, ramo:"economia", nome:"Diplomazia Bizantina", costo:120, bonus:{oroPct:0.10}, desc:"+10% oro dai commerci." },
+  { id:"tattica_b", req:["thema"],    era:2, ramo:"militare", nome:"Tattica dei Themi", costo:125, bonus:{combatPct:0.10}, desc:"+10% forza in battaglia." },
   // Era 3
-  { id:"medicina_a",   era:3, ramo:"civile",   nome:"Medicina Araba", costo:180, bonus:{growthPct:0.20}, desc:"+20% crescita: gli ospedali di Palermo." },
-  { id:"astronomia",   era:3, ramo:"civile",   nome:"Astronomia", costo:190, bonus:{sciPct:0.15, vista:1}, desc:"+15% scienza." },
-  { id:"mercanti_a",   era:3, ramo:"economia", nome:"Mercanti d'Oriente", costo:185, bonus:{oroPct:0.12}, desc:"+12% oro." },
+  { id:"medicina_a", req:["scienzearabe"],   era:3, ramo:"civile",   nome:"Medicina Araba", costo:180, bonus:{growthPct:0.20}, desc:"+20% crescita: gli ospedali di Palermo." },
+  { id:"astronomia", req:["algebra"],   era:3, ramo:"civile",   nome:"Astronomia", costo:190, bonus:{sciPct:0.15, vista:1}, desc:"+15% scienza." },
+  { id:"mercanti_a", req:["seta"],   era:3, ramo:"economia", nome:"Mercanti d'Oriente", costo:185, bonus:{oroPct:0.12}, desc:"+12% oro." },
   // Era 4
-  { id:"universita",   era:4, ramo:"civile",   nome:"Studium di Federico II", costo:250, bonus:{sciPct:0.20, vista:1}, desc:"+20% scienza: la prima università laica." },
-  { id:"araldica",     era:4, ramo:"militare", nome:"Araldica e Cavalleria", costo:260, bonus:{combatPct:0.12}, desc:"+12% forza in battaglia." },
-  { id:"fiere_n",      era:4, ramo:"economia", nome:"Fiere e Gabelle", costo:280, bonus:{oroPct:0.12}, desc:"+12% oro." },
+  { id:"universita", req:["scuola"],   era:4, ramo:"civile",   nome:"Studium di Federico II", costo:250, bonus:{sciPct:0.20, vista:1}, desc:"+20% scienza: la prima università laica." },
+  { id:"araldica", req:["cavnormanna"],     era:4, ramo:"militare", nome:"Araldica e Cavalleria", costo:260, bonus:{combatPct:0.12}, desc:"+12% forza in battaglia." },
+  { id:"fiere_n", req:["duana"],      era:4, ramo:"economia", nome:"Fiere e Gabelle", costo:280, bonus:{oroPct:0.12}, desc:"+12% oro." },
   // Era 5
-  { id:"stampa",       era:5, ramo:"cultura",  nome:"La Stampa", costo:380, bonus:{culturaPct:0.20, sciPct:0.10, vista:1}, desc:"+20% cultura, +10% scienza." },
-  { id:"artiglieria",  era:5, ramo:"militare", nome:"Artiglieria Moderna", costo:420, bonus:{combatPct:0.15}, desc:"+15% forza in battaglia." },
-  { id:"mercantilismo",era:5, ramo:"economia", nome:"Mercantilismo", costo:440, bonus:{oroPct:0.15}, desc:"+15% oro." }
+  { id:"stampa", req:["universita"],       era:5, ramo:"cultura",  nome:"La Stampa", costo:380, bonus:{culturaPct:0.20, sciPct:0.10, vista:1}, desc:"+20% cultura, +10% scienza." },
+  { id:"artiglieria", req:["archibugi"],  era:5, ramo:"militare", nome:"Artiglieria Moderna", costo:420, bonus:{combatPct:0.15}, desc:"+15% forza in battaglia." },
+  { id:"mercantilismo", req:["banchi"],era:5, ramo:"economia", nome:"Mercantilismo", costo:440, bonus:{oroPct:0.15}, desc:"+15% oro." }
 ];
 
 // ---- UNITÀ ----
 // tipo: inf, ranged, cav, siege, militia, hero — uu: id fazione con unità unica
 const UNITA = {
+  // Guarnigione cittadina: non si recluta e non si muove, esiste solo quando qualcuno assale
+  // una citta' sguarnita. Serve perche' una citta' non sia terra gratis: difesa alta, attacco
+  // scarso. Un singolo assalitore non passa, un esercito si'.
+  guarnigione: { nome:"Guarnigione cittadina", era:0, tech:null, tipo:"inf", atk:3, def:15, mov:0, costo:0, mant:0 },
   // ---- NAVI ----
   // Le isole minori non sono piu' collegate da lingue di terra: si raggiungono per mare.
   // dominio:"mare" = si muove solo sull'acqua; capacita = quante unita' di terra imbarca.

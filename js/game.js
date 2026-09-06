@@ -68,12 +68,9 @@ function nuovaPartita(opts){
       if (opts.sovranoRitratto !== undefined) f.leader.ritratto = opts.sovranoRitratto;
       f.leader.storico = false;
     }
-    // unità iniziali
-    creaUnita("oplita", fd.id, cap.hex);
-    creaUnita("fromboliere", fd.id, cap.hex);
-    // un colono in dote: con la Sicilia vuota e' l'unico modo di cominciare a espandersi
-    creaUnita("colono", fd.id, cap.hex);
-    // e un esploratore: con la nebbia attiva di default serve subito qualcuno che vada a vedere
+    // Si comincia SENZA esercito: un solo esploratore. Tutto il resto — coloni, lavoratori,
+    // prima truppa d'attacco — lo si sceglie in citta', ed e' quella scelta a dare il carattere
+    // ai primi turni: chi si espande, chi coltiva, chi arma.
     creaUnita("esploratore", fd.id, cap.hex);
   }
   // NIENTE regno iniziale gia' formato: prima ogni comune entro 9 esagoni dal capoluogo
@@ -136,7 +133,7 @@ function creaUnita(tipo, fid, hex, nome){
 // stat unità con scala per era (milizie/eroi)
 function statU(tipo){
   const b = D().UNITA[tipo];
-  if (tipo==="milizia" || tipo==="eroe"){
+  if (tipo==="milizia" || tipo==="eroe" || tipo==="guarnigione"){
     const m = 1 + (st?st.era:0) * 0.75;
     return { ...b, atk: Math.round(b.atk*m), def: Math.round(b.def*m) };
   }
@@ -371,6 +368,12 @@ function reseFazione(fid){
   let mant = 0;
   for (const u of st.unita) if (u.fazione===fid && u.tipo!=="colono") mant += D().UNITA[u.tipo].mant;
   mant *= 1 + st.era*0.2;
+  // Mantenimento degli EDIFICI: senza, l'oro si accumulava all'infinito (oltre centomila a
+  // fine partita) perche' nelle ere tarde non c'era piu' nulla su cui spenderlo. Cosi' invece
+  // un impero grande e pieno di monumenti costa davvero, e conviene sceglierli.
+  let edifici = 0;
+  for (const cm of st.comuni) if (cm.fazione===fid) edifici += cm.edifici.length;
+  mant += edifici * (1 + st.era*0.35);
   if (fd.bonusId==="stretto") mant *= 0.85;
   if (f.techs.includes("stato")) mant *= 0.75;
   if (st.effettiTemp["quarantena"] && fid===st.giocatore) oro *= 0.5;
@@ -551,8 +554,20 @@ function costruzioniDisponibili(cm){
 // ---------- LIMITE ESERCITO ----------
 // un regno non dovrebbe mai accumulare più di 4-5 truppe assieme: eserciti piccoli ma
 // mantenuti bene, non stack infiniti. Si applica identicamente a giocatore e IA.
-function limiteEsercito(){ return st.era <= 1 ? 4 : 5; }
-const LIMITE_LAVORATORI = 3;
+// Quante truppe puo' mantenere un regno. Era un numero FISSO (4 o 5) qualunque fosse la
+// dimensione dell'impero: nato quando ogni fazione partiva con una decina di citta' gia'
+// assegnate e il gioco era fatto di scaramucce. Ora che le citta' si fondano e si arriva a
+// tredici, cinque soldati non bastano ne' a difendere ne' a conquistare — l'IA aveva eserciti
+// ridicoli e le guerre non decidevano nulla. Il limite ora cresce col regno.
+function cittaDi(fid){ let n=0; for (const cm of st.comuni) if (cm.fazione===fid && cm.fondata) n++; return n; }
+function limiteEsercito(fid){
+  const c = (fid === undefined) ? cittaDi(st.giocatore) : cittaDi(fid);
+  return Math.max(3, 2 + c*2 + st.era);
+}
+function limiteLavoratori(fid){
+  const c = (fid === undefined) ? cittaDi(st.giocatore) : cittaDi(fid);
+  return Math.max(2, 1 + Math.ceil(c/2));
+}
 function truppeFazione(fid){
   let n = 0;
   for (const u of st.unita) if (u.fazione===fid && !fuoriConteggio(u.tipo)) n++;
@@ -591,8 +606,8 @@ function cittaCostiera(cm){
 }
 function unitaDisponibili(cm){
   const f = st.fazioni[cm.fazione];
-  const alCompleto = truppeFazione(cm.fazione) >= limiteEsercito();
-  const lavCapRaggiunto = lavoratoriFazione(cm.fazione) >= LIMITE_LAVORATORI;
+  const alCompleto = truppeFazione(cm.fazione) >= limiteEsercito(cm.fazione);
+  const lavCapRaggiunto = lavoratoriFazione(cm.fazione) >= limiteLavoratori(cm.fazione);
   const lavNienteDaFare = !lavCapRaggiunto && !esisteMiglioriaPossibile(cm.fazione);
   const lavoratoriPieni = lavCapRaggiunto || lavNienteDaFare;
   const flottaPiena = flottaFazione(cm.fazione) >= limiteFlotta();
@@ -600,6 +615,7 @@ function unitaDisponibili(cm){
   for (const id of Object.keys(D().UNITA)){
     const u = D().UNITA[id];
     if (u.tipo==="militia"||u.tipo==="hero") continue;
+    if (id==="guarnigione") continue;      // non si recluta: nasce sola quando la citta' e' assalita
     if (u.era > st.era) continue;
     if (u.tech && !f.techs.includes(u.tech)) continue;
     if (u.uu!==undefined && u.uu!==f.id) continue;
@@ -635,12 +651,12 @@ function accoda(cmId, item){
   const cm = st.comuni[cmId];
   if (cm.coda.length >= 6) return false;
   if (item.tipo==="unita" && item.id==="lavoratore" &&
-      (lavoratoriFazione(cm.fazione) >= LIMITE_LAVORATORI || !esisteMiglioriaPossibile(cm.fazione))) return false;
+      (lavoratoriFazione(cm.fazione) >= limiteLavoratori(cm.fazione) || !esisteMiglioriaPossibile(cm.fazione))) return false;
   // Le navi hanno un tetto proprio: applicare loro il limite dell'esercito di terra le
   // bloccava sempre (l'esercito e' quasi sempre al completo) e nessuna flotta veniva mai varata.
   if (item.tipo==="unita" && dominioTipo(item.id)==="mare"){
     if (flottaFazione(cm.fazione) >= limiteFlotta()) return false;
-  } else if (item.tipo==="unita" && !fuoriConteggio(item.id) && truppeFazione(cm.fazione) >= limiteEsercito()) return false;
+  } else if (item.tipo==="unita" && !fuoriConteggio(item.id) && truppeFazione(cm.fazione) >= limiteEsercito(cm.fazione)) return false;
   cm.coda.push({ tipo:item.tipo, id:item.id, costo:item.costo });
   return true;
 }
@@ -858,9 +874,21 @@ function upgradaEconomiche(fid){
 }
 
 // ---------- RICERCA ----------
+// Albero delle ricerche: si puo' studiare solo cio' di cui si possiedono i prerequisiti.
+// All'inizio le radici sono due — Agricoltura del Grano e Falange Oplitica, il pane e la
+// lancia — e ogni scoperta apre le successive. Prima erano tutte disponibili in blocco,
+// e la ricerca non aveva ne' percorso ne' identita'.
+function prerequisitiSoddisfatti(t, f){
+  const req = t.req || [];
+  return req.every(r => f.techs.includes(r));
+}
 function techDisponibili(fid){
   const f = st.fazioni[fid];
-  return D().TECH.filter(t => t.era <= st.era && !f.techs.includes(t.id));
+  return D().TECH.filter(t => t.era <= st.era && !f.techs.includes(t.id) && prerequisitiSoddisfatti(t, f));
+}
+// tecnologie che questa sbloccherebbe: serve all'interfaccia per mostrare dove porta un ramo
+function techSbloccateDa(id){
+  return D().TECH.filter(t => (t.req||[]).includes(id)).map(t => t.nome);
 }
 function ricerca(fid, techId){
   st.fazioni[fid].ricerca = techId;
@@ -974,6 +1002,20 @@ function trasportoLibero(hexIdx, fid){
                             && (t.carico||[]).length < GDATA.UNITA[t.tipo].capacita) || null;
 }
 function capacitaDi(u){ return (GDATA.UNITA[u.tipo]||{}).capacita || 0; }
+// Indice unita' per esagono. nemiciSuHex/unitaSuHex filtravano l'INTERO elenco delle unita'
+// a ogni casella esaminata: dentro un pathfinding che ne visita centinaia, con 250 unita' in
+// campo, diventavano decine di migliaia di scansioni per singola chiamata — e il turno a fine
+// partita e' arrivato a 1,7 secondi. Qui l'indice si costruisce una volta per ricerca.
+function indiceUnita(){
+  const m = new Map();
+  for (const u of st.unita){
+    let a = m.get(u.hex);
+    if (!a){ a = []; m.set(u.hex, a); }
+    a.push(u);
+  }
+  return m;
+}
+const VUOTE = [];
 function unitaSuHex(i){ return st.unita.filter(u=>u.hex===i); }
 function nemiciSuHex(i, fid){ return st.unita.filter(u=>u.hex===i && !alleati(u.fazione, fid)); }
 function alleati(a,b){ return a===b; }
@@ -987,13 +1029,16 @@ function raggioMovimento(uids){
   const start = us[0].hex;
   const dist = { [start]:0 };
   const out = {};
+  const idx = indiceUnita();
+  const suHex = (i) => idx.get(i) || VUOTE;
+  const nemiciQui = (i) => suHex(i).filter(u => !alleati(u.fazione, fid));
   const coda = [start];
   while (coda.length){
     coda.sort((a,b)=>dist[a]-dist[b]);
     const cur = coda.shift();
     for (const nb of MAP.vicini(cur)){
       const h = MAP.hexes[nb];
-      const nem = nemiciSuHex(nb, fid);
+      const nem = nemiciQui(nb);
       const cm = st.comuni[h.comune];
       const cittaNemica = (cm.fondata && cm.hex===nb && cm.fazione!==fid);
       if (nem.length || (cittaNemica && cm.fazione!==-1) || (cittaNemica && cm.fazione===-1)){
@@ -1014,7 +1059,7 @@ function raggioMovimento(uids){
       // una seconda citta' per l'intera partita.
       const primoPasso = (dist[cur] === 0 && mov > 0);
       if ((c <= mov || primoPasso) && (dist[nb]===undefined || c < dist[nb])){
-        if (unitaSuHex(nb).length >= 4) continue;
+        if (suHex(nb).length >= 4) continue;
         dist[nb] = c;
         out[nb] = { costo:c, attacco:false };
         coda.push(nb);
@@ -1130,6 +1175,8 @@ function trovaPercorso(uid, dest){
     _pfGen = new Int32Array(N); _pfVis = new Int32Array(N); _pfGenCur = 0;
   }
   const gen = ++_pfGenCur;
+  const idx = indiceUnita();
+  const suHex = (i) => idx.get(i) || VUOTE;
   _pfGen[start] = gen; _pfDist[start] = 0; _pfPrev[start] = -1;
   // A*: alla priorita' si somma una stima di quanto manca, cosi' la ricerca punta alla meta
   // invece di espandersi in tondo su tutta l'isola. La stima non sopravvaluta mai il costo
@@ -1148,8 +1195,8 @@ function trovaPercorso(uid, dest){
       const h = MAP.hexes[nb];
       // destinazione raggiunta: consentita anche se citta' nemica (arrivo)
       if (nb !== dest){
-        if (nemiciSuHex(nb, fid).length) continue;      // non attraversare nemici
-        if (unitaSuHex(nb).length >= 4) continue;        // stack pieno
+        if (suHex(nb).some(u => !alleati(u.fazione, fid))) continue;   // non attraversare nemici
+        if (suHex(nb).length >= 4) continue;                          // stack pieno
       }
       if (!percorribile(h, u)) continue;
       const c = _pfDist[cur] + costoTerreno(h, fid);
@@ -1441,11 +1488,44 @@ function anteprima(uids, hexDif){
   return { pWin: vittorie/N, perditeA: pa/N, perditeD: pd/N, nA: atts.length, nD: defs.length,
            mura: cm.hex===hexDif && cm.mura>0 && cm.muraHP>0 };
 }
+// Milizia cittadina: una citta' senza guarnigione NON e' terra gratis. Prima bastava
+// avvicinarsi a un centro sguarnito per prenderlo, e togliendo le truppe iniziali un singolo
+// brigante di passaggio poteva conquistare la capitale ed eliminare il giocatore entro trenta
+// turni senza che avesse fatto nulla di sbagliato. Ora ogni citta' si difende da sola, con
+// una forza che cresce con la popolazione, le mura e l'era.
+function miliziaCittadina(cm){
+  if (!cm || !cm.fondata) return null;
+  // usa il tipo "milizia" gia' esistente, le cui statistiche scalano con l'era; la robustezza
+  // la da' la popolazione, cosi' un capoluogo si difende molto meglio di un borgo appena fondato
+  return { id:-1, tipo:"guarnigione", fazione:cm.fazione, hex:cm.hex,
+           hp: Math.min(100, 40 + cm.pop*3 + (cm.mura>0 ? 15 : 0)),
+           mov:0, xp:0, milizia:true, camminato:false, fortificata:true };
+}
 function attacca(uids, hexDif){
   const atts = st.unita.filter(u=>uids.includes(u.id) && u.mov>0);
   if (!atts.length) return null;
-  const defs = nemiciSuHex(hexDif, atts[0].fazione);
+  let defs = nemiciSuHex(hexDif, atts[0].fazione);
   const cm = st.comuni[MAP.hexes[hexDif].comune];
+  // citta' sguarnita: scende in campo la milizia cittadina
+  if (!defs.length && cm.fondata && cm.hex===hexDif && cm.fazione!==atts[0].fazione && cm.fazione!==-1){
+    const mil = miliziaCittadina(cm);
+    if (mil){
+      mil.id = st.nextUid++;
+      st.unita.push(mil);
+      defs = [mil];
+      const r0 = simulaBattaglia(atts, defs, hexDif, true);
+      // La guarnigione esiste SOLO per la durata dello scontro: va tolta sempre, vinca o
+      // perda, altrimenti resta in giro come unita' fantasma che nessuno ha reclutato.
+      st.unita = st.unita.filter(u => u.id !== mil.id);
+      if (!r0.vinceA){
+        aggiungiLog("La guarnigione di "+cm.nome+" respinge l'assalto!", cm.fazione===st.giocatore?"bene":"info");
+        return { respinto:true };
+      }
+      for (const u of atts.slice(0,4)){ u.hex = hexDif; u.mov = 0; }
+      if (st.comuni[cm.id].fazione !== atts[0].fazione) catturaComune(cm, atts[0].fazione);
+      return { cattura:true };
+    }
+  }
   if (!defs.length && cm.hex===hexDif && cm.fazione!==atts[0].fazione){
     // assalto alle mura o cattura diretta
     if (cm.mura>0 && cm.muraHP>0){
@@ -2682,7 +2762,7 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   calcolaVisibilita, hexVisibile, hexEsplorato,
   fondaCitta, puoFondare, fondaComune, comuneCheDaIlNome, fazioneDiHex, territorioDi, espandiTerritorio, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, techBonusReset, costoTech, sbloccatiDaTech, miglioreCostruzione,
   costruzioniDisponibili, unitaDisponibili, accoda, compraSubito, migliora,
-  techDisponibili, ricerca, statU, costoEroe, reclutaEroe, limiteEsercito, truppeFazione,
+  techDisponibili, techSbloccateDa, ricerca, statU, costoEroe, reclutaEroe, limiteEsercito, limiteLavoratori, truppeFazione, cittaDi,
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,
   miglioramentoAutomatico, azioneLavoratore, esisteMiglioriaPossibile,
   migliorieAggiornabili, upgradaMiglioria, upgradaMiglliorieEconomiche, prossimaMiglioria,
