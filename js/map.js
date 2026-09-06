@@ -302,7 +302,7 @@ function hexPiuVicino(x, y, soloTerra){
 }
 
 function build(){
-  hexes = []; grid = {}; strade = []; mmBounds = null;
+  hexes = []; grid = {}; strade = []; mmBounds = null; vicArr = null;   // la tabella di adiacenza si ricostruisce
   for (let row=0; row<ROWS; row++){
     for (let col=0; col<COLS; col++){
       const c = hexCentro(col,row);
@@ -343,6 +343,7 @@ function build(){
   // occuperebbe le celle che spettano alle isole.
   riempiMare();
   terre = hexes.filter(h => !h.mare);
+  costruisciVicinati();      // da qui in poi vicini() e' una lettura di tabella
   // costa: terra che confina col mare (o col bordo della griglia)
   for (const h of hexes){
     if (h.mare) continue;
@@ -487,11 +488,27 @@ function vicinatiCR(col,row){
     ? [[col+1,row],[col-1,row],[col,row-1],[col+1,row-1],[col,row+1],[col+1,row+1]]
     : [[col+1,row],[col-1,row],[col-1,row-1],[col,row-1],[col-1,row+1],[col,row+1]];
 }
+// Tabella di adiacenza precalcolata. vicini() ricostruiva l'elenco a ogni chiamata con sei
+// concatenazioni di stringhe e una nuova array: e' la funzione piu' chiamata di tutto il
+// gioco (pathfinding, visibilita', rese, IA), e su 40.000 esagoni era diventata la voce di
+// costo dominante del turno. Ora l'elenco si costruisce una volta e si restituisce sempre lo
+// stesso array — quindi NON va mai modificato da chi lo riceve.
+let vicArr = null;
+function costruisciVicinati(){
+  vicArr = new Array(hexes.length);
+  for (let i=0;i<hexes.length;i++){
+    const h = hexes[i], out = [];
+    for (const [c,r] of vicinatiCR(h.col,h.row)){ const j = grid[c+","+r]; if (j!==undefined) out.push(j); }
+    vicArr[i] = out;
+  }
+}
 function vicini(i){
+  if (vicArr) return vicArr[i] || VUOTO;
   const h = hexes[i], out=[];
   for (const [c,r] of vicinatiCR(h.col,h.row)){ const j = grid[c+","+r]; if (j!==undefined) out.push(j); }
   return out;
 }
+const VUOTO = [];
 function distKm(a,b){ return Math.hypot(hexes[a].x-hexes[b].x, hexes[a].y-hexes[b].y); }
 
 // ---- proiezione ----

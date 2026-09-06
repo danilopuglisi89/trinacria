@@ -1112,6 +1112,7 @@ function CodaPri(){
 }
 
 // ---------- PATHFINDING (viaggi lunghi) ----------
+let _pfDist=null, _pfPrev=null, _pfGen=null, _pfVis=null, _pfGenCur=0;
 // Dijkstra sul grafo di esagoni per una singola unità. Evita nemici e stack pieni.
 function trovaPercorso(uid, dest){
   const u = st.unita.find(x=>x.id===uid);
@@ -1119,41 +1120,49 @@ function trovaPercorso(uid, dest){
   const fid = u.fazione;
   const start = u.hex;
   if (start === dest) return { percorso:[], costo:0, turni:0 };
-  const dist = { [start]:0 }, prev = {};
-  const visti = {};
-  // A*: alla priorita' si somma una STIMA di quanto manca alla meta, cosi' la ricerca punta
-  // verso la destinazione invece di espandersi in tondo su tutta l'isola (mare compreso).
-  // La stima e' la distanza in linea d'aria divisa per la larghezza di un esagono: non puo'
-  // mai sopravvalutare il costo reale, quindi il percorso trovato resta il piu' breve.
+  // Buffer riusati invece di oggetti {chiave:valore} nuovi a ogni chiamata: su 40.000 esagoni
+  // l'hashing costava piu' dell'algoritmo stesso. Un contatore di "generazione" evita di
+  // azzerarli: cio' che non porta la generazione corrente vale come non ancora visitato.
+  const N = MAP.hexes.length;
+  if (!_pfGen || _pfGen.length !== N){
+    _pfDist = new Float64Array(N); _pfPrev = new Int32Array(N);
+    _pfGen = new Int32Array(N); _pfVis = new Int32Array(N); _pfGenCur = 0;
+  }
+  const gen = ++_pfGenCur;
+  _pfGen[start] = gen; _pfDist[start] = 0; _pfPrev[start] = -1;
+  // A*: alla priorita' si somma una stima di quanto manca, cosi' la ricerca punta alla meta
+  // invece di espandersi in tondo su tutta l'isola. La stima non sopravvaluta mai il costo
+  // reale, quindi il percorso trovato resta il piu' breve.
   const PASSO = MAP.R*2;
-  const stima = (i) => MAP.distKm(i, dest) / PASSO;
+  const hd = MAP.hexes[dest];
+  const stima = (i) => { const h = MAP.hexes[i]; return Math.hypot(h.x-hd.x, h.y-hd.y)/PASSO; };
   const coda = CodaPri(); coda.push(stima(start), start);
+  let trovato = false;
   while (coda.size){
     const cur = coda.pop();
-    if (visti[cur]) continue;
-    visti[cur] = true;
-    if (cur === dest) break;
+    if (_pfVis[cur] === gen) continue;
+    _pfVis[cur] = gen;
+    if (cur === dest){ trovato = true; break; }
     for (const nb of MAP.vicini(cur)){
       const h = MAP.hexes[nb];
-      // destinazione raggiunta: consentita anche se città nemica (arrivo)
+      // destinazione raggiunta: consentita anche se citta' nemica (arrivo)
       if (nb !== dest){
         if (nemiciSuHex(nb, fid).length) continue;      // non attraversare nemici
         if (unitaSuHex(nb).length >= 4) continue;        // stack pieno
       }
-      // stesso filtro di dominio del raggio di movimento: senza questo, la marcia su piu'
-      // turni proporrebbe allegramente rotte via mare a una fanteria
       if (!percorribile(h, u)) continue;
-      const c = dist[cur] + costoTerreno(h, fid);
-      if (dist[nb]===undefined || c < dist[nb]){
-        dist[nb] = c; prev[nb] = cur; coda.push(c + stima(nb), nb);
+      const c = _pfDist[cur] + costoTerreno(h, fid);
+      if (_pfGen[nb] !== gen || c < _pfDist[nb]){
+        _pfGen[nb] = gen; _pfDist[nb] = c; _pfPrev[nb] = cur;
+        coda.push(c + stima(nb), nb);
       }
     }
   }
-  if (dist[dest]===undefined) return null;
+  if (!trovato || _pfGen[dest] !== gen) return null;
   const percorso = []; let n = dest;
-  while (n !== start){ percorso.unshift(n); n = prev[n]; }
+  while (n !== start){ percorso.unshift(n); n = _pfPrev[n]; }
   const movTurno = Math.max(1, statU(u.tipo).mov);
-  return { percorso, costo: dist[dest], turni: Math.max(1, Math.ceil(dist[dest]/movTurno)) };
+  return { percorso, costo: _pfDist[dest], turni: Math.max(1, Math.ceil(_pfDist[dest]/movTurno)) };
 }
 
 function impostaGoto(uid, dest){
@@ -1185,14 +1194,25 @@ function processaGoto(fid){
     if (u.fazione !== fid || u.goto==null || u.mov <= 0) continue;
     // parti già in mezzo a una minaccia: fermati subito
     if (minacciaVicina(u.hex, fid)){ u.goto = null; continue; }
-    let sicurezza = 0;
+    // Il percorso si calcola UNA volta e poi lo si percorre. Prima veniva ricalcolato da capo
+    // a ogni singolo passo: con una ricerca da ~12 ms su 40.000 esagoni e una quindicina di
+    // coloni in marcia, da sola faceva salire il turno da 14 a 257 ms.
+    let p = trovaPercorso(u.id, u.goto);
+    if (!p || !p.percorso.length){ u.goto = null; continue; }
+    let idx = 0, sicurezza = 0;
     while (u.mov > 0 && u.hex !== u.goto && sicurezza++ < 30){
-      const p = trovaPercorso(u.id, u.goto);
-      if (!p || !p.percorso.length){ u.goto = null; break; }
-      const prossimo = p.percorso[0];
+      const prossimo = p.percorso[idx];
+      if (prossimo === undefined){ u.goto = null; break; }
       const r = raggioMovimento([u.id]);
-      if (!r[prossimo] || r[prossimo].attacco){ break; }   // non raggiungibile ora (ostacolo)
-      u.hex = prossimo;
+      if (!r[prossimo] || r[prossimo].attacco){
+        // strada bloccata (qualcuno si e' messo di mezzo): un solo ricalcolo, poi si rinuncia
+        if (sicurezza > 1) break;
+        p = trovaPercorso(u.id, u.goto);
+        if (!p || !p.percorso.length){ u.goto = null; break; }
+        idx = 0;
+        continue;
+      }
+      u.hex = prossimo; idx++;
       u.mov = Math.max(0, u.mov - r[prossimo].costo);
       u.camminato = true;
       if (minacciaVicina(u.hex, fid)){ u.goto = null; break; } // fermati vicino a un vero nemico

@@ -138,9 +138,13 @@ function gestioneCittaIA(f){
     if (cm.coda.length) continue;
     // ogni tanto un colono, per espandersi pacificamente verso gli indipendenti indifesi vicini
     const coloniAttivi = st.unita.filter(u=>u.fazione===f.id && u.tipo==="colono").length;
-    // con la mappa vuota i coloni sono l'UNICO modo di espandersi: molti, e presto
-    const pochiCentri = mieCitta.length < 6;
-    if (coloniAttivi < (pochiCentri?3:1) && rnd()<(pochiCentri?0.55:0.12)){
+    // Ritmo di espansione legato all'ERA, non alla sola voglia di crescere. Senza tetto l'IA
+    // fondava 74 citta' in 121 turni e ricopriva l'isola prima che il giocatore ne avesse
+    // cinque: la Sicilia si riempiva in un paio d'ere invece che in ventiquattro secoli.
+    const tettoCitta = tettoCittaEra(st.era);
+    const sottoTetto = mieCitta.length < tettoCitta;
+    const pochiCentri = mieCitta.length < Math.min(4, tettoCitta);
+    if (sottoTetto && coloniAttivi < (pochiCentri?2:1) && rnd()<(pochiCentri?0.45:0.10)){
       const col = GAME.unitaDisponibili(cm).find(x=>x.id==="colono");
       if (col && GAME.accoda(cm.id, col)) continue;
     }
@@ -245,6 +249,9 @@ function fondaConNome(u, fid){
   }
   return !!GAME.fondaCitta(u.id, nome).ok;
 }
+// Quante citta' puo' avere una fazione in una data era. Cresce con la storia: si comincia in
+// pochi centri e si arriva a dominare l'isola solo nelle ere tarde.
+function tettoCittaEra(era){ return 3 + era*2; }      // era 0: 3 citta', era 5: 13
 function muoviColoniIA(fid){
   const st = GAME.st;
   const coloni = st.unita.filter(u=>u.fazione===fid && u.tipo==="colono" && u.mov>0);
@@ -252,6 +259,9 @@ function muoviColoniIA(fid){
   // siti liberi: toponimi non ancora fondati, ordinati per bonta' (grandi e vicini prima)
   const liberi = st.comuni.filter(c => !c.fondata);
   if (!liberi.length) return;
+  // oltre il tetto dell'era i coloni gia' costruiti restano in attesa invece di fondare
+  const mie = st.comuni.filter(c => c.fazione===fid && c.fondata).length;
+  if (mie >= tettoCittaEra(st.era)) return;
   for (const u of coloni){
     // gia' su un punto valido? fonda subito
     if (GAME.puoFondare(u.hex, fid).ok && fondaConNome(u, fid)) continue;
@@ -269,8 +279,9 @@ function muoviColoniIA(fid){
     // marcia su piu' turni col pathfinding vero: il passo greedy verso il punto piu' vicino
     // in linea d'aria incastrava i coloni dietro montagne, laghi e insenature
     if (u.goto) continue;                       // gia' in viaggio: ci pensa processaGoto
-    const p = GAME.trovaPercorso(u.id, best.hex);
-    if (!p || !p.percorso.length){ fondaConNome(u, fid); continue; }   // irraggiungibile: fonda dove sei
+    // Si imposta solo la destinazione: il percorso lo calcola processaGoto, una volta sola.
+    // Calcolarlo anche qui significava due ricerche per colono e per turno, la voce di costo
+    // piu' pesante dell'intero turno.
     GAME.impostaGoto(u.id, best.hex);
   }
 }
