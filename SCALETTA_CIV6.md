@@ -130,3 +130,44 @@ confine calava di uno ogni quattro turni ma si riassorbiva di mezzo punto ogni t
 restava inchiodato a zero, sotto la soglia di guerra non ci arrivava mai. Corretti entrambi,
 e la simpatia ora ha un tetto, perché patti e accordi commerciali sommandosi rendevano tutti
 amici per sempre.
+
+---
+
+## Fase 5 — Si può vincere (v164→v181)
+
+**Il difetto più grave del gioco: non si vinceva.** L'unica vittoria prevista era la conquista,
+e chiedeva 128 città su 170 quando in partita se ne possiedono dodici. Nelle simulazioni non è
+mai scattata: si arrivava al 1700 e usciva una classifica. Tutto il lavoro delle quattro fasi
+precedenti non portava a nessun finale. Ora ci sono quattro strade, tarate sui numeri veri
+misurati a fine partita:
+
+| Via | Cosa serve | Riferimento misurato |
+|---|---|---|
+| Conquista | 20 città, o nessun rivale in piedi | il più grande ne aveva 14 |
+| Cultura | 8 Grandi Siciliani + 4 meraviglie | max osservato 8 grandi, 4 meraviglie, mai insieme |
+| Scienza | primo a completare le 55 tecnologie | completate fra il turno 111 e il 149 |
+| Ricchezza | 5 DOP + 8 Marine/Fondachi + 15.000 oro | le DOP controllate erano 0-2: è il vincolo |
+
+Valgono per tutti: un rivale può batterti sul tempo, e in quel caso puoi comunque continuare
+fino al 1700. Il pannello mostra le quattro barre e quanto è avanti il rivale migliore su
+ciascuna. Tolto il sussidio di scienza all'IA su difficoltà normale: con la ricerca diventata
+una via alla vittoria era una corsa truccata.
+
+**Due bug che rendevano la conquista impossibile a chiunque.** In pace ogni reparto dell'IA
+tornava sulla capitale e ci restava: Palermo aveva **diciassette difensori sulla stessa
+casella** e le altre città sguarnite. E la guarnigione cittadina scalava di 4,75 volte con le
+ere, arrivando a difesa 71 contro i 27 di un fante coevo. Corretti entrambi: ora una città
+cade se porti l'assedio (quattro fanti contro mura di livello 3 hanno probabilità zero, con un
+ariete la stessa città cade), e l'IA costruisce macchine d'assedio quando è in guerra.
+
+**Il tutorial insegnava il gioco di luglio**: sette passi su truppe, città e ricerca, senza
+nominare quartieri, acquisto delle caselle, fedeltà, case, editti, Grandi e intuizioni. Ora
+sette schede contestuali escono una per volta, quando la cosa serve davvero.
+
+**Audio rifatto da capo.** Grafo Web Audio con quattro bus, diciannove effetti costruiti a
+strati al posto di sette bip a onda quadra, un suono per ogni azione che conta, e un tappeto
+d'ambiente che legge cosa hai sullo schermo: onde sul mare, vento sui monti, cicale in
+campagna, brusio in città, magli sulla Fucina. Tutto sintetizzato, zero peso da scaricare.
+
+**L'oro non serviva sistemarlo**: la compravendita delle caselle ha assorbito l'accumulo da
+sola, da 35.000 a 7.400 per il capofila.
