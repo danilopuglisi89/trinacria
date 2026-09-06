@@ -236,7 +236,7 @@ function reseComune(cm){
   const faz = cm.fazione>=0 && cm.fazione<100 ? st.fazioni[cm.fazione] : null;
   const bonusId = faz ? D().FAZIONI[faz.id].bonusId : null;
   for (const h of MAP.terre){
-    if (h.comune !== cm.id) continue;
+    if (h.citta !== cm.id) continue;      // rende solo il territorio davvero posseduto
     let hf=0, hp=0, ho=0;
     if (h.terra==="plain"){ hf=2; hp=1; if (faz && faz.techs.includes("grano_t")) hf+=0.5; }
     else if (h.terra==="hill"){ hf=1; hp=1; }
@@ -429,7 +429,10 @@ function aggiornaComune(cm){
     if (faz && sur>0) sur *= (1 + techBonus(faz.id).growthPct);
     cm.cibo += sur;
     const soglia = 20 + cm.pop*4;
-    if (cm.cibo >= soglia && cm.pop < 25){ cm.cibo -= soglia; cm.pop++; }
+    if (cm.cibo >= soglia && cm.pop < 25){
+      cm.cibo -= soglia; cm.pop++;
+      espandiTerritorio(cm);         // ogni abitante in piu' allarga i confini di una casella
+    }
     if (cm.cibo < -10 && cm.pop > 1){ cm.pop--; cm.cibo = 0; aggiungiLog("Carestia a "+cm.nome+": la popolazione cala.", "male"); }
     if (cm.cibo < 0) cm.cibo = Math.max(cm.cibo, -10);
     // produzione coda
@@ -489,7 +492,7 @@ function completaItem(cm, item){
 function terrenoDominante(cm){
   const cont = {}; let tot = 0;
   for (const h of MAP.terre){
-    if (h.comune !== cm.id) continue;
+    if (h.citta !== cm.id) continue;
     cont[h.terra] = (cont[h.terra]||0)+1; tot++;
   }
   if (!tot) return null;
@@ -656,8 +659,8 @@ function compraSubito(cmId){
 // gratis=false → path diretto dal pannello esagono: il giocatore paga subito in oro.
 function migliora(hexIdx, impId, gratis){
   const h = MAP.hexes[hexIdx];
-  const cm = st.comuni[h.comune];
-  const f = st.fazioni[cm.fazione];
+  const cm = h.citta >= 0 ? st.comuni[h.citta] : null;   // solo il territorio posseduto si migliora
+  const f = cm ? st.fazioni[cm.fazione] : null;
   const im = D().MIGLIORIE[impId];
   if (!im || h.imp) return false;
   if (!gratis && f.oro < im.costo) return false;
@@ -678,8 +681,8 @@ function migliora(hexIdx, impId, gratis){
 function esisteMiglioriaPossibile(fid){
   const f = st.fazioni[fid];
   for (const h of MAP.terre){
-    if (h.imp || h.lago) continue;
-    const cm = st.comuni[h.comune];
+    if (h.imp || h.lago || h.citta < 0) continue;
+    const cm = st.comuni[h.citta];
     if (cm.fazione !== fid || cm.hex === h.i) continue;
     for (const id of Object.keys(D().MIGLIORIE)){
       const m = D().MIGLIORIE[id];
@@ -732,8 +735,8 @@ function miglioramentoAutomatico(uid){
   let scelta = null, miglior = -1;
   for (const i of candidati){
     const h = MAP.hexes[i];
-    if (!h || h.imp) continue;
-    const cm = st.comuni[h.comune];
+    if (!h || h.imp || h.citta < 0) continue;
+    const cm = st.comuni[h.citta];
     if (cm.fazione !== fid || cm.hex === i) continue;
     const impId = miglioreMiglioria(h, fid);
     if (!impId) continue;
@@ -771,8 +774,8 @@ function prossimaMiglioria(impId, fid){
 function migliorieAggiornabili(fid){
   const out = [];
   for (const h of MAP.terre){
-    if (!h.imp) continue;
-    const cm = st.comuni[h.comune];
+    if (!h.imp || h.citta < 0) continue;
+    const cm = st.comuni[h.citta];
     if (!cm || cm.fazione !== fid) continue;
     const nuovoId = prossimaMiglioria(h.imp, fid);
     if (!nuovoId) continue;
@@ -784,7 +787,7 @@ function migliorieAggiornabili(fid){
 }
 function upgradaMiglioria(hexIdx, fid){
   const h = MAP.hexes[hexIdx];
-  const cm = st.comuni[h.comune];
+  const cm = h.citta >= 0 ? st.comuni[h.citta] : null;
   if (!h.imp || !cm || cm.fazione !== fid) return false;
   const nuovoId = prossimaMiglioria(h.imp, fid);
   if (!nuovoId) return false;
@@ -1471,6 +1474,61 @@ function bombarda(uid, cmId){
   return true;
 }
 
+// Citta' fondata dove non c'era nulla: si crea un comune nuovo di zecca col nome scelto dal
+// giocatore. Non tocca DATA_COMUNI (che resta la geografia reale): vive solo nella partita.
+function nuovoComuneFondato(nome, hexIdx){
+  const h = MAP.hexes[hexIdx];
+  const cm = {
+    id: st.comuni.length, nome, prov: "", tier: 1, hex: hexIdx, res: null,
+    fondata: false, fazione: -1, pop: 1, cibo: 0, unrest: 0, malusConq: 0, eruzioneMalus: 0,
+    cultura: "siciliana", integr: 100, dop: null, nuova: true,
+    edifici: [], mura: 0, muraHP: 0, coda: [], prodAcc: 0, barocca: false, tributi: {}
+  };
+  st.comuni.push(cm);
+  return cm;
+}
+
+// ---------- TERRITORIO DINAMICO ----------
+// h.comune resta un fatto GEOGRAFICO (qual e' il paese piu' vicino) e serve perche' in tutto
+// il motore st.comuni[h.comune] viene letto senza guardie. Il possesso invece e' h.citta:
+// -1 = terra di nessuno. Una citta' nasce padrona del proprio esagono e dei sei adiacenti,
+// e allarga i confini di una casella ogni volta che cresce di popolazione.
+function fazioneDiHex(h){
+  if (!h || h.citta < 0) return -1;
+  const cm = st.comuni[h.citta];
+  return cm ? cm.fazione : -1;
+}
+function territorioDi(cmId){ return MAP.terre.filter(h => h.citta === cmId); }
+// rivendica un esagono per una citta' (se libero)
+function rivendica(hexIdx, cmId){
+  const h = MAP.hexes[hexIdx];
+  if (!h || h.mare || h.citta >= 0) return false;
+  h.citta = cmId;
+  return true;
+}
+// primo nucleo: l'esagono della citta' e i sei attorno
+function nucleoIniziale(cm){
+  MAP.hexes[cm.hex].citta = cm.id;
+  for (const j of MAP.vicini(cm.hex)) rivendica(j, cm.id);
+}
+// una casella in piu': la piu' vicina al centro, fra quelle libere che toccano il territorio
+function espandiTerritorio(cm){
+  const mie = territorioDi(cm.id);
+  if (!mie.length) return false;
+  const hc = MAP.hexes[cm.hex];
+  let best = -1, bd = 1e9;
+  for (const h of mie){
+    for (const j of MAP.vicini(h.i)){
+      const n = MAP.hexes[j];
+      if (n.mare || n.citta >= 0) continue;
+      const d = Math.hypot(n.x-hc.x, n.y-hc.y);
+      if (d < bd){ bd = d; best = j; }
+    }
+  }
+  if (best < 0) return false;
+  return rivendica(best, cm.id);
+}
+
 // ---------- FONDAZIONE DI CITTA' ----------
 // Un comune "fondato" e' una citta' vera; finche' non lo e', e' solo un nome sulla mappa.
 function fondaComune(cm, fid){
@@ -1479,28 +1537,51 @@ function fondaComune(cm, fid){
   cm.fazione = fid;
   cm.integr = 100;
   cm.unrest = 0;
+  nucleoIniziale(cm);          // nasce padrona del proprio esagono e dei sei attorno
   return true;
 }
 // si puo' fondare qui? (serve un colono, terra libera, e nessuna citta' troppo vicina)
 const DIST_MIN_CITTA = 3;      // in esagoni: due citta' non possono stare appiccicate
+const TIER_NOME = 2;          // solo i centri di rango >= 2 (80 su 170) prestano il loro nome
+// Quale paese reale da' il nome a una citta' fondata qui? Vale l'esagono stesso o uno dei sei
+// adiacenti, e solo per i centri abbastanza grandi: i paesini minori non diventano capoluoghi,
+// restano borghi dentro il territorio. Se non c'e' nessuno, la citta' la battezza il giocatore.
+function comuneCheDaIlNome(hexIdx){
+  const cand = [hexIdx].concat(MAP.vicini(hexIdx));
+  let best = null;
+  for (const j of cand){
+    const h = MAP.hexes[j];
+    if (!h || h.mare) continue;
+    const cm = st.comuni[h.comune];
+    if (!cm || cm.fondata || cm.tier < TIER_NOME) continue;
+    // il piu' importante vince; a parita' il piu' vicino
+    const d = MAP.distKm(cm.hex, hexIdx);
+    if (!best || cm.tier > best.cm.tier || (cm.tier === best.cm.tier && d < best.d)) best = { cm, d };
+  }
+  return best ? best.cm : null;
+}
 function puoFondare(hexIdx, fid){
   const h = MAP.hexes[hexIdx];
   if (!h || h.mare || h.lago) return { ok:false, motivo:"acqua" };
-  const cm = st.comuni[h.comune];
-  if (!cm) return { ok:false, motivo:"nessun_comune" };
-  if (cm.fondata) return { ok:false, motivo:"gia_fondata", cm };
+  if (h.citta >= 0) return { ok:false, motivo:"gia_territorio", cm: st.comuni[h.citta] };
   for (const c of st.comuni){
     if (!c.fondata) continue;
     if (MAP.distKm(c.hex, hexIdx) < DIST_MIN_CITTA*MAP.R*2) return { ok:false, motivo:"troppo_vicina", vicina:c };
   }
-  return { ok:true, cm, nome:cm.nome };
+  const cm = comuneCheDaIlNome(hexIdx);
+  return { ok:true, cm, nome: cm ? cm.nome : null };
 }
 // il colono fonda: la citta' prende il nome del comune a cui l'esagono appartiene
-function fondaCitta(uid){
+function fondaCitta(uid, nomeScelto){
   const u = st.unita.find(x=>x.id===uid);
   if (!u || u.tipo!=="colono" || u.mov<=0) return { ok:false, motivo:"non_valido" };
   const p = puoFondare(u.hex, u.fazione);
   if (!p.ok) return p;
+  // se nessun centro importante presta il nome, nasce una citta' nuova col nome scelto
+  if (!p.cm){
+    if (!nomeScelto) return { ok:false, motivo:"serve_nome" };
+    p.cm = nuovoComuneFondato(nomeScelto, u.hex);
+  }
   p.cm.hex = u.hex;                       // la citta' nasce dove sta il colono
   fondaComune(p.cm, u.fazione);
   p.cm.pop = 2;
@@ -2080,7 +2161,7 @@ function passoPeste(){
     for (const id of st.peste.infetti){
       const cm = st.comuni[id];
       for (const h of MAP.terre){
-        if (h.comune!==id) continue;
+        if (h.citta!==id) continue;
         for (const nb of MAP.vicini(h.i)){
           const altro = MAP.hexes[nb].comune;
           if (altro!==id && !st.peste.infetti.includes(altro) && !nuovi.includes(altro) && rnd()<0.15)
@@ -2578,7 +2659,7 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   trovaPercorso, impostaGoto, processaGoto, fortifica, svegliaUnita, unitaFerme, suggerimenti,
   cucina, dopControllati, piattiSbloccati, faSagra,
   calcolaVisibilita, hexVisibile, hexEsplorato,
-  fondaCitta, puoFondare, fondaComune, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, techBonusReset, costoTech, sbloccatiDaTech, miglioreCostruzione,
+  fondaCitta, puoFondare, fondaComune, comuneCheDaIlNome, fazioneDiHex, territorioDi, espandiTerritorio, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, techBonusReset, costoTech, sbloccatiDaTech, miglioreCostruzione,
   costruzioniDisponibili, unitaDisponibili, accoda, compraSubito, migliora,
   techDisponibili, ricerca, statU, costoEroe, reclutaEroe, limiteEsercito, truppeFazione,
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,

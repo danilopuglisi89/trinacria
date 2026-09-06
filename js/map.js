@@ -222,7 +222,7 @@ function creaHex(col, row, terra, elev, etna){
   const c = hexCentro(col,row);
   const idx = hexes.length;
   hexes.push({ i:idx, col, row, x:c.x, y:c.y, terra, elev:elev||0.1, fiume:false, costa:false,
-               etna:!!etna, comune:-1, imp:null, impTurni:0, res:null, shade:0, isola:true });
+               etna:!!etna, comune:-1, citta:-1, imp:null, impTurni:0, res:null, shade:0, isola:true });
   grid[key] = idx;
   return idx;
 }
@@ -265,7 +265,7 @@ function riempiMare(){
       const c = hexCentro(col,row);
       const idx = hexes.length;
       hexes.push({ i:idx, col, row, x:c.x, y:c.y, terra:"mare", mare:true, elev:0, fiume:false,
-                   costa:false, etna:false, comune:-1, imp:null, impTurni:0, res:null, shade:0 });
+                   costa:false, etna:false, comune:-1, citta:-1, imp:null, impTurni:0, res:null, shade:0 });
       grid[key] = idx;
     }
   }
@@ -331,7 +331,7 @@ function build(){
       const fiume = vicinoFiume(c.x, c.y);
       const idx = hexes.length;
       hexes.push({ i:idx, col, row, x:c.x, y:c.y, terra, elev, fiume, costa:false,
-                   etna, comune:-1, imp:null, impTurni:0, res:null, shade:0 });
+                   etna, comune:-1, citta:-1, imp:null, impTurni:0, res:null, shade:0 });
       grid[col+","+row] = idx;
     }
   }
@@ -693,10 +693,10 @@ function renderTerreno(ctx, v, st, rz){
   // e si ammorbidisce verso la frontiera, dove poi la linea di confine netta lo ridisegna
   if (st){
     for (const h of terre){
-      const own = st.comuni[h.comune].fazione;
+      const own = GAME.fazioneDiHex(h);        // possesso reale, non geografia
       if (own===-1 || !vis(h)) continue;
       // velo leggerissimo: il possesso si legge dal confine e dal suo alone, la texture resta protagonista
-      const frontiera = vicini(h.i).some(j => !hexes[j].mare && st.comuni[hexes[j].comune].fazione !== own);
+      const frontiera = vicini(h.i).some(j => !hexes[j].mare && GAME.fazioneDiHex(hexes[j]) !== own);
       const s = w2s(v, h.x, h.y);
       ctx.fillStyle = coloreFazione(st, own) + (frontiera ? "10" : "18");
       ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.fill();
@@ -877,7 +877,7 @@ function renderDynamic(ctx, v, st, sel, rz){
       const h = hexes[cm.hex];
       if (!vis(h)) continue;
       if (st.nebbia && !GAME.hexEsplorato(cm.hex)) continue;
-      if (!cm.fondata){ toponimoLibero(ctx, cm, w2s(v, h.x, h.y), rz); continue; }
+      if (!cm.fondata){ borgoInterno(ctx, cm, w2s(v, h.x, h.y), rz, st); continue; }
       const s = w2s(v, h.x, h.y);
       const col = coloreFazione(st, cm.fazione);
       // bandiera solo dove conta: capitali e città grandi (i borghi restano puliti)
@@ -1212,25 +1212,43 @@ function etichetta(ctx, testo, x, y, fs, bold, fid, st){
 // è già un confine naturale) più un alone del colore del regno che sfuma verso l'interno, così
 // il possesso si legge anche con il velo sul territorio quasi trasparente.
 // I segmenti coprono l'intero lato dell'esagono e vengono uniti in polilinee: niente più trattini.
-// Nome di un luogo dove NON c'e' ancora nessuna citta': si legge in corsivo tenue, come su
-// una carta geografica. Serve al giocatore per sapere come si chiamera' la citta' se fonda li'.
-function toponimoLibero(ctx, cm, s, rz){
-  if (rz < 9) return;                                  // a mappa larga sarebbe solo confusione
-  const fs = Math.max(9, Math.min(15, rz*0.30));
-  ctx.font = "italic " + fs + "px Georgia, serif";
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.lineWidth = Math.max(2, fs*0.28); ctx.strokeStyle = "rgba(28,20,10,0.55)";
-  ctx.strokeText(cm.nome, s.x, s.y);
-  ctx.fillStyle = "rgba(255,246,224,0.72)";
-  ctx.fillText(cm.nome, s.x, s.y);
-  // pallino discreto: qui c'e' un sito abitabile
-  ctx.fillStyle = "rgba(255,246,224,0.5)";
-  ctx.beginPath(); ctx.arc(s.x, s.y + fs*0.95, Math.max(1.5, rz*0.06), 0, 7); ctx.fill();
+// Borghi dentro il territorio. La mappa NON mostra piu' l'elenco dei paesi: la Sicilia
+// appare disabitata, e i luoghi minori vengono alla luce solo quando una citta', crescendo,
+// arriva a inglobarne la casella. Cosi' il paesaggio si popola col regno, e certi paesi
+// possono non essere mai scoperti.
+function borgoInterno(ctx, cm, s, rz, st){
+  const h = hexes[cm.hex];
+  if (!h || h.citta < 0) return;                       // fuori da ogni territorio: non esiste ancora
+  if (rz < 10) return;
+  const padrona = st.comuni[h.citta];
+  if (!padrona || !padrona.fondata) return;
+  // casette minuscole
+  const sc = rz*0.16;
+  ctx.save();
+  ctx.fillStyle = "rgba(30,20,10,0.28)";
+  ctx.beginPath(); ctx.ellipse(s.x, s.y+sc*0.7, sc*1.5, sc*0.5, 0, 0, 7); ctx.fill();
+  for (let k=-1;k<=1;k++){
+    const bx = s.x + k*sc*1.05, by = s.y - Math.abs(k)*sc*0.18;
+    ctx.fillStyle = "#e8dcc0"; ctx.fillRect(bx-sc*0.42, by-sc*0.5, sc*0.84, sc*0.62);
+    ctx.fillStyle = "#a8442e";
+    ctx.beginPath(); ctx.moveTo(bx-sc*0.52, by-sc*0.5); ctx.lineTo(bx, by-sc*0.95); ctx.lineTo(bx+sc*0.52, by-sc*0.5); ctx.closePath(); ctx.fill();
+  }
+  if (rz >= 14){
+    const fs = Math.max(9, Math.min(14, rz*0.26));
+    ctx.font = "italic " + fs + "px Georgia, serif";
+    ctx.textAlign="center"; ctx.textBaseline="top";
+    ctx.lineWidth = Math.max(2, fs*0.3); ctx.strokeStyle = "rgba(28,20,10,0.6)";
+    ctx.strokeText(cm.nome, s.x, s.y + sc*1.0);
+    ctx.fillStyle = "rgba(255,246,224,0.82)";
+    ctx.fillText(cm.nome, s.x, s.y + sc*1.0);
+  }
+  ctx.restore();
 }
+
 function latiConfine(v, st, rz, W, H){
   const per = {};   // colore -> lista di lati {a:{x,y}, b:{x,y}}
   for (const h of terre){
-    const own = st.comuni[h.comune].fazione;
+    const own = GAME.fazioneDiHex(h);
     if (own===-1) continue;
     const s = w2s(v, h.x, h.y);
     if (s.x<-rz*2||s.y<-rz*2||s.x>W+rz*2||s.y>H+rz*2) continue;
@@ -1238,7 +1256,7 @@ function latiConfine(v, st, rz, W, H){
     for (let d=0; d<dirs.length; d++){
       const j = grid[dirs[d][0]+","+dirs[d][1]];
       if (j===undefined || hexes[j].mare) continue;      // mare / fuori mappa: nessuna linea
-      const altro = st.comuni[hexes[j].comune].fazione;
+      const altro = GAME.fazioneDiHex(hexes[j]);
       if (altro === own) continue;
       const nx = hexes[j];
       const dx = (nx.x-h.x), dy = (nx.y-h.y);
@@ -1512,7 +1530,7 @@ function disegnaMinimappa(ctx, mmW, mmH, v, st){
   ctx.fillStyle="rgba(18,40,55,0.85)"; ctx.fillRect(0,0,mmW,mmH);
   const dot = Math.max(1.4, sc*R*0.95);
   for (const h of terre){
-    const cm = st ? st.comuni[h.comune] : null;
+    const cm = (st && h.citta>=0) ? st.comuni[h.citta] : null;
     let col = "#b7a668"; // terra neutra
     if (h.terra==="secca") col = "#2f6f88";
     else if (cm && cm.fazione>=0 && cm.fazione<100) col = GDATA.FAZIONI[cm.fazione].colore;

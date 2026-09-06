@@ -120,9 +120,9 @@ function diplomaziaIA(f){
 function confinanti(a, b){
   const st = GAME.st;
   for (const h of MAP.terre){
-    if (st.comuni[h.comune].fazione !== a) continue;
+    if (GAME.fazioneDiHex(h) !== a) continue;
     for (const nb of MAP.vicini(h.i))
-      if (st.comuni[MAP.hexes[nb].comune].fazione === b) return true;
+      if (GAME.fazioneDiHex(MAP.hexes[nb]) === b) return true;
   }
   return false;
 }
@@ -202,7 +202,7 @@ function gestioneCittaIA(f){
 
 function miglioriaIA(f){
   const st = GAME.st;
-  const miei = MAP.terre.filter(h => st.comuni[h.comune].fazione===f.id && !h.imp && h.i!==st.comuni[h.comune].hex);
+  const miei = MAP.terre.filter(h => h.citta>=0 && st.comuni[h.citta].fazione===f.id && !h.imp && h.i!==st.comuni[h.citta].hex);
   if (!miei.length) return;
   const h = scegli(miei);
   for (const id of Object.keys(D().MIGLIORIE))
@@ -231,6 +231,20 @@ function bersagliFazione(f){
 // I coloni dell'IA FONDANO citta'. Prima annettevano le citta' indipendenti gia' presenti
 // sulla mappa: ora la Sicilia parte vuota e quelle citta' non esistono, quindi senza questa
 // logica ogni fazione resterebbe per sempre con la sola capitale.
+// L'IA fonda anche dove nessun centro reale presta il nome: in quel caso se ne inventa uno,
+// come fa il giocatore col battesimo. Senza, i coloni resterebbero fermi a guardare il posto.
+const PRE_IA = ["Borgo","Casale","Rocca","Torre","Serra","Villa","Poggio","Marina"];
+const POST_IA = ["Nuova","d'Oro","del Sole","Alta","Verde","Chiara","di Ponente","di Levante","Sicula"];
+function fondaConNome(u, fid){
+  const p = GAME.puoFondare(u.hex, fid);
+  if (!p.ok) return false;
+  let nome = null;
+  if (!p.nome){
+    const r = (n) => Math.abs(Math.sin(n*127.1+311.7)*43758.5453) % 1;
+    nome = PRE_IA[Math.floor(r(u.hex)*PRE_IA.length)] + " " + POST_IA[Math.floor(r(u.hex*7+13)*POST_IA.length)];
+  }
+  return !!GAME.fondaCitta(u.id, nome).ok;
+}
 function muoviColoniIA(fid){
   const st = GAME.st;
   const coloni = st.unita.filter(u=>u.fazione===fid && u.tipo==="colono" && u.mov>0);
@@ -240,7 +254,7 @@ function muoviColoniIA(fid){
   if (!liberi.length) return;
   for (const u of coloni){
     // gia' su un punto valido? fonda subito
-    if (GAME.puoFondare(u.hex, fid).ok && GAME.fondaCitta(u.id).ok) continue;
+    if (GAME.puoFondare(u.hex, fid).ok && fondaConNome(u, fid)) continue;
     // altrimenti punta al sito libero piu' promettente
     let best=null, bd=1e9;
     for (const cm of liberi){
@@ -256,7 +270,7 @@ function muoviColoniIA(fid){
     // in linea d'aria incastrava i coloni dietro montagne, laghi e insenature
     if (u.goto) continue;                       // gia' in viaggio: ci pensa processaGoto
     const p = GAME.trovaPercorso(u.id, best.hex);
-    if (!p || !p.percorso.length){ GAME.fondaCitta(u.id); continue; }   // irraggiungibile: fonda dove sei
+    if (!p || !p.percorso.length){ fondaConNome(u, fid); continue; }   // irraggiungibile: fonda dove sei
     GAME.impostaGoto(u.id, best.hex);
   }
 }

@@ -541,3 +541,8 @@ body[class^="era-"] #cons-nome { color: var(--epoca, #d9c48a); }
 /* --- fondazione di una nuova città: l'azione principale del colono --- */
 .btn-fonda{ border-color:#e0c060 !important; background:linear-gradient(180deg,#4a3a18,#2e2410) !important; }
 .btn-fonda:hover{ background:linear-gradient(180deg,#5c4820,#3a2c14) !important; }
+
+/* --- campo per battezzare una città fondata nel nulla --- */
+.cs-input{ width:100%; box-sizing:border-box; margin-top:6px; padding:9px 11px; font-family:Georgia,serif;
+  font-size:16px; color:#f2e6cd; background:#1e1810; border:1px solid #6b5a34; border-radius:6px; }
+.cs-input:focus{ outline:none; border-color:#c9a227; }

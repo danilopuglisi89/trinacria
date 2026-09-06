@@ -817,11 +817,11 @@ function apriPannelloUnita(i){
       // fondare QUI e' l'azione principale del colono: se si puo', va in cima e ben visibile
       const p = GAME.puoFondare(selUn[0].hex, st.giocatore);
       if (p.ok)
-        html += `<button class="btn-lista btn-fonda" id="btn-fonda-qui">🏛️ <b>Fonda qui la città di ${p.nome}</b></button>`;
+        html += `<button class="btn-lista btn-fonda" id="btn-fonda-qui">🏛️ <b>${p.nome ? "Fonda qui la città di "+p.nome : "Fonda qui una nuova città"}</b></button>`;
       else if (p.motivo === "troppo_vicina")
         html += `<div class="p-riga muto">🏛️ Troppo vicino a ${p.vicina.nome}: allontanati di qualche casella per fondare.</div>`;
-      else if (p.motivo === "gia_fondata")
-        html += `<div class="p-riga muto">🏛️ Qui sorge già ${p.cm.nome}.</div>`;
+      else if (p.motivo === "gia_territorio")
+        html += `<div class="p-riga muto">🏛️ Questa terra è già di ${p.cm.nome}.</div>`;
       html += `<button class="btn-lista" id="btn-colonizza-auto">🧭 Cerca da solo un buon sito e fonda</button>`;
     }
     if (selUn.every(u=>u.tipo!=="lavoratore" && u.tipo!=="colono"))
@@ -855,13 +855,13 @@ function apriPannelloUnita(i){
   };
   const btnFonda = $("btn-fonda-qui");
   if (btnFonda) btnFonda.onclick = () => {
-    const r = GAME.fondaCitta(selUn[0].id);
-    if (r.ok){
-      AUDIO.sfx("vittoria"); AUDIO.parlaUna("don_citta_presa", 3);
-      chiudiPannello(); aggiornaTutto(); mostraFumetti();
-    } else {
-      consigliere("cons", "«Qui non si può fondare, Maestà.»", 3000);
-    }
+    const u = selUn[0];
+    const p = GAME.puoFondare(u.hex, st.giocatore);
+    if (!p.ok){ consigliere("cons", "«Qui non si può fondare, Maestà.»", 3000); return; }
+    // Nessun centro importante nei paraggi: la città nasce senza nome ed è il sovrano a
+    // battezzarla. Si propone un nome plausibile, ma si può scrivere quello che si vuole.
+    if (!p.nome){ chiediNomeCitta(u); return; }
+    concludiFondazione(u, null);
   };
   const btnColonizza = $("btn-colonizza-auto");
   if (btnColonizza) btnColonizza.onclick = () => {
@@ -1149,6 +1149,42 @@ function proponiAzione(prop){
   };
 }
 // tutorial contestuale al primo uso
+// ---- battesimo di una città fondata nel nulla ----
+const PRE_NOME = ["Borgo","Casale","Rocca","Torre","Serra","Villa","Poggio","Piano","Marina","Castel"];
+const POST_NOME = ["Nuova","d'Oro","del Sole","Bella","Verde","Alta","Chiara","dei Venti","d'Aragona","Normanna",
+                   "Sicula","Greca","del Grano","dell'Ulivo","di Ponente","di Levante"];
+function nomeProposto(hex){
+  const h = MAP.hexes[hex];
+  const r = (n) => Math.abs(Math.sin(n*127.1+311.7)*43758.5453) % 1;
+  const a = PRE_NOME[Math.floor(r(hex)*PRE_NOME.length)];
+  const b = POST_NOME[Math.floor(r(hex*7+13)*POST_NOME.length)];
+  return a + " " + b;
+}
+function chiediNomeCitta(u){
+  const proposto = nomeProposto(u.hex);
+  mostraModale({ titolo:"🏛️ Come si chiamerà?",
+    testo:"Qui attorno non c'è nessun centro di rilievo: questa città nasce dal nulla, e il nome glielo dai tu.",
+    html:`<div class="p-sotto muto">Scrivi il nome, o tieni quello proposto.</div>
+          <input id="nome-citta-nuova" class="cs-input" maxlength="28" value="${proposto}">`,
+    scelte:[{label:"Fonda la città", eff:"nulla"},{label:"Non ancora", eff:"no"}] },
+    idx => {
+      if (idx !== 0) return;
+      const el = $("nome-citta-nuova");
+      const nome = (el && el.value.trim()) || proposto;
+      concludiFondazione(u, nome);
+    });
+  setTimeout(() => { const el=$("nome-citta-nuova"); if (el){ el.focus(); el.select(); } }, 60);
+}
+function concludiFondazione(u, nome){
+  const r = GAME.fondaCitta(u.id, nome);
+  if (r.ok){
+    AUDIO.sfx("vittoria"); AUDIO.parlaUna("don_citta_presa", 3);
+    chiudiPannello(); aggiornaTutto(); mostraFumetti();
+  } else {
+    consigliere("cons", "«Qui non si può fondare, Maestà.»", 3000);
+  }
+}
+
 // ================= TUTORIAL GUIDATO =================
 // Non una scheda che spiega e sparisce: una sequenza di passi in cui il gioco CONTROLLA che
 // l'azione sia stata davvero eseguita prima di andare avanti. Finche' non la fai, il passo
