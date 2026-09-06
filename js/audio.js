@@ -337,7 +337,7 @@ function fileVoce(k){ return MAN && MAN.voce && MAN.voce[k] ? "assets/audio/"+MA
 // rampa sul guadagno e non un numero riscritto a mano a ogni chiamata.
 let elMus = null, temaCorr = null, temaPrima = null;
 const sorgentiMus = new WeakMap();
-function collega(el, bus){
+function collega(el, bus, respira){
   ac();
   let s = sorgentiMus.get(el);
   if (!s){                       // un elemento puo' avere UNA sola sorgente: si tiene in mappa
@@ -345,8 +345,47 @@ function collega(el, bus){
     catch(e){ return null; }
   }
   const g = ctx.createGain(); g.gain.value = 0;
-  s.connect(g); g.connect(bus);
+  s.connect(g);
+  if (respira){
+    // Il timbro respira: un passa-basso che si apre e si chiude con un giro di quaranta
+    // secondi. Non cambia le note — non posso — ma toglie l'effetto "stessa registrazione
+    // per la decima volta", perche' ogni passaggio suona un po' diverso.
+    const f = ctx.createBiquadFilter();
+    f.type = "lowpass"; f.frequency.value = 3200; f.Q.value = 0.6;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 1/41;
+    const amp = ctx.createGain(); amp.gain.value = 1500;
+    lfo.connect(amp); amp.connect(f.frequency); lfo.start();
+    g.connect(f); f.connect(bus);
+    el._filtro = f; el._lfo = lfo;
+  } else {
+    g.connect(bus);
+  }
   return g;
+}
+// Il silenzio e' il piu' vecchio rimedio alla ripetizione: ogni tanto la musica si ritira e
+// resta solo l'ambiente — onde, vento, cicale — poi rientra. Con brani da un minuto e' cio'
+// che fa la differenza fra una colonna sonora e una filastrocca.
+let riposoTimer = null;
+function pianificaRiposo(){
+  if (riposoTimer) clearTimeout(riposoTimer);
+  const attesa = (150 + Math.random()*150) * 1000;        // fra due minuti e mezzo e cinque
+  riposoTimer = setTimeout(function(){
+    if (musicaOn && elMus && elMus._g && !elVoce){
+      const t = ctx.currentTime;
+      elMus._g.gain.cancelScheduledValues(t);
+      elMus._g.gain.setValueAtTime(elMus._g.gain.value, t);
+      elMus._g.gain.linearRampToValueAtTime(0.0001, t + 4);      // si ritira in quattro secondi
+      const g = elMus._g;
+      setTimeout(function(){                                      // venticinque secondi di sola isola
+        if (musicaOn && elMus && elMus._g === g){
+          const t2 = ctx.currentTime;
+          g.gain.setValueAtTime(0.0001, t2);
+          g.gain.linearRampToValueAtTime(1, t2 + 5);
+        }
+      }, 25000);
+    }
+    pianificaRiposo();
+  }, attesa);
 }
 function suonaTema(k){
   if (!musicaOn || k === temaCorr) return;
@@ -358,7 +397,7 @@ function suonaTema(k){
   nuovo.loop = true; nuovo.preload = "auto";
   const vecchio = elMus, vecchioG = elMus ? elMus._g : null;
   nuovo.play().then(function(){
-    const g = collega(nuovo, busMus);
+    const g = collega(nuovo, busMus, true);
     nuovo._g = g;
     if (!g) nuovo.volume = IMP.musica;        // ripiego: niente grafo, suona diretto
     elMus = nuovo; temaCorr = k;
@@ -371,7 +410,9 @@ function suonaTema(k){
     if (vecchio) setTimeout(function(){
       try { vecchio.pause(); } catch(e){}
       if (vecchioG){ try { vecchioG.disconnect(); } catch(e){} }
+      if (vecchio._lfo){ try { vecchio._lfo.stop(); } catch(e){} }
     }, 1600);
+    pianificaRiposo();
   }).catch(function(){ temaCorr = null; avviaProcedurale(); });
 }
 function fermaMusicaFile(){
@@ -486,6 +527,7 @@ function toggleMusica(era){
     if (fileMusica(k)) suonaTema(k); else avviaProcedurale();
   } else {
     fermaProcedurale(); fermaMusicaFile(); fermaAmbiente();
+    if (riposoTimer){ clearTimeout(riposoTimer); riposoTimer = null; }
   }
   return musicaOn;
 }

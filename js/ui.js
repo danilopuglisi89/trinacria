@@ -2700,7 +2700,7 @@ function apriMenu(){
   html += `<div class="m-sez">Partita</div>
     <button class="btn-lista" id="btn-aiuto">❓ Come si gioca</button>
     <button class="btn-lista" id="btn-tutorial">🎓 Rifai il tutorial guidato</button>
-    <button class="btn-lista" id="btn-sponsor">📣 Diventa Sponsor (demo)</button>
+    ${window.SPONSOR_ON ? `<button class="btn-lista" id="btn-sponsor">📣 Diventa Sponsor (demo)</button>` : ""}
     <button class="btn-lista" id="btn-nuova">🔄 Nuova partita</button>`;
   mostraModale({ titolo:"☰ Menu", html:`<div class="m-scroll">${html}</div>`,
     scelte:[{label:"Torna al gioco", eff:"nulla"}] }, ()=>{});
@@ -2725,7 +2725,8 @@ function apriMenu(){
     }
   });
   $("btn-nuova").onclick = () => location.reload();
-  $("btn-sponsor").onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriSponsorForm(); };
+  const bSp = $("btn-sponsor");
+  if (bSp) bSp.onclick = () => { $("modale-sfondo").classList.add("nascosto"); apriSponsorForm(); };
   $("btn-aiuto").onclick = () => {
     $("modale-sfondo").classList.add("nascosto");
     mostraModale({ titolo:"❓ Come si gioca", testo:

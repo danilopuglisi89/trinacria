@@ -301,6 +301,10 @@ function hexPiuVicino(x, y, soloTerra){
   return { i: best, d: bd };
 }
 
+// Il prototipo sponsor (quattro attivita' INVENTATE e un modulo che apre una email) resta
+// spento nel gioco pubblicato: si accende con ?sponsor=1 per mostrarlo a un inserzionista.
+// I POI di OpenStreetMap sono un'altra cosa e restano sempre: sono luoghi veri.
+window.SPONSOR_ON = /[?&]sponsor=1/.test(location.search);
 function build(){
   hexes = []; grid = {}; strade = []; mmBounds = null; vicArr = null;   // la tabella di adiacenza si ricostruisce
   for (let row=0; row<ROWS; row++){
@@ -465,7 +469,7 @@ function build(){
   // luoghi (etichette geografiche/siti)
   luoghi = (window.DATA_LUOGHI||[]).map(l => { const p = toXY(l[1], l[2]); return { nome:l[0], x:p.x, y:p.y, tipo:l[3], zMin:l[4] }; });
   // POI sponsor (prototipo): ancorati all'esagono più vicino alla posizione reale
-  sponsor = (window.DATA_SPONSOR||[]).map(s => {
+  sponsor = (window.SPONSOR_ON ? (window.DATA_SPONSOR||[]) : []).map(s => {
     const p = toXY(s.lat, s.lon);
     return Object.assign({}, s, { x:p.x, y:p.y, hex:hexPiuVicino(p.x, p.y, true).i });
   });
