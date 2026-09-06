@@ -138,7 +138,7 @@ const TECH = [
   { id:"qanat",     era:3, nome:"Qanat e Irrigazione",   costo:180, desc:"+1 cibo da ogni Fattoria e Frutteto." },
   { id:"cavleggera",era:3, nome:"Cavalleria Leggera",    costo:190, desc:"Sblocca la Cavalleria leggera araba e i Fanti saraceni." },
   { id:"scienzearabe", era:3, nome:"Casa della Scienza", costo:200, desc:"Sblocca la Casa della Scienza (+4 scienza)." },
-  { id:"algebra",   era:3, nome:"Numeri e Algebra",      costo:210, desc:"+20% scienza." },
+  { id:"algebra",   era:3, nome:"Numeri e Algebra",      costo:210, desc:"+20% scienza.", bonus:{ sciPct:0.20 } },
   { id:"arcieria",  era:3, nome:"Arcieria Saracena",     costo:210, desc:"Sblocca gli Arcieri saraceni e il Mangano." },
   // Era 4 — Normanno-Sveva
   { id:"cavnormanna", era:4, nome:"Cavalleria Normanna", costo:240, desc:"Sblocca i Cavalieri normanni." },
@@ -322,6 +322,27 @@ const EDIFICI = {
 // distinti dalle Meraviglie: più economici, senza vincoli di era/tech — rappresentano ciò che la città
 // possiede già e che il tuo governo restaura/fortifica)
 const EDIFICI_LOCALI = [
+  // --- Monumenti storici reali (tutti verificati contro i nomi in data_comuni.js) ---
+  { id:"templi_agrig",   nome:"Valle dei Templi",         comune:"Agrigento",     costo:200, eff:"+6 cultura, +2 oro", icona:"🏛️", cultura:6, oro:2 },
+  { id:"selinunte",      nome:"Acropoli di Selinunte",    comune:"Castelvetrano", costo:170, eff:"+5 cultura", icona:"🏛️", cultura:5 },
+  { id:"teatro_taor",    nome:"Teatro Antico",            comune:"Taormina",      costo:170, eff:"+5 cultura, +2 oro", icona:"🎭", cultura:5, oro:2 },
+  { id:"villa_casale",   nome:"Villa Romana del Casale",  comune:"Piazza Armerina", costo:180, eff:"+5 cultura, +1 oro", icona:"🖼️", cultura:5, oro:1 },
+  { id:"pantalica",      nome:"Necropoli di Pantalica",   comune:"Sortino",       costo:140, eff:"+4 cultura", icona:"⚱️", cultura:4 },
+  { id:"mozia",          nome:"Mozia e lo Stagnone",      comune:"Marsala",       costo:150, eff:"+3 cultura, +3 oro", icona:"🏺", cultura:3, oro:3 },
+  { id:"palatina",       nome:"Cappella Palatina",        comune:"Palermo",       costo:190, eff:"+6 cultura, -1 malcontento", icona:"✨", cultura:6, malcontento:1 },
+  { id:"duomo_monreale", nome:"Duomo di Monreale",        comune:"Monreale",      costo:190, eff:"+6 cultura, -1 malcontento", icona:"⛪", cultura:6, malcontento:1 },
+  { id:"barocco_noto",   nome:"Barocco di Noto",          comune:"Noto",          costo:170, eff:"+5 cultura, +1 oro", icona:"⛪", cultura:5, oro:1 },
+  { id:"ibla",           nome:"Ragusa Ibla",              comune:"Ragusa",        costo:160, eff:"+4 cultura, +2 oro", icona:"🏘️", cultura:4, oro:2 },
+  { id:"cava_ispica",    nome:"Cava d'Ispica",            comune:"Ispica",        costo:130, eff:"+3 cultura, +1 cibo", icona:"🕳️", cultura:3, cibo:1 },
+  { id:"orecchio",       nome:"Orecchio di Dionisio",     comune:"Siracusa",      costo:150, eff:"+4 cultura", icona:"👂", cultura:4 },
+
+  // --- Riserve naturali e paesaggi protetti ---
+  { id:"zingaro",        nome:"Riserva dello Zingaro",    comune:"San Vito Lo Capo", costo:120, eff:"+3 cultura, +2 cibo", icona:"🌿", cultura:3, cibo:2 },
+  { id:"vendicari",      nome:"Oasi di Vendicari",        comune:"Noto",          costo:120, eff:"+2 cultura, +3 cibo", icona:"🦩", cultura:2, cibo:3 },
+  { id:"alcantara",      nome:"Gole dell'Alcantara",      comune:"Castiglione di Sicilia", costo:120, eff:"+3 cultura, +1 cibo", icona:"🏞️", cultura:3, cibo:1 },
+  { id:"saline_tp",      nome:"Saline di Trapani",        comune:"Trapani",       costo:130, eff:"+4 oro, +1 cibo", icona:"🧂", oro:4, cibo:1 },
+  { id:"vulcano_lip",    nome:"Crateri delle Eolie",      comune:"Lipari",        costo:110, eff:"+3 cultura, +2 oro", icona:"🌋", cultura:3, oro:2 },
+  { id:"bosco_bronte",   nome:"Pistacchieti di Bronte",   comune:"Bronte",        costo:120, eff:"+4 oro, +1 cibo", icona:"🌰", oro:4, cibo:1 },
   { id:"castello_erice",    nome:"Castello di Venere",       comune:"Erice",         costo:140, eff:"+3 cultura, +20% difesa città", icona:"🏰", cultura:3, difesa:0.20 },
   { id:"rocca_enna",        nome:"Castello di Lombardia",    comune:"Enna",          costo:150, eff:"+30% difesa città", icona:"🏔️", difesa:0.30 },
   { id:"castello_milazzo",  nome:"Castello di Milazzo",      comune:"Milazzo",       costo:140, eff:"+20% difesa città, +2 oro", icona:"🏰", difesa:0.20, oro:2 },

@@ -249,6 +249,7 @@ function reseComune(cm){
     else if (h.terra==="mountain"){ hp=2; }
     else if (h.terra==="forest"){ hf=1; hp=1; }
     else if (h.terra==="volcano"){ hp=1; }
+    else if (h.terra==="lago"){ hf=2; ho=0.5; }        // pesca d'acqua dolce e irrigazione
     if (h.fiume) hf+=1;
     if (h.costa) ho+=0.5;
     if (h.imp){
@@ -683,7 +684,7 @@ function migliora(hexIdx, impId, gratis){
 function esisteMiglioriaPossibile(fid){
   const f = st.fazioni[fid];
   for (const h of MAP.terre){
-    if (h.imp) continue;
+    if (h.imp || h.lago) continue;
     const cm = st.comuni[h.comune];
     if (cm.fazione !== fid || cm.hex === h.i) continue;
     for (const id of Object.keys(D().MIGLIORIE)){
@@ -938,7 +939,7 @@ function passoRicerca(f, sci){
 }
 
 // ---------- MOVIMENTO ----------
-const COSTO_TERRA = { plain:1, hill:2, forest:2, mountain:3, volcano:3, secca:2, mare:1 };
+const COSTO_TERRA = { plain:1, hill:2, forest:2, mountain:3, volcano:3, secca:2, mare:1, lago:9 };
 function costoTerreno(h, fid){
   let c = COSTO_TERRA[h.terra]||1;
   if (h.mare) return c;                                  // in mare le strade non aiutano
@@ -959,6 +960,7 @@ function eNavale(u){ return dominioTipo(u.tipo) === "mare"; }
 // Le truppe di terra possono entrare in mare SOLO su un esagono dove c'e' un trasporto amico
 // con posto libero: quello e' l'imbarco.
 function percorribile(h, u){
+  if (h.lago) return false;            // acqua interna: non si guada e non ci navigano le flotte
   if (dominioTipo(u.tipo) === "mare") return !!h.mare;
   if (!h.mare) return true;
   // In mare non ci va la truppa di terra: solo i COLONI possono essere imbarcati, e solo

@@ -46,14 +46,14 @@
 "id": "unita_64",
 "file": "unita_64.webp",
 "w": 2048,
-"h": 131,
+"h": 185,
 "group": "unita"
 },
 {
 "id": "unita_256",
 "file": "unita_256.webp",
 "w": 2048,
-"h": 1892,
+"h": 2399,
 "group": "unita"
 },
 {
@@ -2326,10 +2326,150 @@
 "ay": 0.9,
 "group": "unita"
 },
-"unita_oplita": {
+"unita_nave_birem": {
 "atlas": "unita_64",
 "x": 1511,
 "y": 1,
+"w": 62,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_birem_m": {
+"atlas": "unita_64",
+"x": 1575,
+"y": 1,
+"w": 62,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_dromon": {
+"atlas": "unita_64",
+"x": 1639,
+"y": 1,
+"w": 61,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_dromon_m": {
+"atlas": "unita_64",
+"x": 1702,
+"y": 1,
+"w": 61,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_galea": {
+"atlas": "unita_64",
+"x": 1765,
+"y": 1,
+"w": 55,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_galea_m": {
+"atlas": "unita_64",
+"x": 1822,
+"y": 1,
+"w": 55,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_galeaz": {
+"atlas": "unita_64",
+"x": 1879,
+"y": 1,
+"w": 56,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_galeaz_m": {
+"atlas": "unita_64",
+"x": 1937,
+"y": 1,
+"w": 56,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_onerar": {
+"atlas": "unita_64",
+"x": 1995,
+"y": 1,
+"w": 50,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_onerar_m": {
+"atlas": "unita_64",
+"x": 1,
+"y": 67,
+"w": 50,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_sciab": {
+"atlas": "unita_64",
+"x": 53,
+"y": 67,
+"w": 58,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_sciab_m": {
+"atlas": "unita_64",
+"x": 113,
+"y": 67,
+"w": 58,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_trasp2": {
+"atlas": "unita_64",
+"x": 173,
+"y": 67,
+"w": 56,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_trasp2_m": {
+"atlas": "unita_64",
+"x": 231,
+"y": 67,
+"w": 56,
+"h": 64,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_oplita": {
+"atlas": "unita_64",
+"x": 289,
+"y": 67,
 "w": 38,
 "h": 64,
 "ax": 0.5,
@@ -2338,8 +2478,8 @@
 },
 "unita_oplita_m": {
 "atlas": "unita_64",
-"x": 1551,
-"y": 1,
+"x": 329,
+"y": 67,
 "w": 38,
 "h": 64,
 "ax": 0.5,
@@ -2348,8 +2488,8 @@
 },
 "unita_picchiere": {
 "atlas": "unita_64",
-"x": 1591,
-"y": 1,
+"x": 369,
+"y": 67,
 "w": 64,
 "h": 64,
 "ax": 0.5,
@@ -2358,8 +2498,8 @@
 },
 "unita_picchiere_m": {
 "atlas": "unita_64",
-"x": 1657,
-"y": 1,
+"x": 435,
+"y": 67,
 "w": 64,
 "h": 64,
 "ax": 0.5,
@@ -2368,8 +2508,8 @@
 },
 "unita_sagittario": {
 "atlas": "unita_64",
-"x": 1723,
-"y": 1,
+"x": 501,
+"y": 67,
 "w": 39,
 "h": 64,
 "ax": 0.5,
@@ -2378,8 +2518,8 @@
 },
 "unita_sagittario_m": {
 "atlas": "unita_64",
-"x": 1764,
-"y": 1,
+"x": 542,
+"y": 67,
 "w": 39,
 "h": 64,
 "ax": 0.5,
@@ -2388,8 +2528,8 @@
 },
 "unita_skutato": {
 "atlas": "unita_64",
-"x": 1805,
-"y": 1,
+"x": 583,
+"y": 67,
 "w": 37,
 "h": 64,
 "ax": 0.5,
@@ -2398,8 +2538,8 @@
 },
 "unita_skutato_m": {
 "atlas": "unita_64",
-"x": 1844,
-"y": 1,
+"x": 622,
+"y": 67,
 "w": 37,
 "h": 64,
 "ax": 0.5,
@@ -2408,8 +2548,8 @@
 },
 "unita_tamburino": {
 "atlas": "unita_64",
-"x": 1883,
-"y": 1,
+"x": 661,
+"y": 67,
 "w": 33,
 "h": 64,
 "ax": 0.5,
@@ -2418,8 +2558,8 @@
 },
 "unita_tamburino_m": {
 "atlas": "unita_64",
-"x": 1918,
-"y": 1,
+"x": 696,
+"y": 67,
 "w": 33,
 "h": 64,
 "ax": 0.5,
@@ -2428,8 +2568,8 @@
 },
 "unita_equites": {
 "atlas": "unita_64",
-"x": 1953,
-"y": 1,
+"x": 731,
+"y": 67,
 "w": 64,
 "h": 63,
 "ax": 0.5,
@@ -2438,7 +2578,7 @@
 },
 "unita_equites_m": {
 "atlas": "unita_64",
-"x": 1,
+"x": 797,
 "y": 67,
 "w": 64,
 "h": 63,
@@ -2448,7 +2588,7 @@
 },
 "unita_catafratto": {
 "atlas": "unita_64",
-"x": 67,
+"x": 863,
 "y": 67,
 "w": 64,
 "h": 61,
@@ -2458,7 +2598,7 @@
 },
 "unita_catafratto_m": {
 "atlas": "unita_64",
-"x": 133,
+"x": 929,
 "y": 67,
 "w": 64,
 "h": 61,
@@ -2468,7 +2608,7 @@
 },
 "unita_cav_greca": {
 "atlas": "unita_64",
-"x": 199,
+"x": 995,
 "y": 67,
 "w": 64,
 "h": 60,
@@ -2478,7 +2618,7 @@
 },
 "unita_cav_greca_m": {
 "atlas": "unita_64",
-"x": 265,
+"x": 1061,
 "y": 67,
 "w": 64,
 "h": 60,
@@ -2488,7 +2628,7 @@
 },
 "unita_bomba_granita": {
 "atlas": "unita_64",
-"x": 331,
+"x": 1127,
 "y": 67,
 "w": 64,
 "h": 59,
@@ -2498,7 +2638,7 @@
 },
 "unita_bomba_granita_m": {
 "atlas": "unita_64",
-"x": 397,
+"x": 1193,
 "y": 67,
 "w": 64,
 "h": 59,
@@ -2508,7 +2648,7 @@
 },
 "unita_cav_norm": {
 "atlas": "unita_64",
-"x": 463,
+"x": 1259,
 "y": 67,
 "w": 64,
 "h": 59,
@@ -2518,7 +2658,27 @@
 },
 "unita_cav_norm_m": {
 "atlas": "unita_64",
-"x": 529,
+"x": 1325,
+"y": 67,
+"w": 64,
+"h": 59,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_trirem": {
+"atlas": "unita_64",
+"x": 1391,
+"y": 67,
+"w": 64,
+"h": 59,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_trirem_m": {
+"atlas": "unita_64",
+"x": 1457,
 "y": 67,
 "w": 64,
 "h": 59,
@@ -2528,7 +2688,7 @@
 },
 "unita_carretto_sic": {
 "atlas": "unita_64",
-"x": 595,
+"x": 1523,
 "y": 67,
 "w": 64,
 "h": 53,
@@ -2538,7 +2698,7 @@
 },
 "unita_carretto_sic_m": {
 "atlas": "unita_64",
-"x": 661,
+"x": 1589,
 "y": 67,
 "w": 64,
 "h": 53,
@@ -2548,7 +2708,7 @@
 },
 "unita_balista": {
 "atlas": "unita_64",
-"x": 727,
+"x": 1655,
 "y": 67,
 "w": 64,
 "h": 51,
@@ -2558,7 +2718,7 @@
 },
 "unita_balista_m": {
 "atlas": "unita_64",
-"x": 793,
+"x": 1721,
 "y": 67,
 "w": 64,
 "h": 51,
@@ -2568,7 +2728,7 @@
 },
 "unita_bombarda": {
 "atlas": "unita_64",
-"x": 859,
+"x": 1787,
 "y": 67,
 "w": 64,
 "h": 51,
@@ -2578,7 +2738,7 @@
 },
 "unita_bombarda_m": {
 "atlas": "unita_64",
-"x": 925,
+"x": 1853,
 "y": 67,
 "w": 64,
 "h": 51,
@@ -2588,7 +2748,7 @@
 },
 "unita_trabucco": {
 "atlas": "unita_64",
-"x": 991,
+"x": 1919,
 "y": 67,
 "w": 64,
 "h": 51,
@@ -2598,8 +2758,8 @@
 },
 "unita_trabucco_m": {
 "atlas": "unita_64",
-"x": 1057,
-"y": 67,
+"x": 1,
+"y": 133,
 "w": 64,
 "h": 51,
 "ax": 0.5,
@@ -2608,8 +2768,8 @@
 },
 "unita_carretto_arancini": {
 "atlas": "unita_64",
-"x": 1123,
-"y": 67,
+"x": 67,
+"y": 133,
 "w": 64,
 "h": 48,
 "ax": 0.5,
@@ -2618,8 +2778,8 @@
 },
 "unita_carretto_arancini_m": {
 "atlas": "unita_64",
-"x": 1189,
-"y": 67,
+"x": 133,
+"y": 133,
 "w": 64,
 "h": 48,
 "ax": 0.5,
@@ -2628,8 +2788,8 @@
 },
 "unita_mangano": {
 "atlas": "unita_64",
-"x": 1255,
-"y": 67,
+"x": 199,
+"y": 133,
 "w": 64,
 "h": 45,
 "ax": 0.5,
@@ -2638,8 +2798,8 @@
 },
 "unita_mangano_m": {
 "atlas": "unita_64",
-"x": 1321,
-"y": 67,
+"x": 265,
+"y": 133,
 "w": 64,
 "h": 45,
 "ax": 0.5,
@@ -2648,8 +2808,8 @@
 },
 "unita_ariete": {
 "atlas": "unita_64",
-"x": 1387,
-"y": 67,
+"x": 331,
+"y": 133,
 "w": 64,
 "h": 41,
 "ax": 0.5,
@@ -2658,8 +2818,8 @@
 },
 "unita_ariete_m": {
 "atlas": "unita_64",
-"x": 1453,
-"y": 67,
+"x": 397,
+"y": 133,
 "w": 64,
 "h": 41,
 "ax": 0.5,
@@ -2668,8 +2828,8 @@
 },
 "unita_onagro": {
 "atlas": "unita_64",
-"x": 1519,
-"y": 67,
+"x": 463,
+"y": 133,
 "w": 64,
 "h": 39,
 "ax": 0.5,
@@ -2678,8 +2838,8 @@
 },
 "unita_onagro_m": {
 "atlas": "unita_64",
-"x": 1585,
-"y": 67,
+"x": 529,
+"y": 133,
 "w": 64,
 "h": 39,
 "ax": 0.5,
@@ -3046,10 +3206,150 @@
 "ay": 0.9,
 "group": "unita"
 },
-"unita_oplita_hi": {
+"unita_nave_birem_hi": {
 "atlas": "unita_256",
 "x": 1,
 "y": 775,
+"w": 248,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_birem_m_hi": {
+"atlas": "unita_256",
+"x": 251,
+"y": 775,
+"w": 248,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_dromon_hi": {
+"atlas": "unita_256",
+"x": 501,
+"y": 775,
+"w": 243,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_dromon_m_hi": {
+"atlas": "unita_256",
+"x": 746,
+"y": 775,
+"w": 243,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_galea_hi": {
+"atlas": "unita_256",
+"x": 991,
+"y": 775,
+"w": 219,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_galea_m_hi": {
+"atlas": "unita_256",
+"x": 1212,
+"y": 775,
+"w": 219,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_galeaz_hi": {
+"atlas": "unita_256",
+"x": 1433,
+"y": 775,
+"w": 222,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_galeaz_m_hi": {
+"atlas": "unita_256",
+"x": 1657,
+"y": 775,
+"w": 222,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_onerar_hi": {
+"atlas": "unita_256",
+"x": 1,
+"y": 1033,
+"w": 201,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_onerar_m_hi": {
+"atlas": "unita_256",
+"x": 204,
+"y": 1033,
+"w": 201,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_sciab_hi": {
+"atlas": "unita_256",
+"x": 407,
+"y": 1033,
+"w": 233,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_sciab_m_hi": {
+"atlas": "unita_256",
+"x": 642,
+"y": 1033,
+"w": 233,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_trasp2_hi": {
+"atlas": "unita_256",
+"x": 877,
+"y": 1033,
+"w": 223,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_trasp2_m_hi": {
+"atlas": "unita_256",
+"x": 1102,
+"y": 1033,
+"w": 223,
+"h": 256,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_oplita_hi": {
+"atlas": "unita_256",
+"x": 1327,
+"y": 1033,
 "w": 150,
 "h": 256,
 "ax": 0.5,
@@ -3058,8 +3358,8 @@
 },
 "unita_oplita_m_hi": {
 "atlas": "unita_256",
-"x": 153,
-"y": 775,
+"x": 1479,
+"y": 1033,
 "w": 150,
 "h": 256,
 "ax": 0.5,
@@ -3068,8 +3368,8 @@
 },
 "unita_picchiere_hi": {
 "atlas": "unita_256",
-"x": 305,
-"y": 775,
+"x": 1631,
+"y": 1033,
 "w": 256,
 "h": 256,
 "ax": 0.5,
@@ -3078,8 +3378,8 @@
 },
 "unita_picchiere_m_hi": {
 "atlas": "unita_256",
-"x": 563,
-"y": 775,
+"x": 1,
+"y": 1291,
 "w": 256,
 "h": 256,
 "ax": 0.5,
@@ -3088,8 +3388,8 @@
 },
 "unita_sagittario_hi": {
 "atlas": "unita_256",
-"x": 821,
-"y": 775,
+"x": 259,
+"y": 1291,
 "w": 154,
 "h": 256,
 "ax": 0.5,
@@ -3098,8 +3398,8 @@
 },
 "unita_sagittario_m_hi": {
 "atlas": "unita_256",
-"x": 977,
-"y": 775,
+"x": 415,
+"y": 1291,
 "w": 154,
 "h": 256,
 "ax": 0.5,
@@ -3108,8 +3408,8 @@
 },
 "unita_skutato_hi": {
 "atlas": "unita_256",
-"x": 1133,
-"y": 775,
+"x": 571,
+"y": 1291,
 "w": 147,
 "h": 256,
 "ax": 0.5,
@@ -3118,8 +3418,8 @@
 },
 "unita_skutato_m_hi": {
 "atlas": "unita_256",
-"x": 1282,
-"y": 775,
+"x": 720,
+"y": 1291,
 "w": 147,
 "h": 256,
 "ax": 0.5,
@@ -3128,8 +3428,8 @@
 },
 "unita_tamburino_hi": {
 "atlas": "unita_256",
-"x": 1431,
-"y": 775,
+"x": 869,
+"y": 1291,
 "w": 131,
 "h": 256,
 "ax": 0.5,
@@ -3138,8 +3438,8 @@
 },
 "unita_tamburino_m_hi": {
 "atlas": "unita_256",
-"x": 1564,
-"y": 775,
+"x": 1002,
+"y": 1291,
 "w": 131,
 "h": 256,
 "ax": 0.5,
@@ -3148,8 +3448,8 @@
 },
 "unita_equites_hi": {
 "atlas": "unita_256",
-"x": 1697,
-"y": 775,
+"x": 1135,
+"y": 1291,
 "w": 256,
 "h": 251,
 "ax": 0.5,
@@ -3158,8 +3458,8 @@
 },
 "unita_equites_m_hi": {
 "atlas": "unita_256",
-"x": 1,
-"y": 1033,
+"x": 1393,
+"y": 1291,
 "w": 256,
 "h": 251,
 "ax": 0.5,
@@ -3168,8 +3468,8 @@
 },
 "unita_catafratto_hi": {
 "atlas": "unita_256",
-"x": 259,
-"y": 1033,
+"x": 1651,
+"y": 1291,
 "w": 256,
 "h": 242,
 "ax": 0.5,
@@ -3178,8 +3478,8 @@
 },
 "unita_catafratto_m_hi": {
 "atlas": "unita_256",
-"x": 517,
-"y": 1033,
+"x": 1,
+"y": 1549,
 "w": 256,
 "h": 242,
 "ax": 0.5,
@@ -3188,8 +3488,8 @@
 },
 "unita_cav_greca_hi": {
 "atlas": "unita_256",
-"x": 775,
-"y": 1033,
+"x": 259,
+"y": 1549,
 "w": 256,
 "h": 242,
 "ax": 0.5,
@@ -3198,10 +3498,30 @@
 },
 "unita_cav_greca_m_hi": {
 "atlas": "unita_256",
-"x": 1033,
-"y": 1033,
+"x": 517,
+"y": 1549,
 "w": 256,
 "h": 242,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_trirem_hi": {
+"atlas": "unita_256",
+"x": 775,
+"y": 1549,
+"w": 256,
+"h": 236,
+"ax": 0.5,
+"ay": 0.9,
+"group": "unita"
+},
+"unita_nave_trirem_m_hi": {
+"atlas": "unita_256",
+"x": 1033,
+"y": 1549,
+"w": 256,
+"h": 236,
 "ax": 0.5,
 "ay": 0.9,
 "group": "unita"
@@ -3209,7 +3529,7 @@
 "unita_bomba_granita_hi": {
 "atlas": "unita_256",
 "x": 1291,
-"y": 1033,
+"y": 1549,
 "w": 256,
 "h": 235,
 "ax": 0.5,
@@ -3219,7 +3539,7 @@
 "unita_bomba_granita_m_hi": {
 "atlas": "unita_256",
 "x": 1549,
-"y": 1033,
+"y": 1549,
 "w": 256,
 "h": 235,
 "ax": 0.5,
@@ -3229,7 +3549,7 @@
 "unita_cav_norm_hi": {
 "atlas": "unita_256",
 "x": 1,
-"y": 1286,
+"y": 1793,
 "w": 256,
 "h": 235,
 "ax": 0.5,
@@ -3239,7 +3559,7 @@
 "unita_cav_norm_m_hi": {
 "atlas": "unita_256",
 "x": 259,
-"y": 1286,
+"y": 1793,
 "w": 256,
 "h": 235,
 "ax": 0.5,
@@ -3249,7 +3569,7 @@
 "unita_carretto_sic_hi": {
 "atlas": "unita_256",
 "x": 517,
-"y": 1286,
+"y": 1793,
 "w": 256,
 "h": 214,
 "ax": 0.5,
@@ -3259,7 +3579,7 @@
 "unita_carretto_sic_m_hi": {
 "atlas": "unita_256",
 "x": 775,
-"y": 1286,
+"y": 1793,
 "w": 256,
 "h": 214,
 "ax": 0.5,
@@ -3269,7 +3589,7 @@
 "unita_balista_hi": {
 "atlas": "unita_256",
 "x": 1033,
-"y": 1286,
+"y": 1793,
 "w": 256,
 "h": 205,
 "ax": 0.5,
@@ -3279,7 +3599,7 @@
 "unita_balista_m_hi": {
 "atlas": "unita_256",
 "x": 1291,
-"y": 1286,
+"y": 1793,
 "w": 256,
 "h": 205,
 "ax": 0.5,
@@ -3289,7 +3609,7 @@
 "unita_bombarda_hi": {
 "atlas": "unita_256",
 "x": 1549,
-"y": 1286,
+"y": 1793,
 "w": 256,
 "h": 204,
 "ax": 0.5,
@@ -3299,7 +3619,7 @@
 "unita_bombarda_m_hi": {
 "atlas": "unita_256",
 "x": 1,
-"y": 1523,
+"y": 2030,
 "w": 256,
 "h": 204,
 "ax": 0.5,
@@ -3309,7 +3629,7 @@
 "unita_trabucco_hi": {
 "atlas": "unita_256",
 "x": 259,
-"y": 1523,
+"y": 2030,
 "w": 256,
 "h": 203,
 "ax": 0.5,
@@ -3319,7 +3639,7 @@
 "unita_trabucco_m_hi": {
 "atlas": "unita_256",
 "x": 517,
-"y": 1523,
+"y": 2030,
 "w": 256,
 "h": 203,
 "ax": 0.5,
@@ -3329,7 +3649,7 @@
 "unita_carretto_arancini_hi": {
 "atlas": "unita_256",
 "x": 775,
-"y": 1523,
+"y": 2030,
 "w": 256,
 "h": 192,
 "ax": 0.5,
@@ -3339,7 +3659,7 @@
 "unita_carretto_arancini_m_hi": {
 "atlas": "unita_256",
 "x": 1033,
-"y": 1523,
+"y": 2030,
 "w": 256,
 "h": 192,
 "ax": 0.5,
@@ -3349,7 +3669,7 @@
 "unita_mangano_hi": {
 "atlas": "unita_256",
 "x": 1291,
-"y": 1523,
+"y": 2030,
 "w": 256,
 "h": 179,
 "ax": 0.5,
@@ -3359,7 +3679,7 @@
 "unita_mangano_m_hi": {
 "atlas": "unita_256",
 "x": 1549,
-"y": 1523,
+"y": 2030,
 "w": 256,
 "h": 179,
 "ax": 0.5,
@@ -3369,7 +3689,7 @@
 "unita_ariete_hi": {
 "atlas": "unita_256",
 "x": 1,
-"y": 1729,
+"y": 2236,
 "w": 256,
 "h": 162,
 "ax": 0.5,
@@ -3379,7 +3699,7 @@
 "unita_ariete_m_hi": {
 "atlas": "unita_256",
 "x": 259,
-"y": 1729,
+"y": 2236,
 "w": 256,
 "h": 162,
 "ax": 0.5,
@@ -3389,7 +3709,7 @@
 "unita_onagro_hi": {
 "atlas": "unita_256",
 "x": 517,
-"y": 1729,
+"y": 2236,
 "w": 256,
 "h": 154,
 "ax": 0.5,
@@ -3399,7 +3719,7 @@
 "unita_onagro_m_hi": {
 "atlas": "unita_256",
 "x": 775,
-"y": 1729,
+"y": 2236,
 "w": 256,
 "h": 154,
 "ax": 0.5,

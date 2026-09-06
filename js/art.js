@@ -16,6 +16,7 @@ const PAL = {
 
 // tonalità del terreno (mosaico): più tessere di colori vicini
 const TERRENO = {
+  lago:     { base:"#3f7fa4", tess:["#4d90b4","#33708f","#5aa3c6","#2b6280","#68b1d2"] },
   plain:    { base:"#dcc363", tess:["#e6cd6c","#cbb154","#d8c169","#c2a34a","#eeda88"] },
   hill:     { base:"#a3813e", tess:["#b0904e","#8f7136","#bd9b5e","#7f6530","#a4813f"] },
   mountain: { base:"#75695a", tess:["#80735f","#665a49","#8c7f6a","#544a3d","#6e6252"] },
@@ -883,6 +884,55 @@ function siciliaMini(ctx, w, h, hexes, comuni, fidEvidenzia, coloreEv){
   ctx.globalAlpha=1;
 }
 
+// ---------- NAVE (ripiego procedurale) ----------
+// Senza uno sprite dedicato, idSpriteUnita non trova nulla per il tipo "naval" e le navi
+// finirebbero disegnate come soldatini a spasso sull'acqua. Qui c'e' sempre una barca.
+function nave(ctx, x, y, s, col, col2, fase, era, trasporto){
+  const L = s*0.95, H = s*0.34;
+  ctx.save();
+  ctx.translate(x, y + Math.sin(fase*0.6)*s*0.03);          // beccheggio
+  // scia
+  ctx.fillStyle = "rgba(255,255,255,0.20)";
+  ctx.beginPath(); ctx.ellipse(-L*0.15, H*0.55, L*0.62, H*0.30, 0, 0, 7); ctx.fill();
+  // scafo
+  const sc = ctx.createLinearGradient(0,-H*0.5,0,H*0.7);
+  sc.addColorStop(0, mix("#8a5a2a", "#fff", 0.25)); sc.addColorStop(1, "#5a3718");
+  ctx.fillStyle = sc; ctx.strokeStyle = "rgba(28,18,8,0.85)"; ctx.lineWidth = Math.max(1, s*0.035);
+  ctx.beginPath();
+  ctx.moveTo(-L*0.5, -H*0.1);
+  ctx.quadraticCurveTo(-L*0.42, H*0.55, 0, H*0.6);
+  ctx.quadraticCurveTo(L*0.42, H*0.55, L*0.55, -H*0.15);    // prua allungata
+  ctx.lineTo(L*0.42, -H*0.22); ctx.lineTo(-L*0.44, -H*0.22);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // fascia colorata della fazione
+  ctx.fillStyle = col; ctx.fillRect(-L*0.44, -H*0.22, L*0.86, H*0.16);
+  // remi (solo le navi da guerra) o stiva (trasporti)
+  if (!trasporto){
+    ctx.strokeStyle = "rgba(60,40,20,0.9)"; ctx.lineWidth = Math.max(0.8, s*0.022);
+    for (let k=0;k<5;k++){
+      const rx = -L*0.34 + k*L*0.17;
+      const osc = Math.sin(fase*0.9 + k)*s*0.05;
+      ctx.beginPath(); ctx.moveTo(rx, H*0.05); ctx.lineTo(rx-s*0.10, H*0.45+osc); ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = "#c8a76a";
+    for (let k=0;k<3;k++) ctx.fillRect(-L*0.30+k*L*0.20, -H*0.42, L*0.12, H*0.20);   // anfore/casse
+  }
+  // albero e vela
+  ctx.strokeStyle = "#5a3718"; ctx.lineWidth = Math.max(1, s*0.035);
+  ctx.beginPath(); ctx.moveTo(0, -H*0.22); ctx.lineTo(0, -s*0.82); ctx.stroke();
+  const vela = era>=3 ? "latina" : "quadra";
+  ctx.fillStyle = "#f2e6cd"; ctx.strokeStyle = "rgba(40,28,14,0.6)"; ctx.lineWidth = Math.max(0.8, s*0.02);
+  ctx.beginPath();
+  if (vela==="latina"){ ctx.moveTo(0,-s*0.80); ctx.lineTo(L*0.42,-H*0.30); ctx.lineTo(0,-H*0.30); }
+  else { ctx.moveTo(-L*0.30,-s*0.72); ctx.lineTo(L*0.30,-s*0.72); ctx.lineTo(L*0.26,-H*0.34); ctx.lineTo(-L*0.26,-H*0.34); }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // insegna di fazione in cima
+  ctx.fillStyle = col2 || col;
+  ctx.beginPath(); ctx.moveTo(0,-s*0.86); ctx.lineTo(L*0.18,-s*0.78); ctx.lineTo(0,-s*0.70); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
 // ---------- DON CALORIO (il consigliere) ----------
 // vecchio saggio con coppola e barba bianca, in un canvas w×h
 function consigliere(ctx, cx, cy, w, h){
@@ -1094,6 +1144,6 @@ function copricapoSovrano(ctx, w, h, tipo, c, accent){
 
 return { PAL, TERRENO, terrenoPalette, mosaicoHex, hexPath, mix, rseed, roundRect, tessera,
          crestInfo, stemma, monumento, monumentoTipo, monumentoFamoso, citta, bandiera, cittaAltezza,
-         periferia, categoriaUnita, soldato,
+         periferia, categoriaUnita, soldato, nave,
          ritratto, siciliaMini, consigliere, sovrano, lookDefault, OPZIONI_SOVRANO };
 })();

@@ -71,3 +71,45 @@ e rese ripetibili.
   su indice di esagono: quello è rumore bianco e produce coriandoli.
 - Ogni texture che viene affiancata dev'essere passata da `seamless.py` **e** impacchettata con
   estrusione ad avvolgimento; una sola delle due non basta.
+
+---
+
+# Mare navigabile, navi, laghi e luoghi (v79 → v91)
+
+## Mare e navi
+Le isole minori erano collegate alla Sicilia da un ponte di esagoni di terreno percorribile:
+un espediente nato quando il gioco non aveva navi. Ora `riempiMare()` trasforma ogni cella
+vuota della griglia in un esagono d'acqua (29.951 su 40.356) e le isole sono vere isole.
+
+- **Il mare riceve comunque un comune di appartenenza** (valore fittizio, sempre 0): in decine
+  di punti il motore fa `st.comuni[h.comune]` senza guardie e lasciare -1 esplodeva ovunque.
+  Non è territorio: lo escludono `h.mare` e l'elenco `MAP.terre`.
+- **`MAP.terre`**: elenco della sola terra. Tutti i cicli che non riguardano l'acqua scorrono
+  quello, altrimenti ogni turno e ogni fotogramma pagherebbero 30.000 esagoni per scartarli.
+- **Dominio terra/mare** (`percorribile`): la fanteria non cammina sull'acqua (`COSTO_TERRA`
+  non aveva la voce `mare` e ricadeva su 1), le navi non risalgono l'entroterra. Il filtro va
+  messo **sia** in `raggioMovimento` **sia** in `trovaPercorso`, o la marcia lunga propone
+  rotte via mare alle truppe di terra.
+- **Solo i coloni si imbarcano**, e solo con la tecnologia `navigazione`: le isole si popolano,
+  non si invadono. Se la nave affonda, affonda il carico.
+- **Tetto della flotta separato** (`limiteFlotta`, 2+era/2): contando le navi nel limite
+  dell'esercito di terra, un'IA quasi sempre al completo non ne avrebbe mai varata una. Lo
+  stesso limite era replicato in `accoda`, che rifiutava in silenzio.
+- **`muoviFlottaIA`**: le navi hanno una logica loro. Il gradiente su distanza in linea d'aria
+  usato a terra le incagliava contro la costa.
+
+## Laghi
+Dieci laghi reali (`LAGHI` in map.js), scavati **dopo** il calcolo della costa per non falsare
+terra/mare. Danno pesca e irrigazione (+2 cibo, +0,5 oro) e sono impraticabili: né a piedi né
+in nave. Verificato che non spezzino la mappa (1 solo esagono isolato su 10.309) e che nessuna
+città ci finisca dentro — Piana degli Albanesi e Regalbuto ci cadevano, e una città su casella
+impraticabile sarebbe irraggiungibile: c'è una riparazione esplicita dopo l'assegnazione dei comuni.
+
+## Trappole da ricordare
+- **Nomi dei comuni negli EDIFICI_LOCALI**: se il nome non combacia esattamente con
+  `data_comuni.js` l'edificio non compare mai, senza errore. Verificare sempre prima.
+- **DATA_LUOGHI**: aggiungendo luoghi si creano facilmente duplicati (ne ho prodotti 29 in un
+  colpo). Controllare i nomi già presenti.
+- **Le tecnologie con solo `bonus`** non citano mai il proprio id nel codice: cercare l'id nei
+  sorgenti per stabilire se una tecnologia "fa qualcosa" dà un falso positivo. Il meccanismo è
+  data-driven in `techBonus`.

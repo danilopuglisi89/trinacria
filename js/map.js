@@ -70,6 +70,24 @@ const ZONE = [
 
 const ETNA = toXY(37.755, 14.995);
 
+// ---- Laghi reali di Sicilia (lat, lon, raggio km, nome) ----
+// Quasi tutti invasi artificiali, tranne Pergusa (naturale, il lago del mito di Persefone)
+// e il Biviere di Gela (lago costiero). Sono caselle d'acqua interna: danno pesca e
+// irrigazione al comune, ma non si attraversano a piedi e non ci navigano le flotte.
+const LAGHI = [
+  [37.515,14.305, 2.2,"Lago di Pergusa"],
+  [37.655,14.650, 3.4,"Lago Pozzillo"],
+  [37.830,14.600, 2.4,"Lago Ancipa"],
+  [37.610,13.150, 2.8,"Lago Arancio"],
+  [37.900,13.500, 2.6,"Lago Rosamarina"],
+  [37.420,14.550, 2.6,"Lago Ogliastro"],
+  [37.150,14.200, 2.2,"Lago Disueri"],
+  [38.020,13.130, 2.4,"Lago Poma"],
+  [37.030,14.350, 2.4,"Biviere di Gela"],
+  [37.980,13.280, 2.2,"Lago di Piana degli Albanesi"]
+].map(l => { const p = toXY(l[0], l[1]); return { x:p.x, y:p.y, r:l[2]*KMU, nome:l[3] }; });
+
+
 // ---- Fiumi (polilinee lat/lon) ----
 const FIUMI = [
   [[37.90,14.85],[37.75,14.78],[37.60,14.80],[37.50,14.87],[37.42,14.97],[37.40,15.06]],
@@ -333,6 +351,13 @@ function build(){
       if (j === undefined || hexes[j].mare){ h.costa = true; if (h.elev>0.3) h.elev=0.3; break; }
     }
   }
+  // laghi: si scavano dopo la costa, cosi' non falsano il calcolo di terra/mare
+  for (const L of LAGHI){
+    for (const h of terre){
+      if (h.costa || h.terra==="volcano") continue;         // non si mangiano la linea di riva
+      if (Math.hypot(h.x-L.x, h.y-L.y) < L.r){ h.terra = "lago"; h.lago = true; h.elev = 0.05; }
+    }
+  }
   // hillshade
   calcolaOmbre();
   // Etna summit
@@ -344,6 +369,13 @@ function build(){
   });
   for (const cm of comuni){
     cm.hex = hexPiuVicino(cm.x, cm.y, true).i;
+  }
+  // Nessuna citta' puo' stare dentro un lago: i laghi vengono scavati prima che si sappia
+  // dove cadranno i centri abitati, e paesi rivieraschi come Piana degli Albanesi o Regalbuto
+  // finivano sott'acqua, cioe' su una casella impraticabile e quindi irraggiungibile.
+  for (const cm of comuni){
+    const h = hexes[cm.hex];
+    if (h && h.lago){ h.lago = false; h.terra = "plain"; h.elev = 0.12; }
   }
   const presi = {};
   for (const cm of comuni){
@@ -613,6 +645,7 @@ const RUOLI_SPRITE = ["inf","ranged","cav","siege"];
 function idSpriteUnita(tipo){
   if (SPRITES.ha("unita_"+tipo)) return "unita_"+tipo;
   const ud = GDATA.UNITA[tipo]; if (!ud) return null;
+  if (ud.tipo === "naval") return null;   // niente ripiego sui ruoli di terra: sarebbe un soldatino in mare
   const ri = RUOLI_SPRITE.indexOf(ud.tipo); if (ri < 0) return null;
   const linea = GDATA.LINEA_ERA[Math.min(5, ud.era||0)];     // unità uniche → sprite dell'unità di linea coeva
   return linea ? "unita_"+linea[ri] : null;
@@ -1316,6 +1349,8 @@ function disegnaEsercito(ctx, v, rz, lista, st, sel){
         shg.addColorStop(0,"rgba(0,0,0,0.32)"); shg.addColorStop(1,"rgba(0,0,0,0)");
         ctx.fillStyle=shg; ctx.beginPath(); ctx.ellipse(ux+sSize*0.06, uy+sSize*0.05, sSize*0.34, sSize*0.11, 0, 0, 7); ctx.fill();
         SPRITES.drawTintedFit(ctx, idU, ux, uy+bob, null, sSize*1.25, col, col2);
+      } else if (ud && ud.tipo === "naval"){
+        ART.nave(ctx, ux, uy, sSize, col, col2, fase, era, !!ud.capacita);
       } else {
         ART.soldato(ctx, ux, uy, sSize, cat, col, col2, fase, era, speciale);
       }

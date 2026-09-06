@@ -1699,8 +1699,63 @@ function vociRegno(){
         : (GAME.techDisponibili(fid).length ? "nessuna in corso!" : "tutto scoperto"), fn: apriRicerca, urgente: !tt && GAME.techDisponibili(fid).length>0 },
     { icona:"🎯", nome:"Obiettivi e punteggio", stato: p.totale+" punti — "+fatti+"/"+obEra.length+" obiettivi di quest'era", fn: apriObiettivi },
     { icona:"⚔️", nome:"Aggiorna esercito", stato: nU ? nU+" truppe possono passare alle armi della tua era" : "truppe già al passo coi tempi", fn: apriAggiornamento, urgente: nU>0 },
-    { icona:"🏭", nome:"Ammoderna migliorie", stato: nM ? nM+" migliorie possono ammodernarsi" : "campagne già aggiornate", fn: apriAggiornamentoMigliorie, urgente: nM>0 }
+    { icona:"🏭", nome:"Ammoderna migliorie", stato: nM ? nM+" migliorie possono ammodernarsi" : "campagne già aggiornate", fn: apriAggiornamentoMigliorie, urgente: nM>0 },
+    { icona:"⛵", nome:"Flotta", stato: statoFlotta(), fn: apriFlotta }
   ];
+}
+// riepilogo di una riga sulla marineria, mostrato nel pannello Regno
+function statoFlotta(){
+  const st = GAME.st, fid = st.giocatore, f = st.fazioni[fid];
+  if (!f.techs.includes("navigazione")) return "serve la Navigazione per armare navi";
+  const n = GAME.flottaFazione(fid), max = GAME.limiteFlotta();
+  const porti = st.comuni.filter(c => c.fazione===fid && GAME.cittaCostiera(c)).length;
+  if (!porti) return "nessuna città sul mare";
+  return n+" navi su "+max+" · "+porti+" città costiere";
+}
+// Elenco delle navi: dove sono, cosa trasportano, e da dove si possono varare. Serviva un
+// posto dove vedere la marineria a colpo d'occhio: le navi stanno in mare, spesso fuori
+// schermo, e nella lista Esercito si perdevano tra le truppe di terra.
+// citta' (di chiunque) piu' vicina a un esagono, per dire dove si trova una nave
+function cittaPiuVicina(hexIdx){
+  const st = GAME.st, h = MAP.hexes[hexIdx];
+  let best = null, bd = 1e9;
+  for (const cm of st.comuni){
+    const hc = MAP.hexes[cm.hex];
+    const d = Math.hypot(hc.x-h.x, hc.y-h.y);
+    if (d < bd){ bd = d; best = cm; }
+  }
+  return best;
+}
+function apriFlotta(){
+  const st = GAME.st, fid = st.giocatore, f = st.fazioni[fid];
+  const navi = st.unita.filter(u => u.fazione===fid && GAME.eNavale(u));
+  let html = "";
+  if (!f.techs.includes("navigazione")){
+    html += `<div class="p-sotto muto">Le isole minori — Lipari, Favignana, Ustica, Pantelleria — si raggiungono soltanto per mare. Scopri la <b>Navigazione</b> per costruire navi, e imbarca i coloni per popolarle.</div>`;
+  } else {
+    html += `<div class="p-sotto muto">Flotta: <b>${GAME.flottaFazione(fid)}/${GAME.limiteFlotta()}</b>. Le navi si costruiscono nelle città sul mare${st.era>=2?" dotate di porto":""} e non pesano sul limite dell'esercito di terra. Solo i <b>coloni</b> possono imbarcarsi.</div>`;
+    if (!navi.length) html += `<div class="p-riga">Nessuna nave in mare.</div>`;
+    for (const u of navi){
+      const ud = D().UNITA[u.tipo];
+      // NB: agli esagoni di mare e' assegnato un comune fittizio (serve solo a non far
+      // esplodere le letture st.comuni[h.comune]), quindi qui si cerca la citta' costiera
+      // davvero piu' vicina, altrimenti ogni nave risulterebbe "al largo di Palermo".
+      const cm = cittaPiuVicina(u.hex);
+      const carico = (u.carico||[]).length;
+      const cap = ud.capacita || 0;
+      html += `<button class="btn-lista" data-nave="${u.hex}">⛵ <b>${ud.nome}</b> — al largo di ${cm?cm.nome:"?"} · ${u.hp} PV`
+            + (cap ? ` · stiva ${carico}/${cap}` : ` · ${ud.atk} att / ${ud.def} dif`) + `</button>`;
+    }
+    const costiere = st.comuni.filter(c => c.fazione===fid && GAME.cittaCostiera(c));
+    if (costiere.length) html += `<div class="p-sez">Città da cui varare</div>`
+      + costiere.map(c=>`<div class="p-riga">⚓ ${c.nome}${c.edifici.includes("porto")?" — porto":""}</div>`).join("");
+  }
+  mostraModale({ titolo:"⛵ La Flotta", html:`<div class="m-scroll">${html}</div>`,
+    scelte:[{label:"Chiudi", eff:"nulla"}] }, ()=>{});
+  document.querySelectorAll("[data-nave]").forEach(b => b.onclick = () => {
+    $("modale-sfondo").classList.add("nascosto");
+    centraSu(parseInt(b.dataset.nave));
+  });
 }
 function vociCorte(){
   const st = GAME.st, fid = st.giocatore;
