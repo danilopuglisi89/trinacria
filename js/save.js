@@ -24,7 +24,7 @@ function specchiaSuFile(){
   window.DESKTOP.archivioScrivi(JSON.stringify(tutto));
 }
 
-const VERSIONE = 2;
+const VERSIONE = 3;
 function fotografa(){
   const st = GAME.st;
   if (!st) return null;
@@ -35,7 +35,11 @@ function fotografa(){
     // vecchio caricherebbe tutto in posti sbagliati invece di dare errore. Meglio rifiutarlo.
     v: VERSIONE, quando: Date.now(),
     st: JSON.parse(JSON.stringify(st)),
-    imps: MAP.hexes.filter(h=>h.imp).map(h=>({ i:h.i, imp:h.imp }))
+    // v3: si salva anche il POSSESSO delle caselle (h.citta) e i quartieri (h.quart). Prima
+    // no, e siccome la mappa viene rigenerata invece che serializzata, ricaricare una partita
+    // azzerava tutti i territori senza dire nulla: le citta' restavano ma rendevano il minimo.
+    imps: MAP.hexes.filter(h => h.imp || h.citta >= 0 || h.quart)
+                   .map(h => ({ i:h.i, imp:h.imp||null, c:(h.citta===undefined?-1:h.citta), q:h.quart||null }))
   };
 }
 function salva(chiave){
@@ -55,7 +59,12 @@ function carica(chiave){
       return false;
     }
     MAP.build();                       // la mappa è deterministica
-    for (const r of s.imps) MAP.hexes[r.i].imp = r.imp;
+    for (const r of s.imps){
+      const h = MAP.hexes[r.i];
+      h.imp = r.imp || null;
+      if (r.c !== undefined) h.citta = r.c;
+      h.quart = r.q || null;
+    }
     GAME.st = s.st;
     return true;
   } catch(e){ console.warn("Caricamento fallito", e); return false; }

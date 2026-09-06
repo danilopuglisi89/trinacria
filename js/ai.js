@@ -239,6 +239,15 @@ function gestioneCittaIA(f){
       }
     }
     if (costruito) continue;
+    // QUARTIERI: l'IA sceglie il quartiere e la casella con l'adiacenza migliore. Ci tiene
+    // parecchio (60%): sono la costruzione che rende di piu' se piazzata bene, e senza questo
+    // ramo il giocatore avrebbe l'isola piu' sviluppata solo perche' l'IA non li usa.
+    const quart = GAME.quartieriDisponibili(cm);
+    if (quart.length && rnd()<0.6){
+      quart.sort((x,y) => y.migliore.totale - x.migliore.totale);
+      const q = quart[0];
+      if (GAME.accoda(cm.id, { tipo:"quartiere", id:q.id, costo:q.costo, hex:q.migliore.hex })) continue;
+    }
     const cost = GAME.costruzioniDisponibili(cm);
     const mer = cost.find(x=>x.tipo==="meraviglia");
     if (mer && rnd()<0.5){ GAME.accoda(cm.id, mer); continue; }

@@ -222,7 +222,7 @@ function creaHex(col, row, terra, elev, etna){
   const c = hexCentro(col,row);
   const idx = hexes.length;
   hexes.push({ i:idx, col, row, x:c.x, y:c.y, terra, elev:elev||0.1, fiume:false, costa:false,
-               etna:!!etna, comune:-1, citta:-1, imp:null, impTurni:0, res:null, shade:0, isola:true });
+               etna:!!etna, comune:-1, citta:-1, imp:null, impTurni:0, quart:null, res:null, shade:0, isola:true });
   grid[key] = idx;
   return idx;
 }
@@ -265,7 +265,7 @@ function riempiMare(){
       const c = hexCentro(col,row);
       const idx = hexes.length;
       hexes.push({ i:idx, col, row, x:c.x, y:c.y, terra:"mare", mare:true, elev:0, fiume:false,
-                   costa:false, etna:false, comune:-1, citta:-1, imp:null, impTurni:0, res:null, shade:0 });
+                   costa:false, etna:false, comune:-1, citta:-1, imp:null, impTurni:0, quart:null, res:null, shade:0 });
       grid[key] = idx;
     }
   }
@@ -331,7 +331,7 @@ function build(){
       const fiume = vicinoFiume(c.x, c.y);
       const idx = hexes.length;
       hexes.push({ i:idx, col, row, x:c.x, y:c.y, terra, elev, fiume, costa:false,
-                   etna, comune:-1, citta:-1, imp:null, impTurni:0, res:null, shade:0 });
+                   etna, comune:-1, citta:-1, imp:null, impTurni:0, quart:null, res:null, shade:0 });
       grid[col+","+row] = idx;
     }
   }
@@ -661,6 +661,29 @@ function stileArch(cm, era){
   if (e === 3) return 2;                       // araba
   return 3;                                    // normanno-sveva e aragonese-barocca
 }
+// Un quartiere si legge come un isolato urbano staccato dal centro: il piccolo abitato
+// dello stile dell'epoca (sprite gia' esistente, nessuna grafica nuova) piu' l'insegna
+// del mestiere che ci si fa dentro.
+function disegnaQuartiere(ctx, s, rz, h, st){
+  const q = GDATA.QUARTIERI.find(x => x.id === h.quart);
+  const cm = st && h.citta >= 0 ? st.comuni[h.citta] : null;
+  const stile = STILI_ARCH[cm ? stileArch(cm) : 0];
+  if (!(SPRITES.abilitato.citta && SPRITES.drawFit(ctx, "citta_"+stile+"_1", s.x, s.y+rz*0.3, rz*1.5, null)))
+    ART.periferia(ctx, s.x, s.y, rz, h.i, 0, cm && st ? coloreFazione(st, cm.fazione) : "#c9a227");
+  if (!q || rz < 9) return;
+  // insegna in alto a destra della casella
+  const bx = s.x + rz*0.42, by = s.y - rz*0.46, br = rz*0.30;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(bx, by, br, 0, 7);
+  ctx.fillStyle = "rgba(26,18,10,0.78)"; ctx.fill();
+  ctx.strokeStyle = "rgba(230,200,130,0.9)"; ctx.lineWidth = Math.max(1, rz*0.035); ctx.stroke();
+  ctx.clip();
+  if (!(SPRITES.abilitato.icone && SPRITES.drawFit(ctx, "icona_"+q.ico, bx, by, br*1.7, null))){
+    ctx.font = Math.floor(br*1.3)+"px serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(q.icona, bx, by);
+  }
+  ctx.restore();
+}
 function idSpriteCitta(cm, isCap){
   const stile = STILI_ARCH[stileArch(cm)];
   let t = Math.max(1, Math.min(4, cm.tier));
@@ -738,7 +761,9 @@ function renderTerreno(ctx, v, st, rz){
       if (!vis(h)) continue;
       const s = w2s(v, h.x, h.y);
       const icoAI = SPRITES.abilitato.icone;
-      if (h.imp){
+      if (h.quart){
+        disegnaQuartiere(ctx, s, rz, h, st);
+      } else if (h.imp){
         if (!(icoAI && SPRITES.drawFit(ctx, "icona_"+h.imp, s.x, s.y+rz*0.05, null, rz*0.95))){
           ctx.font = Math.floor(rz*0.8)+"px serif"; ctx.fillText(GDATA.MIGLIORIE[h.imp].icona, s.x, s.y+rz*0.05);
         }

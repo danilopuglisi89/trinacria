@@ -6,6 +6,7 @@ let view = { x:0, y:0, z:4 };
 let sel = { hex:-1, unita:[], raggio:null };
 let drag = null;
 let modoPotere = null;   // {id, bersaglio} quando si sta mirando un potere del sovrano
+let posaQuart = null;    // {cmId, qid, celle:[...], mappa:Map} quando si sceglie dove mettere un quartiere
 // creazione sovrano (schermata iniziale)
 let sovLook = null, sovNome = "", sovFid = 0;
 
@@ -373,6 +374,7 @@ function loop(t){
       const sh = FX.shakeXY();
       const vv = (sh.x||sh.y) ? { x:view.x+sh.x, y:view.y+sh.y, z:view.z } : view;
       MAP.frame(ctx2d, vv, GAME.st, sel);
+      disegnaPosaQuartiere(ctx2d);
       FX.renderScreen(ctx2d, window.innerWidth, window.innerHeight);
       // minimappa: aggiornata ~8 volte al secondo (non serve ogni frame)
       mmT += dt;
@@ -477,6 +479,7 @@ function clickHex(i){
   }
   const st = GAME.st;
   // mira di un potere del sovrano: il tap sceglie il bersaglio
+  if (posaQuart){ confermaPosa(i); return; }
   if (modoPotere){ applicaPotereSuHex(i); return; }
   // unità selezionate: muovi / attacca / viaggia
   if (sel.unita.length && sel.raggio){
@@ -732,7 +735,18 @@ function apriPannelloHex(i){
         <button class="btn-lista" id="btn-upg-hex" ${ok?"":"disabled"}>🏭 Ammoderna in ${ico(nuovo, nuovoId)} ${nuovo.nome} <span class="muto">— ${costo} oro (${nuovo.eff})</span></button>`;
     }
   }
-  if (mia && !h.imp && cm.hex!==i){
+  if (h.quart){
+    const q = GAME.quartiereDef(h.quart);
+    const a = GAME.adiacenzaQuartiere(i, h.quart);
+    const voci = [];
+    for (const k in a.rese) if (k!=="calma") voci.push(SIMB_RESA[k]+(+a.rese[k].toFixed(1)));
+    if (a.rese.calma) voci.push("😊-"+a.rese.calma+" malcontento");
+    html += `<div class="p-sez">${q.icona} ${q.nome}</div>
+      <div class="p-riga">Rende ${voci.join(" ")}</div>`;
+    if (a.dettagli.length)
+      html += `<div class="p-riga muto">Grazie a: ${a.dettagli.map(d=>d.testo+" ×"+d.n).join(", ")}</div>`;
+  }
+  if (mia && !h.imp && !h.quart && cm.hex!==i){
     html += `<div class="p-sez">Costruisci miglioria (oro: ${Math.floor(st.fazioni[st.giocatore].oro)})</div>
       <div class="p-riga muto">💰 Paga subito in oro, oppure 🔨 manda un lavoratore: costruisce gratis (ma ci mette il suo tempo).</div>`;
     const f = st.fazioni[st.giocatore];
@@ -757,6 +771,17 @@ function apriPannelloHex(i){
   };
 }
 
+// Nome di una voce in coda, qualunque sia il tipo. Prima si cercava fra le MERAVIGLIE per
+// esclusione, e un edificio locale o un quartiere in coda faceva saltare tutto il pannello.
+function nomeItem(it){
+  if (it.tipo==="unita") return (D().UNITA[it.id]||{}).nome || it.id;
+  if (it.tipo==="edificio") return (D().EDIFICI[it.id]||{}).nome || it.id;
+  if (it.tipo==="locale"){ const e = D().EDIFICI_LOCALI.find(x=>x.id===it.id); return e ? e.nome : it.id; }
+  if (it.tipo==="quartiere"){ const q = GAME.quartiereDef(it.id); return q ? q.nome : it.id; }
+  const m = D().MERAVIGLIE.find(x=>x.id===it.id);
+  return m ? m.nome : it.id;
+}
+const SIMB_RESA = { cibo:"🌾", prod:"⚒️", oro:"💰", scienza:"📜", cultura:"🎭" };
 function proprietario(cm){
   const st = GAME.st;
   if (cm.fazione===-1) return "<span class='muto'>(indipendente)</span>";
@@ -786,7 +811,7 @@ function apriPannelloCitta(cm){
     html += `<div class="p-sez">Produzione (⚒️ ${cm.prodAcc.toFixed(0)} accumulata)</div>`;
     if (cm.coda.length){
       cm.coda.forEach((it, k) => {
-        const nome = it.tipo==="unita" ? D().UNITA[it.id].nome : (it.tipo==="edificio" ? D().EDIFICI[it.id].nome : D().MERAVIGLIE.find(m=>m.id===it.id).nome);
+        const nome = nomeItem(it);
         const pct = k===0 ? Math.min(100, Math.round(cm.prodAcc/it.costo*100)) : 0;
         html += `<div class="coda-item">${k+1}. ${nome} <span class="muto">(${it.costo}⚒️${k===0?" — "+pct+"%":""})</span> <button class="btn-x" data-coda="${k}">✕</button></div>`;
       });
@@ -801,6 +826,16 @@ function apriPannelloCitta(cm){
                    : "Esercito al completo: sciogli o muovi truppe per reclutarne altre";
       const suffisso = u.motivoPieno==="niente_da_fare" ? " — nulla da migliorare" : (u.pieno ? " — al completo" : "");
       html += `<button class="btn-lista" data-rec="${u.id}" data-costo="${u.costo}" ${u.pieno?`disabled title='${titolo}'`:""}>${u.uu?"⭐ ":""}${u.nome} <span class="muto">⚔${u.atk} 🛡${u.def} — ${u.costo}⚒️${suffisso}</span></button>`;
+    }
+    const quart = GAME.quartieriDisponibili(cm);
+    const nQ = GAME.quartieriDi(cm.id).length, tettoQ = GAME.tettoQuartieri(cm);
+    if (quart.length || nQ){
+      html += `<div class="p-sez">Quartieri <span class="muto">(${nQ}/${tettoQ} — servono abitanti per farne altri)</span></div>`;
+      html += `<div class="p-riga muto">Occupano una casella del territorio: rendono in base a cosa hanno intorno.</div>`;
+      for (const q of quart)
+        html += `<button class="btn-lista" data-quart="${q.id}" data-costo="${q.costo}">${ico(q, q.icoId)} ${q.nome}
+          <span class="muto">${q.costo}\u2692\uFE0F — ${q.eff}</span>
+          <span class="q-best">migliore: +${(+q.migliore.totale.toFixed(1))}</span></button>`;
     }
     html += `<div class="p-sez">Costruisci</div>`;
     for (const c of GAME.costruzioniDisponibili(cm))
@@ -820,6 +855,9 @@ function apriPannelloCitta(cm){
       const [tipo,id] = b.dataset.cos.split(":");
       GAME.accoda(cm.id, { tipo, id, costo:parseInt(b.dataset.costo) });
       AUDIO.sfx("click"); apriPannelloCitta(cm); aggiornaTutto();
+    });
+    document.querySelectorAll("[data-quart]").forEach(b => b.onclick = () => {
+      iniziaPosaQuartiere(cm, b.dataset.quart, parseInt(b.dataset.costo));
     });
     document.querySelectorAll("[data-coda]").forEach(b => b.onclick = () => {
       cm.coda.splice(parseInt(b.dataset.coda), 1);
@@ -1968,6 +2006,62 @@ function apriPoteri(){
       $("pot-annulla").onclick = (e) => { e.stopPropagation(); annullaPotere(); };
     }
   });
+}
+// ---------- POSA DI UN QUARTIERE ----------
+// Come in Civilization: si sceglie la casella guardando i numeri di adiacenza. Il pannello
+// si chiude, la mappa si accende sulle caselle possibili e ognuna dice quanto renderebbe.
+function iniziaPosaQuartiere(cm, qid, costo){
+  const celle = GAME.caselleQuartiere(cm, qid);
+  if (!celle.length){ consigliere("cons", "Non c'è una casella libera per questo quartiere, Maestà.", 3000); return; }
+  const q = GAME.quartiereDef(qid);
+  const mappa = new Map();
+  for (const c of celle) mappa.set(c.hex, c);
+  posaQuart = { cmId:cm.id, qid, costo, celle, mappa, max:celle[0].totale };
+  chiudiPannello();
+  centraSu(celle[0].hex);
+  const banner = $("potere-banner");
+  banner.innerHTML = `${q.icona} <b>${q.nome}</b> — scegli la casella (il numero è quanto rende) <button id="q-annulla">✕ annulla</button>`;
+  banner.classList.remove("nascosto");
+  $("q-annulla").onclick = (e) => { e.stopPropagation(); annullaPosa(); };
+}
+function annullaPosa(){ posaQuart = null; const b=$("potere-banner"); if (b) b.classList.add("nascosto"); }
+function confermaPosa(i){
+  const p = posaQuart;
+  if (!p) return;
+  const c = p.mappa.get(i);
+  if (!c){ consigliere("cons", "Lì non si può: dev'essere una casella accesa del tuo territorio.", 2800); return; }
+  const cm = GAME.st.comuni[p.cmId];
+  annullaPosa();
+  GAME.accoda(cm.id, { tipo:"quartiere", id:p.qid, costo:p.costo, hex:i });
+  AUDIO.sfx("click");
+  if (c.imp) aggiungiLogUI("Il quartiere prenderà il posto della miglioria su quella casella.");
+  apriPannelloCitta(cm); aggiornaTutto();
+}
+function aggiungiLogUI(t){ GAME.aggiungiLog(t, "info"); }
+// Le caselle candidate, con il valore di adiacenza scritto sopra: le migliori piu' luminose.
+function disegnaPosaQuartiere(ctx){
+  if (!posaQuart) return;
+  const rz = MAP.R*view.z;
+  const puls = 0.5 + 0.5*Math.sin(performance.now()/380);
+  ctx.save();
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  for (const c of posaQuart.celle){
+    const h = MAP.hexes[c.hex];
+    const s = MAP.w2s(view, h.x, h.y);
+    if (s.x<-rz || s.y<-rz || s.x>window.innerWidth+rz || s.y>window.innerHeight+rz) continue;
+    const q = posaQuart.max > 0 ? c.totale/posaQuart.max : 0;      // 1 = la migliore
+    ART.hexPath(ctx, s.x, s.y, rz+0.6);
+    ctx.fillStyle = "rgba(150,220,255,"+(0.10 + q*0.22).toFixed(3)+")"; ctx.fill();
+    ctx.strokeStyle = q>0.99 ? "rgba(255,240,170,"+(0.6+puls*0.4).toFixed(3)+")" : "rgba(150,220,255,0.55)";
+    ctx.lineWidth = Math.max(1.2, rz*(q>0.99?0.09:0.05)); ctx.stroke();
+    if (rz > 11){
+      const t = "+"+(+c.totale.toFixed(1));
+      ctx.font = "bold "+Math.max(11, rz*0.42)+"px Georgia, serif";
+      ctx.lineWidth = 4; ctx.strokeStyle = "rgba(18,12,6,0.85)"; ctx.strokeText(t, s.x, s.y);
+      ctx.fillStyle = q>0.99 ? "#fff0aa" : "#dff0ff"; ctx.fillText(t, s.x, s.y);
+    }
+  }
+  ctx.restore();
 }
 function annullaPotere(){ modoPotere = null; const b=$("potere-banner"); if (b) b.classList.add("nascosto"); }
 function applicaPotereSuHex(i){

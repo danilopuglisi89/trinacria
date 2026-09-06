@@ -559,3 +559,7 @@ body[class^="era-"] #cons-nome { color: var(--epoca, #d9c48a); }
 .m-req{ display:block; font-size:12px; color:#c9a227; margin-top:3px; }
 .m-intu{ display:block; font-size:12px; color:#8fc2da; margin-top:3px; }
 .m-intu.fatta{ color:#8aa04a; }
+
+/* Fase 2 — quartieri */
+.q-best{ display:inline-block; margin-left:6px; padding:1px 6px; border-radius:8px;
+         background:rgba(120,190,240,0.18); color:#bfe4ff; font-size:11px; }

@@ -502,6 +502,47 @@ const SAGRE = [
   { id:"festa_patrono",    nome:"Festa del Santo Patrono", icona:"⛪", costo:120, turni:10, eff:{culturaPct:0.25,malcontento:2}, testo:"+25% cultura, -2 malcontento per 10 turni" }
 ];
 
+// ---- QUARTIERI (i distretti sul territorio) ----
+// Un quartiere si costruisce dalla citta' ma occupa una CASELLA del suo territorio, e quanto
+// rende dipende da cosa ha intorno: una Fucina fra i monti vale il doppio della stessa Fucina
+// in mezzo alla pianura. E' il motivo per cui conviene guardare la mappa prima di costruire,
+// invece di premere sempre lo stesso bottone. Le regole sono dichiarative: `base` e' la resa
+// fissa, ogni regola conta le caselle adiacenti che la soddisfano e moltiplica per `da`.
+const QUARTIERI = [
+  { id:"fucina", nome:"Fucina", icona:"\u{1F528}", ico:"fonderia", costo:70, tech:"ceramica_t",
+    base:{ prod:2 },
+    regole:[ { tipo:"terra", val:["hill","mountain","volcano"], da:{prod:1},   testo:"collina, monte o vulcano" },
+             { tipo:"impProd",                                  da:{prod:1},   testo:"miniera, cava o carbonaia" } ],
+    desc:"Magli e fornaci alle pendici: piu' pietra e ferro ha intorno, piu' batte." },
+  { id:"agora", nome:"Agora", icona:"\u{1F3DB}\uFE0F", ico:"teatro", costo:80, tech:"poesia_greca",
+    base:{ cultura:2 },
+    regole:[ { tipo:"quartiere", da:{cultura:1}, testo:"altro quartiere" },
+             { tipo:"centro",    da:{cultura:2}, testo:"centro della citta'" } ],
+    desc:"La piazza dove si parla e si recita: vive di cio' che le sta accanto." },
+  { id:"marina", nome:"Marina", icona:"\u2693", ico:"porto", costo:90, tech:"navigazione", costiero:true,
+    base:{ oro:2, cibo:1 },
+    regole:[ { tipo:"mare",              da:{oro:0.5},  testo:"mare aperto" },
+             { tipo:"terra", val:["lago"], da:{cibo:1}, testo:"lago" } ],
+    desc:"Banchine e magazzini: si costruisce solo sulla costa, e piu' mare vede piu' incassa." },
+  { id:"fondaco", nome:"Fondaco", icona:"\u2696\uFE0F", ico:"mercato", costo:90, tech:"commercio_r",
+    base:{ oro:2 },
+    regole:[ { tipo:"fiume",     da:{oro:1}, testo:"fiume" },
+             { tipo:"quartiere", da:{oro:1}, testo:"altro quartiere" },
+             { tipo:"res",       da:{oro:1}, testo:"risorsa pregiata" } ],
+    desc:"Il quartiere dei mercanti: prospera sulle vie d'acqua e accanto alle merci." },
+  { id:"sagrato", nome:"Sagrato", icona:"\u26EA", ico:"tempio", costo:100, tech:"monasteri",
+    base:{ cultura:2, calma:1 },
+    regole:[ { tipo:"terra", val:["mountain"], da:{cultura:1},   testo:"montagna" },
+             { tipo:"terra", val:["forest"],   da:{cultura:0.5}, testo:"bosco" } ],
+    desc:"Chiese e chiostri dove la roccia si fa alta: calma il popolo di una tacca." },
+  { id:"studium", nome:"Studium", icona:"\u{1F4DA}", ico:"accademia", costo:110, tech:"filosofia",
+    base:{ scienza:2 },
+    regole:[ { tipo:"terra", val:["mountain"], da:{scienza:1}, testo:"montagna" },
+             { tipo:"terra", val:["lago"],     da:{scienza:1}, testo:"lago" },
+             { tipo:"fiume",                   da:{scienza:1}, testo:"fiume" } ],
+    desc:"Aule e biblioteche: si studia meglio dove l'acqua scorre e la montagna isola." }
+];
+
 // ---- INVASIONI STORICHE ----
 // sbarco: comune vicino a cui appaiono; unita: quante; anno
 const INVASIONI = [
@@ -680,6 +721,6 @@ const POTERI = [
 ];
 
 return { ERE, VELOCITA, CULTURE, FAZIONI, LEADER_STORICI, NOMI_EREDI, TRATTI, EROI,
-         TECH, UNITA, LINEA_ERA, LINEA_NAVALE, EDIFICI, EDIFICI_LOCALI, MIGLIORIE, MIGLIORIE_LINEA, MERAVIGLIE, INVASIONI,
+         TECH, UNITA, LINEA_ERA, LINEA_NAVALE, EDIFICI, EDIFICI_LOCALI, QUARTIERI, MIGLIORIE, MIGLIORIE_LINEA, MERAVIGLIE, INVASIONI,
          EVENTI_STORICI, EVENTI_CASUALI, DILEMMI, OBIETTIVI, DOP, PIATTI, SAGRE, POTERI, GUARDAROBA_EXTRA };
 })();

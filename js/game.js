@@ -279,6 +279,12 @@ function reseComune(cm){
         ho += ro; cu += r.cultura||0;
       }
     }
+    if (h.quart){
+      // il quartiere rende per quello che ha intorno (vedi adiacenzaQuartiere)
+      const aq = adiacenzaQuartiere(h.i, h.quart).rese;
+      hf += aq.cibo||0; hp += aq.prod||0; ho += aq.oro||0;
+      s += aq.scienza||0; cu += aq.cultura||0;
+    }
     if (h.etna && bonusId==="etna"){ hf*=1.3; hp*=1.3; }
     f+=hf; p+=hp; o+=ho;
   }
@@ -420,6 +426,10 @@ function aggiornaComune(cm){
   u += cm.malusConq > 0 ? 4 : 0;
   if (st.peste && st.peste.infetti.includes(cm.id)) u += 3;
   if (cm.edifici.includes("tempio")) u -= 2;
+  for (const hq of quartieriDi(cm.id)){                 // il Sagrato tiene buono il popolo
+    const qd = quartiereDef(hq.quart);
+    if (qd && qd.base.calma) u -= qd.base.calma;
+  }
   if (cm.edifici.includes("cattedrale")) u -= 3;
   if (cm.edifici.includes("teatro")) u -= 1;
   for (const id of cm.edifici){ const el = D().EDIFICI_LOCALI.find(x=>x.id===id); if (el && el.malcontento) u -= el.malcontento; }
@@ -498,6 +508,21 @@ function completaItem(cm, item){
     if (cm.fazione===st.giocatore){
       st.pending.push({ titolo:m.nome, testo:m.desc+"\n\n"+m.eff, scelte:[{label:"Gloria eterna!", eff:"nulla"}] });
       provaSbloccoGuardaroba("meraviglia", 0.6);
+    }
+  } else if (item.tipo==="quartiere"){
+    // la casella scelta al momento dell'ordine puo' non valere piu' (confine cambiato, un'altra
+    // costruzione l'ha occupata): in quel caso si ripiega sulla migliore ancora disponibile
+    let dove = (item.hex !== undefined && puoQuartiere(cm, item.hex, item.id, true)) ? item.hex : -1;
+    if (dove < 0){ const c = caselleQuartiere(cm, item.id); dove = c.length ? c[0].hex : -1; }
+    if (dove < 0 || !posaQuartiere(cm, dove, item.id, true)){
+      if (cm.fazione===st.giocatore) aggiungiLog("Nessuna casella libera per il quartiere a "+cm.nome+".", "male");
+    } else {
+      const q = quartiereDef(item.id);
+      if (cm.fazione===st.giocatore){
+        aggiungiLog(q.nome+" costruito a "+cm.nome+".", "bene");
+        const hq = MAP.hexes[dove];
+        if (window.FX) FX.constructionPop(hq.x, hq.y-3);
+      }
     }
   } else if (item.tipo==="locale"){
     cm.edifici.push(item.id);
@@ -676,7 +701,12 @@ function accoda(cmId, item){
   if (item.tipo==="unita" && dominioTipo(item.id)==="mare"){
     if (flottaFazione(cm.fazione) >= limiteFlotta()) return false;
   } else if (item.tipo==="unita" && !fuoriConteggio(item.id) && truppeFazione(cm.fazione) >= limiteEsercito(cm.fazione)) return false;
-  cm.coda.push({ tipo:item.tipo, id:item.id, costo:item.costo });
+  // `hex` va conservato: e' la casella che il giocatore ha scelto per il quartiere. La riga
+  // ricostruiva l'oggetto con i soli tre campi noti e la scelta finiva nel nulla, cosi' il
+  // quartiere veniva poi costruito dove capitava (sul ripiego "la casella migliore").
+  const voce = { tipo:item.tipo, id:item.id, costo:item.costo };
+  if (item.hex !== undefined) voce.hex = item.hex;
+  cm.coda.push(voce);
   return true;
 }
 function compraSubito(cmId){
@@ -1695,6 +1725,115 @@ function etaMult(faz){
     case "oscura": return { cibo:1.0,  cultura:0.90, unrest:+1 };
   }
   return { cibo:1, cultura:1, unrest:0 };
+}
+
+// ---------- QUARTIERI (distretti con bonus di adiacenza) ----------
+// Il quartiere sta su una casella del territorio della citta' e rende in base ai suoi vicini.
+// Quante caselle guarda: sei. Quindi il calcolo e' minuscolo e si puo' rifare a ogni resa.
+function quartiereDef(id){ return D().QUARTIERI.find(q => q.id === id); }
+function quartieriDi(cmId){ return MAP.terre.filter(h => h.citta === cmId && h.quart); }
+// una citta' piccola non regge molti quartieri: e' la popolazione a fare spazio
+function tettoQuartieri(cm){ return Math.min(6, 1 + Math.floor(cm.pop/3)); }
+// quartieri gia' costruiti O gia' in coda (altrimenti se ne accodano due uguali)
+function haQuartiere(cm, qid){
+  return quartieriDi(cm.id).some(h => h.quart === qid) || cm.coda.some(x => x.tipo==="quartiere" && x.id===qid);
+}
+// `ignoraCoda` serve a chi sta COMPLETANDO il quartiere: la voce e' ancora in coda (lavoraCoda
+// la toglie dopo), quindi senza questa deroga la casella risulterebbe prenotata da se stessa e
+// il quartiere finirebbe altrove, ignorando la scelta del giocatore.
+function puoQuartiere(cm, hexIdx, qid, ignoraCoda){
+  const h = MAP.hexes[hexIdx];
+  if (!h || h.mare || h.terra === "lago") return false;
+  if (h.citta !== cm.id) return false;         // solo sul proprio territorio
+  if (h.i === cm.hex) return false;            // il centro e' gia' occupato dalla citta'
+  if (h.quart) return false;
+  if (!ignoraCoda && cm.coda.some(x => x.tipo==="quartiere" && x.hex===hexIdx)) return false;   // gia' prenotata
+  const q = quartiereDef(qid);
+  if (!q) return false;
+  if (q.costiero && !h.costa) return false;
+  return true;
+}
+// Resa di UN quartiere su UNA casella: base + una riga per ogni regola soddisfatta.
+// `dettagli` serve all'anteprima nel pannello: fa vedere PERCHE' quella casella vale tanto.
+function adiacenzaQuartiere(hexIdx, qid){
+  const q = quartiereDef(qid);
+  const rese = {}; const dettagli = [];
+  if (!q) return { rese, dettagli, totale:0 };
+  for (const k in q.base) rese[k] = q.base[k];
+  const vic = MAP.vicini(hexIdx);              // array condiviso: solo lettura
+  for (const r of q.regole){
+    let n = 0;
+    for (const j of vic){
+      const v = MAP.hexes[j];
+      if (!v) continue;
+      if (r.tipo === "terra"){ if (!v.mare && r.val.includes(v.terra)) n++; }
+      else if (r.tipo === "mare"){ if (v.mare) n++; }
+      else if (r.tipo === "fiume"){ if (v.fiume) n++; }
+      else if (r.tipo === "res"){ if (v.res) n++; }
+      else if (r.tipo === "quartiere"){ if (v.quart) n++; }
+      else if (r.tipo === "centro"){ const c = v.citta>=0 ? st.comuni[v.citta] : null; if (c && c.hex === v.i) n++; }
+      else if (r.tipo === "impProd"){ if (v.imp && (D().MIGLIORIE[v.imp]||{}).prod) n++; }
+    }
+    if (!n) continue;
+    dettagli.push({ testo:r.testo, n });
+    for (const k in r.da) rese[k] = (rese[k]||0) + r.da[k]*n;
+  }
+  let totale = 0;
+  for (const k in rese) if (k !== "calma") totale += rese[k];
+  return { rese, dettagli, totale };
+}
+// tutte le caselle dove questo quartiere si potrebbe mettere, con quanto renderebbe
+function caselleQuartiere(cm, qid){
+  const out = [];
+  for (const h of MAP.terre){
+    if (h.citta !== cm.id) continue;
+    if (!puoQuartiere(cm, h.i, qid)) continue;
+    const a = adiacenzaQuartiere(h.i, qid);
+    out.push({ hex:h.i, rese:a.rese, dettagli:a.dettagli, totale:a.totale, imp:h.imp });
+  }
+  out.sort((a,b) => b.totale - a.totale);
+  return out;
+}
+// quartieri che questa citta' puo' ancora costruire (tech, tetto, almeno una casella libera)
+function quartieriDisponibili(cm){
+  const f = cm.fazione>=0 && cm.fazione<100 ? st.fazioni[cm.fazione] : null;
+  if (!f) return [];
+  if (quartieriDi(cm.id).length + cm.coda.filter(x=>x.tipo==="quartiere").length >= tettoQuartieri(cm)) return [];
+  const out = [];
+  for (const q of D().QUARTIERI){
+    if (q.tech && !f.techs.includes(q.tech)) continue;
+    if (haQuartiere(cm, q.id)) continue;
+    const celle = caselleQuartiere(cm, q.id);
+    if (!celle.length) continue;
+    let costo = q.costo;
+    if (f.leader && f.leader.tratto === "costruttore") costo = Math.round(costo*0.85);
+    out.push({ tipo:"quartiere", id:q.id, nome:q.nome, icona:q.icona, icoId:q.ico, costo,
+               eff:testoQuartiere(q), desc:q.desc, migliore:celle[0] });
+  }
+  return out;
+}
+function testoQuartiere(q){
+  const parti = [];
+  for (const k in q.base) parti.push("+"+q.base[k]+" "+nomeResa(k));
+  for (const r of q.regole){
+    const k = Object.keys(r.da)[0];
+    parti.push("+"+r.da[k]+" "+nomeResa(k)+" per "+r.testo);
+  }
+  return parti.join(", ");
+}
+function nomeResa(k){
+  return k==="cibo" ? "cibo" : k==="prod" ? "produzione" : k==="oro" ? "oro"
+       : k==="scienza" ? "scienza" : k==="cultura" ? "cultura" : "calma";
+}
+// posa vera e propria (a costruzione finita)
+function posaQuartiere(cm, hexIdx, qid, ignoraCoda){
+  if (!puoQuartiere(cm, hexIdx, qid, ignoraCoda)) return false;
+  const h = MAP.hexes[hexIdx];
+  h.quart = qid;
+  h.imp = null;              // il quartiere prende il posto della miglioria: si costruisce sopra
+  h.impTurni = 0;
+  MAP.invalidate();
+  return true;
 }
 
 // ---------- COVI DI BRIGANTI ----------
@@ -2969,6 +3108,7 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   calcolaVisibilita, hexVisibile, hexEsplorato,
   fondaCitta, puoFondare, fondaComune, comuneCheDaIlNome, fazioneDiHex, territorioDi, espandiTerritorio, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, techBonusReset, costoTech, sbloccatiDaTech, miglioreCostruzione,
   costruzioniDisponibili, unitaDisponibili, accoda, compraSubito, migliora,
+  quartieriDisponibili, caselleQuartiere, adiacenzaQuartiere, puoQuartiere, quartiereDef, quartieriDi, tettoQuartieri,
   techDisponibili, techSbloccateDa, checkIntuizione, ricerca, ETA_INFO, etaMult, liberaCovo, get covi(){ return st ? st.covi : []; }, statU, costoEroe, reclutaEroe, limiteEsercito, limiteLavoratori, truppeFazione, cittaDi,
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,
   miglioramentoAutomatico, azioneLavoratore, esisteMiglioriaPossibile,
