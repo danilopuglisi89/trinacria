@@ -65,6 +65,7 @@ function nuovaPartita(opts){
     if (fd.id === st.giocatore){
       if (opts.sovranoNome) f.leader.nome = opts.sovranoNome;
       if (opts.sovranoLook) f.leader.look = opts.sovranoLook;
+      if (opts.sovranoRitratto !== undefined) f.leader.ritratto = opts.sovranoRitratto;
       f.leader.storico = false;
     }
     // unità iniziali

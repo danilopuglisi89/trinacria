@@ -61,7 +61,7 @@ function initAvvio(){
     const dif = $("sel-difficolta").value;
     const neb = $("sel-nebbia").value === "nebbia";
     scegliSitoCapitale({ fazione:fid, velocita:vel, difficolta:dif, nebbia:neb,
-                         sovranoLook: sovLook, sovranoNome: sovNome }, avviaPartita);
+                         sovranoLook: sovLook, sovranoNome: sovNome, sovranoRitratto: sovRitratto }, avviaPartita);
   };
   scegliSovrano(0); // preseleziona la prima civiltà
   // carica salvataggi
@@ -98,11 +98,48 @@ function scegliSovrano(fid){
   renderSovranoRitratto();
   renderOpzioniSovrano();
 }
+// Galleria di ritratti dipinti: 26 volti veri fra uomini e donne, giovani e vecchi, di tutte
+// le culture dell'isola. Il vecchio sovrano combinatorio (barba+capelli+copricapo) resta come
+// ripiego se gli sprite non sono disponibili, ma un ritratto a olio dice molto di piu' di un
+// insieme di pezzi intercambiabili.
+const N_RITRATTI = 26;
+let sovRitratto = 0;
+function ritrattoDisponibile(i){ return SPRITES.abilitato.ritratti && SPRITES.getFrame("sovrano_"+String(i).padStart(2,"0")); }
 function renderSovranoRitratto(){
   const cv = $("sov-ritratto"); if (!cv) return;
   const cx = cv.getContext("2d");
   cx.clearRect(0,0,cv.width,cv.height);
-  ART.sovrano(cx, cv.width/2, cv.height/2, cv.width*0.86, cv.height*0.92, sovLook, sovFid);
+  const id = "sovrano_" + String(sovRitratto).padStart(2,"0");
+  if (ritrattoDisponibile(sovRitratto)){
+    // cornice e velo del colore della civilta' scelta: il ritratto resta dipinto, ma si tinge
+    const col = D().FAZIONI[sovFid].colore;
+    cx.save();
+    SPRITES.drawFit(cx, id, cv.width/2, cv.height/2, null, Math.max(cv.width, cv.height));
+    cx.globalCompositeOperation = "multiply"; cx.globalAlpha = 0.16;
+    cx.fillStyle = col; cx.fillRect(0,0,cv.width,cv.height);
+    cx.restore();
+    cx.strokeStyle = col; cx.lineWidth = 4; cx.strokeRect(2,2,cv.width-4,cv.height-4);
+    cx.strokeStyle = "rgba(240,220,160,0.7)"; cx.lineWidth = 1.5; cx.strokeRect(6,6,cv.width-12,cv.height-12);
+  } else {
+    ART.sovrano(cx, cv.width/2, cv.height/2, cv.width*0.86, cv.height*0.92, sovLook, sovFid);
+  }
+}
+// striscia di anteprime: si sceglie il volto anche cliccandolo direttamente
+function disegnaGalleria(){
+  const box = $("cs-galleria"); if (!box) return;
+  box.innerHTML = "";
+  for (let i=0;i<N_RITRATTI;i++){
+    const cv = document.createElement("canvas");
+    cv.width = 52; cv.height = 62; cv.className = "cs-mini" + (i===sovRitratto ? " sel" : "");
+    const cx = cv.getContext("2d");
+    if (!SPRITES.drawFit(cx, "sovrano_"+String(i).padStart(2,"0"), 26, 31, null, 62)) continue;
+    cv.onclick = () => {
+      sovRitratto = i;
+      const e = $("cs-val-volto"); if (e) e.textContent = (i+1)+" di "+N_RITRATTI;
+      renderSovranoRitratto(); disegnaGalleria(); AUDIO.sfx("click");
+    };
+    box.appendChild(cv);
+  }
 }
 function renderOpzioniSovrano(){
   const box = $("cs-opzioni"); if (!box) return;
@@ -110,22 +147,38 @@ function renderOpzioniSovrano(){
   const nomi = nomiSovrano(sovFid);
   let html = `<div class="cs-riga cs-nome"><span class="cs-lab">Nome</span>
     <select id="sov-nome">${nomi.map(n=>`<option ${n===sovNome?"selected":""}>${n}</option>`).join("")}</select></div>`;
-  const cat = [["copricapo","Copricapo"],["capelli","Capelli"],["barba","Barba"],["pelle","Carnagione"],["veste","Veste"],["manto","Mantello"]];
-  for (const [k,lab] of cat){
-    html += `<div class="cs-riga"><span class="cs-lab">${lab}</span>
-      <button class="cs-fre" data-k="${k}" data-d="-1">◀</button>
-      <span class="cs-val" id="cs-val-${k}">${OP[k][sovLook[k]]}</span>
-      <button class="cs-fre" data-k="${k}" data-d="1">▶</button></div>`;
+  if (ritrattoDisponibile(0)){
+    // galleria: si scorre fra i volti dipinti
+    html += `<div class="cs-riga"><span class="cs-lab">Volto</span>
+      <button class="cs-fre" data-r="-1">◀</button>
+      <span class="cs-val" id="cs-val-volto">${sovRitratto+1} di ${N_RITRATTI}</span>
+      <button class="cs-fre" data-r="1">▶</button></div>`;
+    html += `<div class="cs-galleria" id="cs-galleria"></div>`;
+  } else {
+    const cat = [["copricapo","Copricapo"],["capelli","Capelli"],["barba","Barba"],["pelle","Carnagione"],["veste","Veste"],["manto","Mantello"]];
+    for (const [k,lab] of cat){
+      html += `<div class="cs-riga"><span class="cs-lab">${lab}</span>
+        <button class="cs-fre" data-k="${k}" data-d="-1">◀</button>
+        <span class="cs-val" id="cs-val-${k}">${OP[k][sovLook[k]]}</span>
+        <button class="cs-fre" data-k="${k}" data-d="1">▶</button></div>`;
+    }
   }
   box.innerHTML = html;
   $("sov-nome").onchange = e => { sovNome = e.target.value; };
   box.querySelectorAll(".cs-fre").forEach(b => b.onclick = () => {
+    if (b.dataset.r !== undefined){
+      sovRitratto = (sovRitratto + parseInt(b.dataset.r) + N_RITRATTI) % N_RITRATTI;
+      const e = $("cs-val-volto"); if (e) e.textContent = (sovRitratto+1)+" di "+N_RITRATTI;
+      renderSovranoRitratto(); disegnaGalleria(); AUDIO.sfx("click");
+      return;
+    }
     const k = b.dataset.k, d = parseInt(b.dataset.d), n = OP[k].length;
     sovLook[k] = (sovLook[k] + d + n) % n;
     $("cs-val-"+k).textContent = OP[k][sovLook[k]];
     renderSovranoRitratto();
     AUDIO.sfx("click");
   });
+  disegnaGalleria();
 }
 
 // Prima di cominciare si sceglie DOVE fondare la capitale, entro pochi passi dalla posizione

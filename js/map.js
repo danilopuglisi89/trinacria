@@ -643,12 +643,23 @@ function disegnaTexturaHex(ctx, v, s, h, rz){
   return true;
 }
 const STILI_ARCH = ["greca","romana","araba","normanna"];
-function stileArch(cm){
+// Stile architettonico di una citta': dipende dalla CULTURA ma anche dall'ERA, cosi' gli
+// abitati cambiano faccia col passare dei secoli invece di restare greci fino al 1700.
+// Le quattro famiglie disponibili (greca, romano-bizantina, araba, normanno-barocca)
+// seguono grosso modo la storia dell'isola; la cultura locale sposta il risultato, perche'
+// l'occidente punico-arabo e l'oriente greco non si sono mai assomigliati.
+function stileArch(cm, era){
+  const e = (era === undefined) ? (window.GAME && GAME.st ? GAME.st.era : 0) : era;
   const c = cm.cultura;
-  if (c==="araba") return 2;
-  if (c==="romana"||c==="bizantina") return 1;
-  if (c==="normanna"||c==="siciliana") return 3;
-  return 0;
+  // la cultura conquistata pesa piu' dell'era: una citta' araba resta araba anche dopo
+  if (c === "araba") return e >= 4 ? 3 : 2;
+  if (c === "normanna") return 3;
+  // per le altre comanda l'epoca
+  if (e <= 0) return c === "punica" ? 2 : 0;   // greca, o punica a occidente
+  if (e === 1) return 1;                       // romana
+  if (e === 2) return 1;                       // bizantina: stessa famiglia romano-bizantina
+  if (e === 3) return 2;                       // araba
+  return 3;                                    // normanno-sveva e aragonese-barocca
 }
 function idSpriteCitta(cm, isCap){
   const stile = STILI_ARCH[stileArch(cm)];

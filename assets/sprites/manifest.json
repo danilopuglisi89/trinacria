@@ -74,14 +74,14 @@
 "id": "ritratti_64",
 "file": "ritratti_64.webp",
 "w": 2048,
-"h": 66,
+"h": 132,
 "group": "ritratti"
 },
 {
 "id": "ritratti_256",
 "file": "ritratti_256.webp",
 "w": 2048,
-"h": 774,
+"h": 1290,
 "group": "ritratti"
 }
 ],
@@ -6036,9 +6036,269 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"stemma_0": {
+"sovrano_00": {
 "atlas": "ritratti_64",
 "x": 595,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_01": {
+"atlas": "ritratti_64",
+"x": 648,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_02": {
+"atlas": "ritratti_64",
+"x": 701,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_03": {
+"atlas": "ritratti_64",
+"x": 754,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_04": {
+"atlas": "ritratti_64",
+"x": 807,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_05": {
+"atlas": "ritratti_64",
+"x": 860,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_06": {
+"atlas": "ritratti_64",
+"x": 913,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_07": {
+"atlas": "ritratti_64",
+"x": 966,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_08": {
+"atlas": "ritratti_64",
+"x": 1019,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_09": {
+"atlas": "ritratti_64",
+"x": 1072,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_10": {
+"atlas": "ritratti_64",
+"x": 1125,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_11": {
+"atlas": "ritratti_64",
+"x": 1178,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_12": {
+"atlas": "ritratti_64",
+"x": 1231,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_13": {
+"atlas": "ritratti_64",
+"x": 1284,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_14": {
+"atlas": "ritratti_64",
+"x": 1337,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_15": {
+"atlas": "ritratti_64",
+"x": 1390,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_16": {
+"atlas": "ritratti_64",
+"x": 1443,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_17": {
+"atlas": "ritratti_64",
+"x": 1496,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_18": {
+"atlas": "ritratti_64",
+"x": 1549,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_19": {
+"atlas": "ritratti_64",
+"x": 1602,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_20": {
+"atlas": "ritratti_64",
+"x": 1655,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_21": {
+"atlas": "ritratti_64",
+"x": 1708,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_22": {
+"atlas": "ritratti_64",
+"x": 1761,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_23": {
+"atlas": "ritratti_64",
+"x": 1814,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_24": {
+"atlas": "ritratti_64",
+"x": 1867,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_25": {
+"atlas": "ritratti_64",
+"x": 1920,
+"y": 1,
+"w": 51,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"stemma_0": {
+"atlas": "ritratti_64",
+"x": 1973,
 "y": 1,
 "w": 55,
 "h": 64,
@@ -6048,8 +6308,8 @@
 },
 "stemma_1": {
 "atlas": "ritratti_64",
-"x": 652,
-"y": 1,
+"x": 1,
+"y": 67,
 "w": 54,
 "h": 64,
 "ax": 0.5,
@@ -6058,8 +6318,8 @@
 },
 "stemma_2": {
 "atlas": "ritratti_64",
-"x": 708,
-"y": 1,
+"x": 57,
+"y": 67,
 "w": 54,
 "h": 64,
 "ax": 0.5,
@@ -6068,8 +6328,8 @@
 },
 "stemma_3": {
 "atlas": "ritratti_64",
-"x": 764,
-"y": 1,
+"x": 113,
+"y": 67,
 "w": 55,
 "h": 64,
 "ax": 0.5,
@@ -6078,8 +6338,8 @@
 },
 "stemma_4": {
 "atlas": "ritratti_64",
-"x": 821,
-"y": 1,
+"x": 170,
+"y": 67,
 "w": 55,
 "h": 64,
 "ax": 0.5,
@@ -6088,8 +6348,8 @@
 },
 "stemma_5": {
 "atlas": "ritratti_64",
-"x": 878,
-"y": 1,
+"x": 227,
+"y": 67,
 "w": 55,
 "h": 64,
 "ax": 0.5,
@@ -6098,8 +6358,8 @@
 },
 "stemma_6": {
 "atlas": "ritratti_64",
-"x": 935,
-"y": 1,
+"x": 284,
+"y": 67,
 "w": 55,
 "h": 64,
 "ax": 0.5,
@@ -6196,10 +6456,270 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"stemma_0_hi": {
+"sovrano_00_hi": {
 "atlas": "ritratti_256",
 "x": 515,
 "y": 259,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_01_hi": {
+"atlas": "ritratti_256",
+"x": 722,
+"y": 259,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_02_hi": {
+"atlas": "ritratti_256",
+"x": 929,
+"y": 259,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_03_hi": {
+"atlas": "ritratti_256",
+"x": 1136,
+"y": 259,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_04_hi": {
+"atlas": "ritratti_256",
+"x": 1343,
+"y": 259,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_05_hi": {
+"atlas": "ritratti_256",
+"x": 1550,
+"y": 259,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_06_hi": {
+"atlas": "ritratti_256",
+"x": 1757,
+"y": 259,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_07_hi": {
+"atlas": "ritratti_256",
+"x": 1,
+"y": 517,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_08_hi": {
+"atlas": "ritratti_256",
+"x": 208,
+"y": 517,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_09_hi": {
+"atlas": "ritratti_256",
+"x": 415,
+"y": 517,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_10_hi": {
+"atlas": "ritratti_256",
+"x": 622,
+"y": 517,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_11_hi": {
+"atlas": "ritratti_256",
+"x": 829,
+"y": 517,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_12_hi": {
+"atlas": "ritratti_256",
+"x": 1036,
+"y": 517,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_13_hi": {
+"atlas": "ritratti_256",
+"x": 1243,
+"y": 517,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_14_hi": {
+"atlas": "ritratti_256",
+"x": 1450,
+"y": 517,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_15_hi": {
+"atlas": "ritratti_256",
+"x": 1657,
+"y": 517,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_16_hi": {
+"atlas": "ritratti_256",
+"x": 1,
+"y": 775,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_17_hi": {
+"atlas": "ritratti_256",
+"x": 208,
+"y": 775,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_18_hi": {
+"atlas": "ritratti_256",
+"x": 415,
+"y": 775,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_19_hi": {
+"atlas": "ritratti_256",
+"x": 622,
+"y": 775,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_20_hi": {
+"atlas": "ritratti_256",
+"x": 829,
+"y": 775,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_21_hi": {
+"atlas": "ritratti_256",
+"x": 1036,
+"y": 775,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_22_hi": {
+"atlas": "ritratti_256",
+"x": 1243,
+"y": 775,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_23_hi": {
+"atlas": "ritratti_256",
+"x": 1450,
+"y": 775,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_24_hi": {
+"atlas": "ritratti_256",
+"x": 1657,
+"y": 775,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_25_hi": {
+"atlas": "ritratti_256",
+"x": 1,
+"y": 1033,
+"w": 205,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"stemma_0_hi": {
+"atlas": "ritratti_256",
+"x": 208,
+"y": 1033,
 "w": 219,
 "h": 256,
 "ax": 0.5,
@@ -6208,8 +6728,8 @@
 },
 "stemma_1_hi": {
 "atlas": "ritratti_256",
-"x": 736,
-"y": 259,
+"x": 429,
+"y": 1033,
 "w": 218,
 "h": 256,
 "ax": 0.5,
@@ -6218,8 +6738,8 @@
 },
 "stemma_2_hi": {
 "atlas": "ritratti_256",
-"x": 956,
-"y": 259,
+"x": 649,
+"y": 1033,
 "w": 218,
 "h": 256,
 "ax": 0.5,
@@ -6228,8 +6748,8 @@
 },
 "stemma_3_hi": {
 "atlas": "ritratti_256",
-"x": 1176,
-"y": 259,
+"x": 869,
+"y": 1033,
 "w": 219,
 "h": 256,
 "ax": 0.5,
@@ -6238,8 +6758,8 @@
 },
 "stemma_4_hi": {
 "atlas": "ritratti_256",
-"x": 1397,
-"y": 259,
+"x": 1090,
+"y": 1033,
 "w": 219,
 "h": 256,
 "ax": 0.5,
@@ -6248,8 +6768,8 @@
 },
 "stemma_5_hi": {
 "atlas": "ritratti_256",
-"x": 1618,
-"y": 259,
+"x": 1311,
+"y": 1033,
 "w": 219,
 "h": 256,
 "ax": 0.5,
@@ -6258,8 +6778,8 @@
 },
 "stemma_6_hi": {
 "atlas": "ritratti_256",
-"x": 1,
-"y": 517,
+"x": 1532,
+"y": 1033,
 "w": 219,
 "h": 256,
 "ax": 0.5,
