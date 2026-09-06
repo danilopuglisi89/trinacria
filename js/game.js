@@ -8,6 +8,7 @@ function scegli(arr){ return arr[Math.floor(rnd()*arr.length)]; }
 
 // ---------- CREAZIONE PARTITA ----------
 function nuovaPartita(opts){
+  resetIndiceTerritorio();
   const geo = MAP.build();
   st = {
     turno: 1, velocita: opts.velocita||"normale", difficolta: opts.difficolta||"normale",
@@ -201,7 +202,7 @@ function piattiSbloccati(fid){
 }
 // bonus aggregati della cucina (piatti + sagre attive) per la fazione — memoizzato per turno
 let _cucinaMemo = {};
-function cucinaReset(){ _cucinaMemo = {}; }
+function cucinaReset(){ _cucinaMemo = {}; if (typeof serviziReset === 'function') serviziReset(); }
 function cucinaBonus(fid){
   if (_cucinaMemo[fid]) return _cucinaMemo[fid];
   const b = { oroPct:0, ciboPct:0, culturaPct:0, malcontento:0 };
@@ -250,8 +251,7 @@ function reseComune(cm){
   if (cm.tier>=3){ f+=1; p+=1; o+=1; }
   const faz = cm.fazione>=0 && cm.fazione<100 ? st.fazioni[cm.fazione] : null;
   const bonusId = faz ? D().FAZIONI[faz.id].bonusId : null;
-  for (const h of MAP.terre){
-    if (h.citta !== cm.id) continue;      // rende solo il territorio davvero posseduto
+  for (const h of territorioDi(cm.id)){   // solo le caselle davvero possedute (indice)
     let hf=0, hp=0, ho=0;
     if (h.terra==="plain"){ hf=2; hp=1; if (faz && faz.techs.includes("grano_t")) hf+=0.5; }
     else if (h.terra==="hill"){ hf=1; hp=1; }
@@ -362,6 +362,7 @@ function reseComune(cm){
     if (faz.techs.includes("monasteri") && ed.includes("tempio")) cu+=3;
   }
   { const em = etaMult(faz); f *= em.cibo; cu *= em.cultura; }   // età d'oro / oscura
+  { const fm = fedeltaMult(cm); if (fm < 1){ f*=fm; p*=fm; o*=fm; s*=fm; cu*=fm; } }   // popolo che non ti vuole
   return { cibo:f, prod:p, oro:o, scienza:s, cultura:cu };
 }
 
@@ -401,6 +402,7 @@ function reseFazione(fid){
   if (fd.bonusId==="stretto") mant *= 0.85;
   if (f.techs.includes("stato")) mant *= 0.75;
   if (st.effettiTemp["quarantena"] && fid===st.giocatore) oro *= 0.5;
+  if (fid_effetto("grandeOro", fid)) oro *= 1.25;
   // cucina: piatti + sagre (bonus % oro e cultura)
   const cb = cucinaBonus(fid);
   if (cb.oroPct) oro *= (1 + cb.oroPct);
@@ -446,8 +448,15 @@ function aggiornaComune(cm){
     if (st.meraviglie["ballaro"]!==undefined && st.comuni[st.meraviglie["ballaro"]].fazione===faz.id) u -= 1;
     // cucina + tecnologie che riducono il malcontento
     u -= cucinaBonus(faz.id).malcontento;
+    if (fid_effetto("grandeCalma", faz.id)) u -= 2;
     u -= techBonus(faz.id).malcontento;
     u += etaMult(faz).unrest;                       // età d'oro calma, età oscura agita
+  }
+  // pane e feste: se il popolo non ha di che consolarsi, mormora
+  {
+    const sv = serviziComune(cm);
+    if (sv.mancano > 0) u += Math.min(4, sv.mancano);
+    else if (sv.offerti > sv.richiesti) u -= 1;
   }
   // malcontento "extra" dei dilemmi: si riassorbe di 1 a turno
   if (cm.unrestExtra){ u += cm.unrestExtra; cm.unrestExtra += cm.unrestExtra > 0 ? -1 : 1; if (Math.abs(cm.unrestExtra) < 1) cm.unrestExtra = 0; }
@@ -460,9 +469,20 @@ function aggiornaComune(cm){
     if (cm.edifici.includes("granaio")) sur *= 1.3;
     if (faz && faz.techs.includes("acquedotti")) sur *= 1.25;
     if (faz && sur>0) sur *= (1 + techBonus(faz.id).growthPct);
+    // le case mettono un tetto: senza acqua, campi e acquedotti una citta' non cresce oltre
+    // il suo borgo, e l'oro trova finalmente qualcosa da comprare (granai, porti, quartieri)
+    const case_ = caseComune(cm).n;
+    if (cm.pop >= case_) sur = Math.min(sur, 0);
+    else if (cm.pop >= case_-1) sur *= 0.5;
+    // popolo scontento, meno figli: il malcontento vero e' quasi sempre azzerato dai bonus,
+    // quindi il peso dei servizi mancanti sta tutto qui, e cresce con quanti ne mancano
+    if (sur > 0){
+      const mancano = serviziComune(cm).mancano;
+      if (mancano > 0) sur *= (1 - Math.min(0.40, 0.10*mancano));
+    }
     cm.cibo += sur;
     const soglia = 20 + cm.pop*4;
-    if (cm.cibo >= soglia && cm.pop < 25){
+    if (cm.cibo >= soglia && cm.pop < 25 && cm.pop < case_){
       cm.cibo -= soglia; cm.pop++;
       espandiTerritorio(cm);         // ogni abitante in piu' allarga i confini di una casella
     }
@@ -539,8 +559,7 @@ function completaItem(cm, item){
 // null se il territorio è troppo misto per avere un carattere unico
 function terrenoDominante(cm){
   const cont = {}; let tot = 0;
-  for (const h of MAP.terre){
-    if (h.citta !== cm.id) continue;
+  for (const h of territorioDi(cm.id)){
     cont[h.terra] = (cont[h.terra]||0)+1; tot++;
   }
   if (!tot) return null;
@@ -1351,7 +1370,7 @@ function calcolaVisibilita(){
   // Quanto lontano si vede. Il raggio base tiene la partenza stretta (una citta' scopre
   // ~19 caselle) e cresce con le tecnologie della conoscenza — astronomia, universita',
   // stampa — cosi' l'orizzonte si allarga man mano che il regno impara.
-  const extra = techBonus(gioc).vista || 0;
+  const extra = (techBonus(gioc).vista || 0) + ((st.fazioni[gioc] && st.fazioni[gioc].vistaGrande) || 0);
   for (const cm of st.comuni) if (cm.fazione===gioc && cm.fondata) espandi(cm.hex, 2 + extra);
   for (const u of st.unita) if (u.fazione===gioc){
     const ud = D().UNITA[u.tipo];
@@ -1662,17 +1681,38 @@ function fazioneDiHex(h){
   const cm = st.comuni[h.citta];
   return cm ? cm.fazione : -1;
 }
-function territorioDi(cmId){ return MAP.terre.filter(h => h.citta === cmId); }
+// Indice delle caselle possedute, per citta'. reseComune gira per ogni citta' a ogni turno
+// (e piu' volte: rese della fazione, crescita, decisioni dell'IA) e scorreva TUTTI i 10.405
+// esagoni di terra ogni volta — mezzo milione di iterazioni a passata. Il possesso cambia solo
+// quando una citta' rivendica una casella, quindi l'elenco si costruisce una volta e si
+// aggiorna a mano. ATTENZIONE: restituisce l'array vero, non una copia: non va mutato.
+let _idxTerr = null;
+function indiceTerritorio(){
+  if (_idxTerr) return _idxTerr;
+  _idxTerr = new Map();
+  for (const h of MAP.terre){
+    if (h.citta < 0) continue;
+    let a = _idxTerr.get(h.citta);
+    if (!a) _idxTerr.set(h.citta, a = []);
+    a.push(h);
+  }
+  return _idxTerr;
+}
+function resetIndiceTerritorio(){ _idxTerr = null; }
+const VUOTO = [];
+function territorioDi(cmId){ return indiceTerritorio().get(cmId) || VUOTO; }
 // rivendica un esagono per una citta' (se libero)
 function rivendica(hexIdx, cmId){
   const h = MAP.hexes[hexIdx];
   if (!h || h.mare || h.citta >= 0) return false;
   h.citta = cmId;
+  if (_idxTerr){ let a = _idxTerr.get(cmId); if (!a) _idxTerr.set(cmId, a = []); a.push(h); }
   return true;
 }
 // primo nucleo: l'esagono della citta' e i sei attorno
 function nucleoIniziale(cm){
   MAP.hexes[cm.hex].citta = cm.id;
+  if (_idxTerr){ let a = _idxTerr.get(cm.id); if (!a) _idxTerr.set(cm.id, a = []); a.push(MAP.hexes[cm.hex]); }
   for (const j of MAP.vicini(cm.hex)) rivendica(j, cm.id);
 }
 // una casella in piu': la piu' vicina al centro, fra quelle libere che toccano il territorio
@@ -1727,11 +1767,358 @@ function etaMult(faz){
   return { cibo:1, cultura:1, unrest:0 };
 }
 
+// ---------- GRANDI SICILIANI ----------
+// I quartieri e gli edifici generano punti in quattro categorie. Il costo del prossimo
+// personaggio e' GLOBALE e sale a ogni reclutamento: e' una corsa, non una lista della spesa.
+// Il costo sale a ogni personaggio gia' preso (da chiunque: e' una fila sola) e sale ancora
+// per chi in quella categoria ne ha gia' presi. Senza il secondo termine un solo regno con
+// tanti quartieri si portava via tredici Grandi su ventiquattro e la corsa non esisteva.
+function costoGrande(cat, f){
+  const presi = (st.grandiPresi && st.grandiPresi[cat]) || 0;
+  const miei = f && f.grandi ? f.grandi.filter(x => x.cat === cat).length : 0;
+  return Math.round((160 + presi*220) * (1 + 0.35*miei));
+}
+function prossimoGrande(cat){
+  const i = (st.grandiPresi && st.grandiPresi[cat]) || 0;
+  const fila = D().GRANDI[cat];
+  return i < fila.length ? fila[i] : null;
+}
+function puntiGrandiTurno(fid){
+  const p = { scienziato:0, condottiero:0, artista:0, mercante:0 };
+  for (const cm of st.comuni){
+    if (cm.fazione !== fid || !cm.fondata) continue;
+    for (const c of D().CAT_GRANDI){
+      for (const h of quartieriDi(cm.id)) if (c.da[h.quart]) p[c.id] += c.da[h.quart];
+      for (const e of cm.edifici) if (c.da[e]) p[c.id] += c.da[e];
+    }
+  }
+  return p;
+}
+function turnoGrandi(){
+  st.grandiPresi = st.grandiPresi || { scienziato:0, condottiero:0, artista:0, mercante:0 };
+  for (const f of st.fazioni){
+    if (f.eliminata) continue;
+    f.grandiPunti = f.grandiPunti || { scienziato:0, condottiero:0, artista:0, mercante:0 };
+    const p = puntiGrandiTurno(f.id);
+    for (const k in p) f.grandiPunti[k] += p[k];
+  }
+  // chi ha superato il costo si prende il personaggio; a parita' vince chi ha piu' punti
+  for (const c of D().CAT_GRANDI){
+    let guard = 0;
+    while (guard++ < 6){
+      const g = prossimoGrande(c.id);
+      if (!g) break;
+      // ogni regno ha il suo prezzo: vince chi lo supera piu' largamente
+      let best = null, bestCosto = 0, bestRatio = 0;
+      for (const f of st.fazioni){
+        if (f.eliminata || !f.grandiPunti) continue;
+        const costo = costoGrande(c.id, f);
+        const r = f.grandiPunti[c.id] / costo;
+        if (r >= 1 && r > bestRatio){ bestRatio = r; best = f; bestCosto = costo; }
+      }
+      if (!best) break;
+      reclutaGrande(best, c.id, g, bestCosto);
+    }
+  }
+}
+function reclutaGrande(f, cat, g, costo){
+  f.grandiPunti[cat] -= costo;
+  st.grandiPresi[cat]++;
+  f.grandi = f.grandi || [];
+  f.grandi.push({ cat, nome:g.nome, turno:st.turno });
+  applicaGrande(f, g);
+  const info = D().CAT_GRANDI.find(x=>x.id===cat);
+  aggiungiLog(info.icona+" "+g.nome+" entra al servizio di "+f.nome+".", f.id===st.giocatore ? "bene" : "info");
+  if (f.id === st.giocatore){
+    spara("ricerca");
+    provaSbloccoGuardaroba("evento", 0.3);
+    st.pending.push({ titolo:info.icona+" "+g.nome, img:null, ritrattoGrande:g.ritr,
+      testo:g.nome+" di "+g.luogo+".\n\n«"+g.testo+"»\n\n"+testoEffettoGrande(g.eff),
+      scelte:[{ label:"Al mio servizio", eff:"nulla" }] });
+  }
+}
+function testoEffettoGrande(e){
+  const v = [];
+  if (e.scienza) v.push("+"+e.scienza+" scienza");
+  if (e.cultura) v.push("+"+e.cultura+" cultura");
+  if (e.oro) v.push("+"+e.oro+" oro");
+  if (e.tech) v.push("una tecnologia scoperta subito");
+  if (e.unita) v.push("una unità speciale nella capitale");
+  if (e.unitaLinea) v.push(e.unitaLinea+" truppe nella capitale");
+  if (e.unitaNave) v.push(e.unitaNave+" navi da guerra");
+  if (e.fedelta) v.push("+"+e.fedelta+" fedeltà in tutte le città");
+  if (e.calma) v.push("-"+e.calma+" malcontento ovunque per venti turni");
+  if (e.vista) v.push("+1 raggio di vista");
+  if (e.cibo) v.push("+2 case in ogni città");
+  if (e.commercio) v.push("+25% oro per venti turni");
+  if (e.difesaCitta) v.push("mura riparate in tutto il regno");
+  return v.join(", ")+".";
+}
+function applicaGrande(f, g){
+  const e = g.eff, cap = st.comuni[f.capitale];
+  if (e.scienza) f.sciAcc += e.scienza;
+  if (e.cultura) f.cultura = (f.cultura||0) + e.cultura;
+  if (e.oro) f.oro += e.oro;
+  if (e.tech){
+    const disp = techDisponibili(f.id);
+    if (disp.length){
+      const t = disp.sort((a,b)=>costoTech(a,f.id)-costoTech(b,f.id))[0];
+      f.techs.push(t.id);
+      techBonusReset();
+      aggiungiLog("📜 "+t.nome+" scoperta grazie a "+g.nome+".", f.id===st.giocatore?"bene":"info");
+    }
+  }
+  if (e.unita && cap && D().UNITA[e.unita]) creaUnita(e.unita, f.id, cap.hex);
+  if (e.unitaLinea && cap){
+    const linea = D().LINEA_ERA[st.era];
+    for (let k=0;k<e.unitaLinea;k++) creaUnita(linea[k%2], f.id, cap.hex);
+  }
+  if (e.unitaNave && cap){
+    const porto = st.comuni.find(c=>c.fazione===f.id && c.fondata && cittaCostiera(c));
+    if (porto){
+      const navi = D().LINEA_NAVALE[Math.min(st.era, D().LINEA_NAVALE.length-1)] || [];
+      for (let k=0;k<e.unitaNave && navi.length;k++) creaUnita(navi[navi.length-1], f.id, hexVaro(porto, navi[navi.length-1]));
+    }
+  }
+  if (e.fedelta) for (const cm of st.comuni) if (cm.fazione===f.id && cm.fondata) cm.fedelta = Math.min(100, (cm.fedelta===undefined?100:cm.fedelta) + e.fedelta);
+  if (e.calma) st.effettiTemp["grandeCalma_"+f.id] = 20;
+  if (e.vista) f.vistaGrande = (f.vistaGrande||0) + e.vista;
+  if (e.cibo) f.caseGrande = (f.caseGrande||0) + 2;
+  if (e.commercio) st.effettiTemp["grandeOro_"+f.id] = 20;
+  if (e.difesaCitta) for (const cm of st.comuni) if (cm.fazione===f.id && cm.mura>0) cm.muraHP = cm.mura*100;
+}
+function statoGrandi(fid){
+  const f = st.fazioni[fid];
+  st.grandiPresi = st.grandiPresi || { scienziato:0, condottiero:0, artista:0, mercante:0 };
+  f.grandiPunti = f.grandiPunti || { scienziato:0, condottiero:0, artista:0, mercante:0 };
+  const perTurno = puntiGrandiTurno(fid);
+  return D().CAT_GRANDI.map(c => {
+    const g = prossimoGrande(c.id);
+    let rivale = 0;
+    for (const x of st.fazioni) if (!x.eliminata && x.id!==fid && x.grandiPunti) rivale = Math.max(rivale, x.grandiPunti[c.id]);
+    return { cat:c.id, nome:c.nome, icona:c.icona, punti:f.grandiPunti[c.id], perTurno:perTurno[c.id],
+             costo:costoGrande(c.id, f), prossimo:g, rivale,
+             miei:(f.grandi||[]).filter(x=>x.cat===c.id).map(x=>x.nome) };
+  });
+}
+
+// ---------- PANE E FESTE (case e servizi) ----------
+// Civ VI tiene separate due cose che qui erano confuse in una sola: quanto una citta' PUO'
+// crescere (le case: acqua, campi, acquedotti) e quanto e' CONTENTA (i servizi: i prodotti di
+// pregio e le feste). Trinacria aveva gia' gli ingredienti — le DOP, le sagre, i fiumi, la
+// costa — ma non li legava alla crescita. Cosi' le DOP smettono di essere solo oro: dare il
+// pistacchio di Bronte a quattro citta' vale piu' di qualche moneta.
+function acquaVicina(cm){
+  const h = MAP.hexes[cm.hex];
+  if (h.fiume || h.costa) return true;
+  return MAP.vicini(cm.hex).some(j => { const v = MAP.hexes[j]; return v && (v.fiume || v.terra==="lago"); });
+}
+function caseComune(cm){
+  const faz = cm.fazione>=0 && cm.fazione<100 ? st.fazioni[cm.fazione] : null;
+  const d = [];
+  let n = 3; d.push({ t:"il borgo", v:3 });
+  if (acquaVicina(cm)){ n += 2; d.push({ t:"acqua vicina", v:2 }); }
+  let campi = 0;
+  for (const h of territorioDi(cm.id)) if (h.imp && (D().MIGLIORIE[h.imp]||{}).cibo) campi++;
+  const bc = Math.min(4, Math.floor(campi/2));
+  if (bc){ n += bc; d.push({ t:"campi coltivati", v:bc }); }
+  if (cm.edifici.includes("granaio")){ n += 2; d.push({ t:"granaio", v:2 }); }
+  if (cm.edifici.includes("porto")){ n += 1; d.push({ t:"porto", v:1 }); }
+  if (faz && faz.techs.includes("acquedotti")){ n += 3; d.push({ t:"acquedotti", v:3 }); }
+  if (faz && faz.caseGrande){ n += faz.caseGrande; d.push({ t:"lascito dei Grandi", v:faz.caseGrande }); }
+  if (faz && faz.techs.includes("terme")){ n += 1; d.push({ t:"terme", v:1 }); }
+  if (faz && faz.techs.includes("qanat")){ n += 2; d.push({ t:"qanat", v:2 }); }
+  for (const hq of quartieriDi(cm.id)){
+    if (hq.quart === "marina"){ n += 2; d.push({ t:"Marina", v:2 }); }
+    if (hq.quart === "fondaco"){ n += 1; d.push({ t:"Fondaco", v:1 }); }
+  }
+  return { n, dett:d };
+}
+// A quali citta' tocca il prodotto di pregio: ogni DOP controllata serve quattro citta',
+// e vanno alle piu' grandi (sono quelle che ne hanno bisogno). Memorizzato per turno.
+let _servMemo = {};
+function serviziReset(){ _servMemo = {}; }
+function cittaConLusso(fid){
+  if (_servMemo[fid]) return _servMemo[fid];
+  const posti = dopControllati(fid).length * 4;
+  const mie = st.comuni.filter(c => c.fondata && c.fazione === fid).sort((a,b) => b.pop - a.pop);
+  const set = new Set();
+  for (let i=0; i<Math.min(posti, mie.length); i++) set.add(mie[i].id);
+  _servMemo[fid] = set;
+  return set;
+}
+function serviziComune(cm){
+  const faz = cm.fazione>=0 && cm.fazione<100 ? st.fazioni[cm.fazione] : null;
+  const richiesti = Math.floor(cm.pop/4);
+  const d = [];
+  let n = 0;
+  if (faz){
+    if (cittaConLusso(faz.id).has(cm.id)){ n += 1; d.push({ t:"prodotto di pregio", v:1 }); }
+    const feste = (st.sagreAttive||[]).filter(s => s.fid===faz.id).length;
+    if (feste){ const v = Math.min(2, feste*2); n += v; d.push({ t:"sagre in corso", v }); }
+  }
+  let svaghi = 0;
+  if (cm.edifici.includes("teatro")) svaghi++;
+  if (cm.edifici.includes("tempio")) svaghi++;
+  if (cm.edifici.includes("cattedrale")) svaghi++;
+  svaghi = Math.min(2, svaghi);
+  if (svaghi){ n += svaghi; d.push({ t:"luoghi di ritrovo", v:svaghi }); }
+  if (quartieriDi(cm.id).some(h => h.quart==="agora")){ n += 1; d.push({ t:"Agorà", v:1 }); }
+  return { richiesti, offerti:n, mancano: Math.max(0, richiesti-n), dett:d };
+}
+
+// ---------- FEDELTA' E CITTA' LIBERE ----------
+// La Sicilia non e' mai stata conquistata citta' per citta': e' passata di mano per
+// gravitazione. Le poleis che si arrendono a Roma, le porte aperte ai Normanni, i Vespri.
+// Ogni citta' ha una fedelta' 0-100: la popolazione delle citta' vicine fa pressione, la
+// propria la tiene su, quella altrui la tira giu'. A zero si ribella e diventa Citta' Libera;
+// poi si unisce a chi preme di piu'. E' anche il freno alle conquiste lontane da casa.
+const RAGGIO_FEDELTA = 9;          // esagoni entro cui una citta' fa sentire il suo peso
+function pesoCitta(c, cm){
+  const d = MAP.distKm(c.hex, cm.hex) / (MAP.R*2);
+  if (d > RAGGIO_FEDELTA) return 0;
+  return c.pop * Math.max(0, 1 - 0.10*d);       // -10% per esagono di distanza
+}
+// Bilancio della pressione su una citta'. `perFazione` serve alle citta' libere, che devono
+// sapere CHI le sta attirando; per le altre conta solo il saldo fra i propri e gli altrui.
+function pressioniSu(cm){
+  const per = {};                                // fid -> peso
+  for (const c of st.comuni){
+    if (!c.fondata || c.id === cm.id) continue;
+    if (c.fazione < 0 || c.fazione >= 100) continue;
+    const p = pesoCitta(c, cm);
+    if (p > 0) per[c.fazione] = (per[c.fazione]||0) + p;
+  }
+  return per;
+}
+// Quanto cambia la fedelta' di questa citta' in un turno, e perche' (i `dett` finiscono
+// nel pannello: il giocatore deve poter capire chi gli sta portando via la citta').
+function fedeltaDelta(cm){
+  const dett = [];
+  if (cm.fazione >= 100) return { delta:0, dett, verso:-1 };
+  const per = pressioniSu(cm);
+  if (cm.fazione === -1){
+    // citta' libera: si accorge di chi la corteggia di piu' e piano piano ci si unisce
+    let verso = -1, best = 0;
+    for (const k in per) if (per[k] > best){ best = per[k]; verso = +k; }
+    if (verso < 0) return { delta:-2, dett:[{ t:"nessuno la reclama", v:-2 }], verso:-1 };
+    dett.push({ t:st.fazioni[verso].nome+" preme sui suoi confini", v:+(best*0.3).toFixed(1) });
+    return { delta: Math.min(10, best*0.3), dett, verso };
+  }
+  const mia = per[cm.fazione] || 0;
+  let altrui = 0, chi = -1, max = 0;
+  for (const k in per){
+    if (+k === cm.fazione) continue;
+    altrui += per[k];
+    if (per[k] > max){ max = per[k]; chi = +k; }
+  }
+  // La citta' tiene anche a se stessa, ma fino a un certo punto: se il suo peso contasse per
+  // intero, un capoluogo da venticinque abitanti sarebbe fedele qualunque cosa gli succeda
+  // intorno, e la fedelta' resterebbe inchiodata a 100 per tutta la partita.
+  const SCALA = 0.12;                            // quanto lentamente si muove la fedelta'
+  const se = Math.min(cm.pop, 12);
+  const saldo = se + mia - altrui;
+  let delta = saldo * SCALA;
+  dett.push({ t:"la tua gente e le tue città vicine", v:+((se+mia)*SCALA).toFixed(1) });
+  if (altrui > 0) dett.push({ t:"pressione di "+(chi>=0?st.fazioni[chi].nome:"altri"), v:-(+(altrui*SCALA).toFixed(1)) });
+  // cultura e integrazione: una citta' assimilata resta, una appena presa scivola via
+  const cult = (cm.integr - 50)/25;
+  if (cult) dett.push({ t:"integrazione culturale", v:+cult.toFixed(1) });
+  delta += cult;
+  if (cm.malusConq > 0){ delta -= 3; dett.push({ t:"conquistata di recente", v:-3 }); }
+  if (cm.unrest >= 6){ delta -= 2; dett.push({ t:"malcontento alto", v:-2 }); }
+  const faz = st.fazioni[cm.fazione];
+  if (faz && faz.capitale === cm.id){ delta += 4; dett.push({ t:"è la capitale", v:+4 }); }
+  else if (faz && st.comuni[faz.capitale]){
+    // governare da lontano e' difficile: e' il freno alle conquiste dall'altra parte dell'isola
+    const dc = MAP.distKm(st.comuni[faz.capitale].hex, cm.hex) / (MAP.R*2);
+    if (dc > 20){
+      const m = -Math.min(5, (dc-20)/15);
+      delta += m; dett.push({ t:"lontana dalla capitale", v:+m.toFixed(1) });
+    }
+  }
+  if (faz){
+    const em = etaMult(faz);
+    if (em.unrest < 0){ delta += 2; dett.push({ t:"età d'oro", v:+2 }); }
+    else if (em.unrest > 0){ delta -= 2; dett.push({ t:"età oscura", v:-2 }); }
+  }
+  if (faz && faz.techs.includes("diritto")){ delta += 1; dett.push({ t:"Diritto Romano", v:+1 }); }
+  return { delta: Math.max(-6, Math.min(6, delta)), dett, verso:-1 };
+}
+// Le rese calano quando il popolo non ti vuole piu': e' la vera conseguenza della fedelta'.
+function fedeltaMult(cm){
+  const f = cm.fedelta === undefined ? 100 : cm.fedelta;
+  if (f >= 75) return 1;
+  if (f >= 50) return 0.85;
+  if (f >= 25) return 0.70;
+  return 0.5;
+}
+function turnoFedelta(){
+  for (const cm of st.comuni){
+    if (!cm.fondata) continue;
+    if (cm.fedelta === undefined) cm.fedelta = 100;
+    if (cm.fazione >= 100) continue;                 // gli invasori non hanno fedelta'
+    const r = fedeltaDelta(cm);
+    const prima = cm.fedelta;
+    cm.fedelta = Math.max(0, Math.min(100, cm.fedelta + r.delta));
+    cm.versoFaz = r.verso;
+    if (cm.fazione === -1){
+      // citta' libera che ha finito di decidersi
+      if (cm.fedelta >= 60 && r.verso >= 0) unisciPerFedelta(cm, r.verso);
+      continue;
+    }
+    // avvisi al giocatore: prima che sia troppo tardi
+    if (cm.fazione === st.giocatore){
+      if (prima >= 40 && cm.fedelta < 40)
+        aggiungiLog("⚠️ "+cm.nome+" comincia a guardare altrove (fedeltà "+Math.round(cm.fedelta)+").", "male");
+    }
+    if (cm.fedelta <= 0) ribellione(cm);
+  }
+}
+// La citta' si stacca: nessuno la possiede, si difende da sola.
+function ribellione(cm){
+  const vecchio = cm.fazione;
+  cm.fazione = -1;
+  cm.fedelta = 15;
+  cm.malusConq = 0;
+  cm.coda = [];
+  cm.integr = 40;
+  cucinaReset();
+  const liberi = [cm.hex].concat(MAP.vicini(cm.hex)).filter(j => !MAP.hexes[j].mare && !MAP.hexes[j].lago);
+  for (let k=0; k<2 && k<liberi.length; k++) creaUnita("milizia", -1, liberi[k]);
+  aggiungiLog("🏴 "+cm.nome+" si è ribellata: ora è una città libera!", vecchio===st.giocatore ? "male" : "info");
+  if (window.FX){ const h = MAP.hexes[cm.hex]; FX.conquest(h.x, h.y, "#c0392b"); FX.shake(5, 0.4); }
+  if (vecchio === st.giocatore){
+    spara("sconfittaBattaglia", { luogo: cm.nome });
+    st.pending.push({ titolo:"🏴 "+cm.nome+" si è ribellata",
+      testo: "Il popolo di "+cm.nome+" non si sente più suddito: le insegne del regno sono state ammainate.\n\nUna città libera non appartiene a nessuno. Puoi riprenderla con le armi, oppure riconquistarla con la cultura: se le tue città vicine crescono, tornerà da sola.",
+      scelte:[{ label:"Torneranno", eff:"nulla" }] });
+  }
+}
+// Annessione pacifica: nessun saccheggio, nessun malcontento da conquista.
+function unisciPerFedelta(cm, fid){
+  cm.fazione = fid;
+  cm.fedelta = 65;
+  cm.integr = 60;
+  cm.malusConq = 0;
+  cm.versoFaz = -1;
+  cucinaReset();
+  st.unita = st.unita.filter(u => !(u.fazione===-1 && u.hex===cm.hex));   // la guarnigione libera si scioglie
+  aggiungiLog("🕊️ "+cm.nome+" ha aperto le porte a "+st.fazioni[fid].nome+" senza un colpo.", fid===st.giocatore?"bene":"info");
+  if (window.FX){ const h = MAP.hexes[cm.hex]; FX.conquest(h.x, h.y, D().FAZIONI[fid].colore); }
+  if (fid === st.giocatore){
+    spara("conquista", { luogo: cm.nome });
+    st.pending.push({ titolo:"🕊️ "+cm.nome+" si unisce al regno",
+      testo: cm.nome+" ha aperto le porte senza che un soldato le si avvicinasse: la tua cultura ha pesato più delle armi.",
+      scelte:[{ label:"Così si governa", eff:"nulla" }] });
+  }
+}
+
 // ---------- QUARTIERI (distretti con bonus di adiacenza) ----------
 // Il quartiere sta su una casella del territorio della citta' e rende in base ai suoi vicini.
 // Quante caselle guarda: sei. Quindi il calcolo e' minuscolo e si puo' rifare a ogni resa.
 function quartiereDef(id){ return D().QUARTIERI.find(q => q.id === id); }
-function quartieriDi(cmId){ return MAP.terre.filter(h => h.citta === cmId && h.quart); }
+function quartieriDi(cmId){ return territorioDi(cmId).filter(h => h.quart); }
 // una citta' piccola non regge molti quartieri: e' la popolazione a fare spazio
 function tettoQuartieri(cm){ return Math.min(6, 1 + Math.floor(cm.pop/3)); }
 // quartieri gia' costruiti O gia' in coda (altrimenti se ne accodano due uguali)
@@ -1785,8 +2172,7 @@ function adiacenzaQuartiere(hexIdx, qid){
 // tutte le caselle dove questo quartiere si potrebbe mettere, con quanto renderebbe
 function caselleQuartiere(cm, qid){
   const out = [];
-  for (const h of MAP.terre){
-    if (h.citta !== cm.id) continue;
+  for (const h of territorioDi(cm.id)){
     if (!puoQuartiere(cm, h.i, qid)) continue;
     const a = adiacenzaQuartiere(h.i, qid);
     out.push({ hex:h.i, rese:a.rese, dettagli:a.dettagli, totale:a.totale, imp:h.imp });
@@ -2121,6 +2507,8 @@ function catturaComune(cm, fid){
   cm.pop = Math.max(1, cm.pop-1);
   cm.malusConq = 8;
   cm.integr = 20;
+  cm.fedelta = 35;              // una citta' presa con le armi non e' ancora tua davvero
+  cm.versoFaz = -1;
   cm.muraHP = 0;
   cm.coda = [];
   const bottino = 20 + cm.pop*5;
@@ -2909,6 +3297,9 @@ function fineTurno(){
   // con la destinazione gia' impostata, e tre fazioni su sei non fondavano mai una seconda citta'.
   for (const f of st.fazioni) if (!f.eliminata) processaGoto(f.id);
   turnoCovi();
+  turnoFedelta();
+  turnoGrandi();
+  serviziReset();
   controllaIntuizioni();
   calcolaVisibilita();
   // eliminazioni e vittoria
@@ -3109,6 +3500,7 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   fondaCitta, puoFondare, fondaComune, comuneCheDaIlNome, fazioneDiHex, territorioDi, espandiTerritorio, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, techBonusReset, costoTech, sbloccatiDaTech, miglioreCostruzione,
   costruzioniDisponibili, unitaDisponibili, accoda, compraSubito, migliora,
   quartieriDisponibili, caselleQuartiere, adiacenzaQuartiere, puoQuartiere, quartiereDef, quartieriDi, tettoQuartieri,
+  fedeltaDelta, fedeltaMult, pressioniSu, resetIndiceTerritorio, caseComune, serviziComune, statoGrandi,
   techDisponibili, techSbloccateDa, checkIntuizione, ricerca, ETA_INFO, etaMult, liberaCovo, get covi(){ return st ? st.covi : []; }, statU, costoEroe, reclutaEroe, limiteEsercito, limiteLavoratori, truppeFazione, cittaDi,
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,
   miglioramentoAutomatico, azioneLavoratore, esisteMiglioriaPossibile,

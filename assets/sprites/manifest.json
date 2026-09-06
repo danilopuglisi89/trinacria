@@ -81,7 +81,7 @@
 "id": "ritratti_256",
 "file": "ritratti_256.webp",
 "w": 2048,
-"h": 1290,
+"h": 2308,
 "group": "ritratti"
 }
 ],
@@ -5946,7 +5946,7 @@
 "ay": 0.5,
 "group": "icone"
 },
-"ritratto_0": {
+"grande_antonello": {
 "atlas": "ritratti_64",
 "x": 1,
 "y": 1,
@@ -5956,7 +5956,7 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"ritratto_1": {
+"grande_ducezio": {
 "atlas": "ritratti_64",
 "x": 67,
 "y": 1,
@@ -5966,7 +5966,7 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"ritratto_2": {
+"grande_federico": {
 "atlas": "ritratti_64",
 "x": 133,
 "y": 1,
@@ -5976,7 +5976,7 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"ritratto_3": {
+"grande_gelone": {
 "atlas": "ritratti_64",
 "x": 199,
 "y": 1,
@@ -5986,7 +5986,7 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"ritratto_4": {
+"grande_ibnhawqal": {
 "atlas": "ritratti_64",
 "x": 265,
 "y": 1,
@@ -5996,7 +5996,7 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"ritratto_5": {
+"grande_ierone": {
 "atlas": "ritratti_64",
 "x": 331,
 "y": 1,
@@ -6006,7 +6006,7 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"ritratto_6": {
+"grande_maurolico": {
 "atlas": "ritratti_64",
 "x": 397,
 "y": 1,
@@ -6016,7 +6016,7 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"ritratto_calorio": {
+"grande_serpotta": {
 "atlas": "ritratti_64",
 "x": 463,
 "y": 1,
@@ -6026,7 +6026,7 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"ritratto_cornice": {
+"ritratto_0": {
 "atlas": "ritratti_64",
 "x": 529,
 "y": 1,
@@ -6036,9 +6036,89 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"sovrano_00": {
+"ritratto_1": {
 "atlas": "ritratti_64",
 "x": 595,
+"y": 1,
+"w": 64,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"ritratto_2": {
+"atlas": "ritratti_64",
+"x": 661,
+"y": 1,
+"w": 64,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"ritratto_3": {
+"atlas": "ritratti_64",
+"x": 727,
+"y": 1,
+"w": 64,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"ritratto_4": {
+"atlas": "ritratti_64",
+"x": 793,
+"y": 1,
+"w": 64,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"ritratto_5": {
+"atlas": "ritratti_64",
+"x": 859,
+"y": 1,
+"w": 64,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"ritratto_6": {
+"atlas": "ritratti_64",
+"x": 925,
+"y": 1,
+"w": 64,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"ritratto_calorio": {
+"atlas": "ritratti_64",
+"x": 991,
+"y": 1,
+"w": 64,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"ritratto_cornice": {
+"atlas": "ritratti_64",
+"x": 1057,
+"y": 1,
+"w": 64,
+"h": 64,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"sovrano_00": {
+"atlas": "ritratti_64",
+"x": 1123,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6048,7 +6128,7 @@
 },
 "sovrano_01": {
 "atlas": "ritratti_64",
-"x": 648,
+"x": 1176,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6058,7 +6138,7 @@
 },
 "sovrano_02": {
 "atlas": "ritratti_64",
-"x": 701,
+"x": 1229,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6068,7 +6148,7 @@
 },
 "sovrano_03": {
 "atlas": "ritratti_64",
-"x": 754,
+"x": 1282,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6078,7 +6158,7 @@
 },
 "sovrano_04": {
 "atlas": "ritratti_64",
-"x": 807,
+"x": 1335,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6088,7 +6168,7 @@
 },
 "sovrano_05": {
 "atlas": "ritratti_64",
-"x": 860,
+"x": 1388,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6098,7 +6178,7 @@
 },
 "sovrano_06": {
 "atlas": "ritratti_64",
-"x": 913,
+"x": 1441,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6108,7 +6188,7 @@
 },
 "sovrano_07": {
 "atlas": "ritratti_64",
-"x": 966,
+"x": 1494,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6118,7 +6198,7 @@
 },
 "sovrano_08": {
 "atlas": "ritratti_64",
-"x": 1019,
+"x": 1547,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6128,7 +6208,7 @@
 },
 "sovrano_09": {
 "atlas": "ritratti_64",
-"x": 1072,
+"x": 1600,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6138,7 +6218,7 @@
 },
 "sovrano_10": {
 "atlas": "ritratti_64",
-"x": 1125,
+"x": 1653,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6148,7 +6228,7 @@
 },
 "sovrano_11": {
 "atlas": "ritratti_64",
-"x": 1178,
+"x": 1706,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6158,7 +6238,7 @@
 },
 "sovrano_12": {
 "atlas": "ritratti_64",
-"x": 1231,
+"x": 1759,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6168,7 +6248,7 @@
 },
 "sovrano_13": {
 "atlas": "ritratti_64",
-"x": 1284,
+"x": 1812,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6178,7 +6258,7 @@
 },
 "sovrano_14": {
 "atlas": "ritratti_64",
-"x": 1337,
+"x": 1865,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6188,7 +6268,7 @@
 },
 "sovrano_15": {
 "atlas": "ritratti_64",
-"x": 1390,
+"x": 1918,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6198,7 +6278,7 @@
 },
 "sovrano_16": {
 "atlas": "ritratti_64",
-"x": 1443,
+"x": 1971,
 "y": 1,
 "w": 51,
 "h": 64,
@@ -6208,8 +6288,8 @@
 },
 "sovrano_17": {
 "atlas": "ritratti_64",
-"x": 1496,
-"y": 1,
+"x": 1,
+"y": 67,
 "w": 51,
 "h": 64,
 "ax": 0.5,
@@ -6218,8 +6298,8 @@
 },
 "sovrano_18": {
 "atlas": "ritratti_64",
-"x": 1549,
-"y": 1,
+"x": 54,
+"y": 67,
 "w": 51,
 "h": 64,
 "ax": 0.5,
@@ -6228,8 +6308,8 @@
 },
 "sovrano_19": {
 "atlas": "ritratti_64",
-"x": 1602,
-"y": 1,
+"x": 107,
+"y": 67,
 "w": 51,
 "h": 64,
 "ax": 0.5,
@@ -6238,8 +6318,8 @@
 },
 "sovrano_20": {
 "atlas": "ritratti_64",
-"x": 1655,
-"y": 1,
+"x": 160,
+"y": 67,
 "w": 51,
 "h": 64,
 "ax": 0.5,
@@ -6248,8 +6328,8 @@
 },
 "sovrano_21": {
 "atlas": "ritratti_64",
-"x": 1708,
-"y": 1,
+"x": 213,
+"y": 67,
 "w": 51,
 "h": 64,
 "ax": 0.5,
@@ -6258,8 +6338,8 @@
 },
 "sovrano_22": {
 "atlas": "ritratti_64",
-"x": 1761,
-"y": 1,
+"x": 266,
+"y": 67,
 "w": 51,
 "h": 64,
 "ax": 0.5,
@@ -6268,8 +6348,8 @@
 },
 "sovrano_23": {
 "atlas": "ritratti_64",
-"x": 1814,
-"y": 1,
+"x": 319,
+"y": 67,
 "w": 51,
 "h": 64,
 "ax": 0.5,
@@ -6278,8 +6358,8 @@
 },
 "sovrano_24": {
 "atlas": "ritratti_64",
-"x": 1867,
-"y": 1,
+"x": 372,
+"y": 67,
 "w": 51,
 "h": 64,
 "ax": 0.5,
@@ -6288,8 +6368,8 @@
 },
 "sovrano_25": {
 "atlas": "ritratti_64",
-"x": 1920,
-"y": 1,
+"x": 425,
+"y": 67,
 "w": 51,
 "h": 64,
 "ax": 0.5,
@@ -6298,8 +6378,8 @@
 },
 "stemma_0": {
 "atlas": "ritratti_64",
-"x": 1973,
-"y": 1,
+"x": 478,
+"y": 67,
 "w": 55,
 "h": 64,
 "ax": 0.5,
@@ -6308,7 +6388,7 @@
 },
 "stemma_1": {
 "atlas": "ritratti_64",
-"x": 1,
+"x": 535,
 "y": 67,
 "w": 54,
 "h": 64,
@@ -6318,7 +6398,7 @@
 },
 "stemma_2": {
 "atlas": "ritratti_64",
-"x": 57,
+"x": 591,
 "y": 67,
 "w": 54,
 "h": 64,
@@ -6328,7 +6408,7 @@
 },
 "stemma_3": {
 "atlas": "ritratti_64",
-"x": 113,
+"x": 647,
 "y": 67,
 "w": 55,
 "h": 64,
@@ -6338,7 +6418,7 @@
 },
 "stemma_4": {
 "atlas": "ritratti_64",
-"x": 170,
+"x": 704,
 "y": 67,
 "w": 55,
 "h": 64,
@@ -6348,7 +6428,7 @@
 },
 "stemma_5": {
 "atlas": "ritratti_64",
-"x": 227,
+"x": 761,
 "y": 67,
 "w": 55,
 "h": 64,
@@ -6358,7 +6438,7 @@
 },
 "stemma_6": {
 "atlas": "ritratti_64",
-"x": 284,
+"x": 818,
 "y": 67,
 "w": 55,
 "h": 64,
@@ -6366,10 +6446,250 @@
 "ay": 0.5,
 "group": "ritratti"
 },
-"ritratto_0_hi": {
+"grande_archimede": {
+"atlas": "ritratti_64",
+"x": 875,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_ciullo": {
+"atlas": "ritratti_64",
+"x": 941,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_diodoro": {
+"atlas": "ritratti_64",
+"x": 1007,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_empedocle": {
+"atlas": "ritratti_64",
+"x": 1073,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_eschilo": {
+"atlas": "ritratti_64",
+"x": 1139,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_giorgio": {
+"atlas": "ritratti_64",
+"x": 1205,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_idrisi": {
+"atlas": "ritratti_64",
+"x": 1271,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_lauria": {
+"atlas": "ritratti_64",
+"x": 1337,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_procida": {
+"atlas": "ritratti_64",
+"x": 1403,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_speciale": {
+"atlas": "ritratti_64",
+"x": 1469,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_stesicoro": {
+"atlas": "ritratti_64",
+"x": 1535,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_teocrito": {
+"atlas": "ritratti_64",
+"x": 1601,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_timoleonte": {
+"atlas": "ritratti_64",
+"x": 1667,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_ventimiglia": {
+"atlas": "ritratti_64",
+"x": 1733,
+"y": 67,
+"w": 64,
+"h": 63,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_chiaramonte": {
+"atlas": "ritratti_64",
+"x": 1799,
+"y": 67,
+"w": 64,
+"h": 62,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_ruggero1": {
+"atlas": "ritratti_64",
+"x": 1865,
+"y": 67,
+"w": 64,
+"h": 62,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_antonello_hi": {
 "atlas": "ritratti_256",
 "x": 1,
 "y": 1,
+"w": 254,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_ducezio_hi": {
+"atlas": "ritratti_256",
+"x": 257,
+"y": 1,
+"w": 254,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_federico_hi": {
+"atlas": "ritratti_256",
+"x": 513,
+"y": 1,
+"w": 254,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_gelone_hi": {
+"atlas": "ritratti_256",
+"x": 769,
+"y": 1,
+"w": 254,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_ibnhawqal_hi": {
+"atlas": "ritratti_256",
+"x": 1025,
+"y": 1,
+"w": 254,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_ierone_hi": {
+"atlas": "ritratti_256",
+"x": 1281,
+"y": 1,
+"w": 254,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_maurolico_hi": {
+"atlas": "ritratti_256",
+"x": 1537,
+"y": 1,
+"w": 256,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_serpotta_hi": {
+"atlas": "ritratti_256",
+"x": 1,
+"y": 259,
+"w": 256,
+"h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"ritratto_0_hi": {
+"atlas": "ritratti_256",
+"x": 259,
+"y": 259,
 "w": 256,
 "h": 256,
 "ax": 0.5,
@@ -6378,8 +6698,8 @@
 },
 "ritratto_1_hi": {
 "atlas": "ritratti_256",
-"x": 259,
-"y": 1,
+"x": 517,
+"y": 259,
 "w": 256,
 "h": 256,
 "ax": 0.5,
@@ -6388,8 +6708,8 @@
 },
 "ritratto_2_hi": {
 "atlas": "ritratti_256",
-"x": 517,
-"y": 1,
+"x": 775,
+"y": 259,
 "w": 254,
 "h": 256,
 "ax": 0.5,
@@ -6398,8 +6718,8 @@
 },
 "ritratto_3_hi": {
 "atlas": "ritratti_256",
-"x": 773,
-"y": 1,
+"x": 1031,
+"y": 259,
 "w": 256,
 "h": 256,
 "ax": 0.5,
@@ -6408,8 +6728,8 @@
 },
 "ritratto_4_hi": {
 "atlas": "ritratti_256",
-"x": 1031,
-"y": 1,
+"x": 1289,
+"y": 259,
 "w": 254,
 "h": 256,
 "ax": 0.5,
@@ -6418,8 +6738,8 @@
 },
 "ritratto_5_hi": {
 "atlas": "ritratti_256",
-"x": 1287,
-"y": 1,
+"x": 1545,
+"y": 259,
 "w": 254,
 "h": 256,
 "ax": 0.5,
@@ -6428,8 +6748,8 @@
 },
 "ritratto_6_hi": {
 "atlas": "ritratti_256",
-"x": 1543,
-"y": 1,
+"x": 1,
+"y": 517,
 "w": 256,
 "h": 256,
 "ax": 0.5,
@@ -6438,8 +6758,8 @@
 },
 "ritratto_calorio_hi": {
 "atlas": "ritratti_256",
-"x": 1,
-"y": 259,
+"x": 259,
+"y": 517,
 "w": 254,
 "h": 256,
 "ax": 0.5,
@@ -6448,8 +6768,8 @@
 },
 "ritratto_cornice_hi": {
 "atlas": "ritratti_256",
-"x": 257,
-"y": 259,
+"x": 515,
+"y": 517,
 "w": 256,
 "h": 256,
 "ax": 0.5,
@@ -6458,8 +6778,8 @@
 },
 "sovrano_00_hi": {
 "atlas": "ritratti_256",
-"x": 515,
-"y": 259,
+"x": 773,
+"y": 517,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6468,8 +6788,8 @@
 },
 "sovrano_01_hi": {
 "atlas": "ritratti_256",
-"x": 722,
-"y": 259,
+"x": 980,
+"y": 517,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6478,8 +6798,8 @@
 },
 "sovrano_02_hi": {
 "atlas": "ritratti_256",
-"x": 929,
-"y": 259,
+"x": 1187,
+"y": 517,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6488,8 +6808,8 @@
 },
 "sovrano_03_hi": {
 "atlas": "ritratti_256",
-"x": 1136,
-"y": 259,
+"x": 1394,
+"y": 517,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6498,8 +6818,8 @@
 },
 "sovrano_04_hi": {
 "atlas": "ritratti_256",
-"x": 1343,
-"y": 259,
+"x": 1601,
+"y": 517,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6508,8 +6828,8 @@
 },
 "sovrano_05_hi": {
 "atlas": "ritratti_256",
-"x": 1550,
-"y": 259,
+"x": 1808,
+"y": 517,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6518,8 +6838,8 @@
 },
 "sovrano_06_hi": {
 "atlas": "ritratti_256",
-"x": 1757,
-"y": 259,
+"x": 1,
+"y": 775,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6528,8 +6848,8 @@
 },
 "sovrano_07_hi": {
 "atlas": "ritratti_256",
-"x": 1,
-"y": 517,
+"x": 208,
+"y": 775,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6538,8 +6858,8 @@
 },
 "sovrano_08_hi": {
 "atlas": "ritratti_256",
-"x": 208,
-"y": 517,
+"x": 415,
+"y": 775,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6548,8 +6868,8 @@
 },
 "sovrano_09_hi": {
 "atlas": "ritratti_256",
-"x": 415,
-"y": 517,
+"x": 622,
+"y": 775,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6558,8 +6878,8 @@
 },
 "sovrano_10_hi": {
 "atlas": "ritratti_256",
-"x": 622,
-"y": 517,
+"x": 829,
+"y": 775,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6568,8 +6888,8 @@
 },
 "sovrano_11_hi": {
 "atlas": "ritratti_256",
-"x": 829,
-"y": 517,
+"x": 1036,
+"y": 775,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6578,8 +6898,8 @@
 },
 "sovrano_12_hi": {
 "atlas": "ritratti_256",
-"x": 1036,
-"y": 517,
+"x": 1243,
+"y": 775,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6588,8 +6908,8 @@
 },
 "sovrano_13_hi": {
 "atlas": "ritratti_256",
-"x": 1243,
-"y": 517,
+"x": 1450,
+"y": 775,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6598,8 +6918,8 @@
 },
 "sovrano_14_hi": {
 "atlas": "ritratti_256",
-"x": 1450,
-"y": 517,
+"x": 1657,
+"y": 775,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6608,8 +6928,8 @@
 },
 "sovrano_15_hi": {
 "atlas": "ritratti_256",
-"x": 1657,
-"y": 517,
+"x": 1,
+"y": 1033,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6618,8 +6938,8 @@
 },
 "sovrano_16_hi": {
 "atlas": "ritratti_256",
-"x": 1,
-"y": 775,
+"x": 208,
+"y": 1033,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6628,8 +6948,8 @@
 },
 "sovrano_17_hi": {
 "atlas": "ritratti_256",
-"x": 208,
-"y": 775,
+"x": 415,
+"y": 1033,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6638,8 +6958,8 @@
 },
 "sovrano_18_hi": {
 "atlas": "ritratti_256",
-"x": 415,
-"y": 775,
+"x": 622,
+"y": 1033,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6648,8 +6968,8 @@
 },
 "sovrano_19_hi": {
 "atlas": "ritratti_256",
-"x": 622,
-"y": 775,
+"x": 829,
+"y": 1033,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6658,8 +6978,8 @@
 },
 "sovrano_20_hi": {
 "atlas": "ritratti_256",
-"x": 829,
-"y": 775,
+"x": 1036,
+"y": 1033,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6668,8 +6988,8 @@
 },
 "sovrano_21_hi": {
 "atlas": "ritratti_256",
-"x": 1036,
-"y": 775,
+"x": 1243,
+"y": 1033,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6678,8 +6998,8 @@
 },
 "sovrano_22_hi": {
 "atlas": "ritratti_256",
-"x": 1243,
-"y": 775,
+"x": 1450,
+"y": 1033,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6688,8 +7008,8 @@
 },
 "sovrano_23_hi": {
 "atlas": "ritratti_256",
-"x": 1450,
-"y": 775,
+"x": 1657,
+"y": 1033,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6698,8 +7018,8 @@
 },
 "sovrano_24_hi": {
 "atlas": "ritratti_256",
-"x": 1657,
-"y": 775,
+"x": 1,
+"y": 1291,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6708,8 +7028,8 @@
 },
 "sovrano_25_hi": {
 "atlas": "ritratti_256",
-"x": 1,
-"y": 1033,
+"x": 208,
+"y": 1291,
 "w": 205,
 "h": 256,
 "ax": 0.5,
@@ -6718,8 +7038,8 @@
 },
 "stemma_0_hi": {
 "atlas": "ritratti_256",
-"x": 208,
-"y": 1033,
+"x": 415,
+"y": 1291,
 "w": 219,
 "h": 256,
 "ax": 0.5,
@@ -6728,8 +7048,8 @@
 },
 "stemma_1_hi": {
 "atlas": "ritratti_256",
-"x": 429,
-"y": 1033,
+"x": 636,
+"y": 1291,
 "w": 218,
 "h": 256,
 "ax": 0.5,
@@ -6738,8 +7058,8 @@
 },
 "stemma_2_hi": {
 "atlas": "ritratti_256",
-"x": 649,
-"y": 1033,
+"x": 856,
+"y": 1291,
 "w": 218,
 "h": 256,
 "ax": 0.5,
@@ -6748,8 +7068,8 @@
 },
 "stemma_3_hi": {
 "atlas": "ritratti_256",
-"x": 869,
-"y": 1033,
+"x": 1076,
+"y": 1291,
 "w": 219,
 "h": 256,
 "ax": 0.5,
@@ -6758,8 +7078,8 @@
 },
 "stemma_4_hi": {
 "atlas": "ritratti_256",
-"x": 1090,
-"y": 1033,
+"x": 1297,
+"y": 1291,
 "w": 219,
 "h": 256,
 "ax": 0.5,
@@ -6768,8 +7088,8 @@
 },
 "stemma_5_hi": {
 "atlas": "ritratti_256",
-"x": 1311,
-"y": 1033,
+"x": 1518,
+"y": 1291,
 "w": 219,
 "h": 256,
 "ax": 0.5,
@@ -6778,10 +7098,170 @@
 },
 "stemma_6_hi": {
 "atlas": "ritratti_256",
-"x": 1532,
-"y": 1033,
+"x": 1739,
+"y": 1291,
 "w": 219,
 "h": 256,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_archimede_hi": {
+"atlas": "ritratti_256",
+"x": 1,
+"y": 1549,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_ciullo_hi": {
+"atlas": "ritratti_256",
+"x": 259,
+"y": 1549,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_diodoro_hi": {
+"atlas": "ritratti_256",
+"x": 517,
+"y": 1549,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_empedocle_hi": {
+"atlas": "ritratti_256",
+"x": 775,
+"y": 1549,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_eschilo_hi": {
+"atlas": "ritratti_256",
+"x": 1033,
+"y": 1549,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_giorgio_hi": {
+"atlas": "ritratti_256",
+"x": 1291,
+"y": 1549,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_idrisi_hi": {
+"atlas": "ritratti_256",
+"x": 1549,
+"y": 1549,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_lauria_hi": {
+"atlas": "ritratti_256",
+"x": 1,
+"y": 1803,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_procida_hi": {
+"atlas": "ritratti_256",
+"x": 259,
+"y": 1803,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_speciale_hi": {
+"atlas": "ritratti_256",
+"x": 517,
+"y": 1803,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_stesicoro_hi": {
+"atlas": "ritratti_256",
+"x": 775,
+"y": 1803,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_teocrito_hi": {
+"atlas": "ritratti_256",
+"x": 1033,
+"y": 1803,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_timoleonte_hi": {
+"atlas": "ritratti_256",
+"x": 1291,
+"y": 1803,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_ventimiglia_hi": {
+"atlas": "ritratti_256",
+"x": 1549,
+"y": 1803,
+"w": 256,
+"h": 252,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_chiaramonte_hi": {
+"atlas": "ritratti_256",
+"x": 1,
+"y": 2057,
+"w": 256,
+"h": 250,
+"ax": 0.5,
+"ay": 0.5,
+"group": "ritratti"
+},
+"grande_ruggero1_hi": {
+"atlas": "ritratti_256",
+"x": 259,
+"y": 2057,
+"w": 256,
+"h": 250,
 "ax": 0.5,
 "ay": 0.5,
 "group": "ritratti"

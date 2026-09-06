@@ -543,6 +543,52 @@ const QUARTIERI = [
     desc:"Aule e biblioteche: si studia meglio dove l'acqua scorre e la montagna isola." }
 ];
 
+// ---- GRANDI SICILIANI ----
+// Quattro categorie, sei figure ciascuna, in ordine storico. I punti li fanno i quartieri
+// (lo Studium gli scienziati, il Fondaco i mercanti...) e chi arriva primo se li prende:
+// gli altri restano a mani vuote davanti al successivo. La competizione per i nomi e' gia'
+// una storia — ed e' storia vera, tutta siciliana.
+const CAT_GRANDI = [
+  { id:"scienziato", nome:"Scienziati",  icona:"\u{1F52D}", da:{ studium:3, accademia:1, casascienza:2 } },
+  { id:"condottiero", nome:"Condottieri", icona:"\u2694\uFE0F", da:{ fucina:1, caserma:2, arsenale:1 } },
+  { id:"artista",    nome:"Artisti",     icona:"\u{1F3AD}", da:{ agora:3, sagrato:1, teatro:2, cattedrale:1 } },
+  { id:"mercante",   nome:"Mercanti",    icona:"\u2696\uFE0F", da:{ fondaco:3, marina:2, mercato:1, banco:2, porto:1 } }
+];
+const GRANDI = {
+  scienziato: [
+    { nome:"Empedocle",           luogo:"Agrigento", anno:-450, ritr:"empedocle",  testo:"Quattro elementi, e l'Etna che se lo prese.", eff:{ scienza:60 } },
+    { nome:"Archimede",           luogo:"Siracusa",  anno:-250, ritr:"archimede",  testo:"Datemi un punto d'appoggio e solleverò il mondo.", eff:{ scienza:120, unita:"macchina_arch" } },
+    { nome:"Diodoro Siculo",      luogo:"Agira",     anno:-40,  ritr:"diodoro",  testo:"Quaranta libri per raccontare tutto il mondo conosciuto.", eff:{ scienza:100, cultura:60 } },
+    { nome:"Al-Idrisi",           luogo:"Palermo",   anno:1154, ritr:"idrisi", testo:"Il planisfero d'argento per re Ruggero.", eff:{ scienza:180, vista:1 } },
+    { nome:"Federico II",         luogo:"Palermo",   anno:1230, ritr:"federico", testo:"Stupor mundi: falchi, algebra e una corte di sapienti.", eff:{ scienza:220, tech:1 } },
+    { nome:"Francesco Maurolico", luogo:"Messina",   anno:1550, ritr:"maurolico", testo:"Misurò la luce e la montagna che fuma.", eff:{ scienza:300, tech:1 } }
+  ],
+  condottiero: [
+    { nome:"Ducezio",             luogo:"Noto",      anno:-450, ritr:"ducezio",  testo:"Il re dei Siculi che tenne testa alle poleis greche.", eff:{ unitaLinea:2 } },
+    { nome:"Gelone",              luogo:"Siracusa",  anno:-480, ritr:"gelone",  testo:"A Himera fermò Cartagine con la cavalleria.", eff:{ unitaLinea:2, oro:120 } },
+    { nome:"Timoleonte",          luogo:"Siracusa",  anno:-340, ritr:"timoleonte",  testo:"Liberò le città dai tiranni e le ripopolò.", eff:{ fedelta:25 } },
+    { nome:"Ruggero I d'Altavilla", luogo:"Mileto",  anno:1091, ritr:"ruggero1", testo:"Trent'anni per prendere l'isola, castello dopo castello.", eff:{ unitaLinea:3, difesaCitta:true } },
+    { nome:"Giovanni da Procida", luogo:"Salerno",   anno:1282, ritr:"procida", testo:"Tessé la tela dei Vespri da una corte all'altra.", eff:{ oro:250, fedelta:20 } },
+    { nome:"Ruggero di Lauria",   luogo:"Lauria",    anno:1284, ritr:"lauria", testo:"Non perse mai una battaglia navale.", eff:{ unitaNave:2 } }
+  ],
+  artista: [
+    { nome:"Stesicoro",           luogo:"Himera",    anno:-560, ritr:"stesicoro",  testo:"Cantò e ritrattò la sua palinodia, e riebbe la vista.", eff:{ cultura:60 } },
+    { nome:"Eschilo",             luogo:"Gela",      anno:-456, ritr:"eschilo",  testo:"Morì a Gela, dicono per una tartaruga caduta dal cielo.", eff:{ cultura:120 } },
+    { nome:"Teocrito",            luogo:"Siracusa",  anno:-270, ritr:"teocrito",  testo:"Inventò la poesia bucolica guardando i pastori dell'isola.", eff:{ cultura:150, calma:2 } },
+    { nome:"Ciullo d'Alcamo",     luogo:"Alcamo",    anno:1235, ritr:"ciullo", testo:"Rosa fresca aulentissima: il volgare siciliano diventa poesia.", eff:{ cultura:200 } },
+    { nome:"Antonello da Messina", luogo:"Messina",  anno:1470, ritr:"antonello", testo:"Portò in Italia la luce dei fiamminghi.", eff:{ cultura:280, oro:150 } },
+    { nome:"Giacomo Serpotta",    luogo:"Palermo",   anno:1700, ritr:"serpotta", testo:"Stucchi bianchi come merletti negli oratori di Palermo.", eff:{ cultura:350, calma:3 } }
+  ],
+  mercante: [
+    { nome:"Ierone II",           luogo:"Siracusa",  anno:-260, ritr:"ierone",  testo:"La lex Hieronica: il grano di Sicilia nutre il Mediterraneo.", eff:{ oro:150, cibo:true } },
+    { nome:"Ibn Hawqal",          luogo:"Palermo",   anno:970,  ritr:"ibnhawqal", testo:"Contò trecento moschee e i banchi di Ballarò.", eff:{ oro:220 } },
+    { nome:"Giorgio di Antiochia", luogo:"Palermo",  anno:1140, ritr:"giorgio", testo:"Ammiraglio e amministratore: sua la Duana dei conti.", eff:{ oro:300, commercio:true } },
+    { nome:"Manfredi Chiaramonte", luogo:"Palermo",  anno:1380, ritr:"chiaramonte", testo:"Signore del sale, dei porti e di mezza isola.", eff:{ oro:380 } },
+    { nome:"Pietro Speciale",     luogo:"Palermo",   anno:1450, ritr:"speciale", testo:"Pretore di Palermo, il grano che parte dai caricatori.", eff:{ oro:450 } },
+    { nome:"Giovanni Ventimiglia", luogo:"Geraci",   anno:1480, ritr:"ventimiglia", testo:"Conte di Geraci: feudi, greggi e nave propria.", eff:{ oro:520, cibo:true } }
+  ]
+};
+
 // ---- INVASIONI STORICHE ----
 // sbarco: comune vicino a cui appaiono; unita: quante; anno
 const INVASIONI = [
@@ -721,6 +767,6 @@ const POTERI = [
 ];
 
 return { ERE, VELOCITA, CULTURE, FAZIONI, LEADER_STORICI, NOMI_EREDI, TRATTI, EROI,
-         TECH, UNITA, LINEA_ERA, LINEA_NAVALE, EDIFICI, EDIFICI_LOCALI, QUARTIERI, MIGLIORIE, MIGLIORIE_LINEA, MERAVIGLIE, INVASIONI,
+         TECH, UNITA, LINEA_ERA, LINEA_NAVALE, EDIFICI, EDIFICI_LOCALI, QUARTIERI, CAT_GRANDI, GRANDI, MIGLIORIE, MIGLIORIE_LINEA, MERAVIGLIE, INVASIONI,
          EVENTI_STORICI, EVENTI_CASUALI, DILEMMI, OBIETTIVI, DOP, PIATTI, SAGRE, POTERI, GUARDAROBA_EXTRA };
 })();

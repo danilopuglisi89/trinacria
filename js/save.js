@@ -59,6 +59,7 @@ function carica(chiave){
       return false;
     }
     MAP.build();                       // la mappa è deterministica
+    GAME.resetIndiceTerritorio();      // il possesso delle caselle sta per essere riscritto
     for (const r of s.imps){
       const h = MAP.hexes[r.i];
       h.imp = r.imp || null;

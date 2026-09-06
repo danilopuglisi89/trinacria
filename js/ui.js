@@ -799,9 +799,31 @@ function apriPannelloCitta(cm){
     <div class="p-riga">👥 Popolazione: <b>${cm.pop}</b> &nbsp; 😊 Malcontento: <b class="${cm.unrest>=8?'rosso':(cm.unrest>=5?'giallo':'')}">${cm.unrest}/12</b></div>
     <div class="p-riga">🏺 Cultura ${cult.nome} — integrazione ${Math.round(cm.integr)}%</div>`;
   if (cm.mura>0) html += `<div class="p-riga">🧱 Mura liv.${cm.mura}: ${cm.muraHP}/${cm.mura*100} PV</div>`;
+  if (cm.fondata && cm.fazione < 100){
+    const fed = cm.fedelta===undefined ? 100 : cm.fedelta;
+    const d = GAME.fedeltaDelta(cm);
+    const col = fed>=75 ? "#7ec87e" : fed>=50 ? "#e8c86a" : fed>=25 ? "#e0913a" : "#d05a4a";
+    const segno = d.delta>0 ? "+" : "";
+    html += `<div class="p-riga">🏛️ Fedeltà <b style="color:${col}">${Math.round(fed)}</b>/100
+        <span class="muto">(${segno}${d.delta.toFixed(1)} a turno)</span></div>
+      <div class="fed-barra"><i style="width:${Math.max(2,Math.round(fed))}%;background:${col}"></i></div>`;
+    if (cm.fazione===-1 && cm.versoFaz>=0)
+      html += `<div class="p-riga muto">Città libera: sta guardando verso ${GAME.st.fazioni[cm.versoFaz].nome}.</div>`;
+    if (mia && fed < 75)
+      html += `<div class="p-riga muto">${d.dett.map(x=>x.t+" "+(x.v>0?"+":"")+x.v).join(" · ")}</div>`;
+  }
   if (cm.dop){ const d = D().DOP.find(x=>x.id===cm.dop); if (d) html += `<div class="p-riga" style="color:#e8b84a">${ico(d)} <b>${d.nome}</b></div>`; }
   if (st.peste && st.peste.infetti.includes(cm.id)) html += `<div class="p-riga rosso">☠️ LA PESTE infuria in città!</div>`;
   if (r) html += `<div class="p-riga">🌾${r.cibo.toFixed(1)} ⚒️${r.prod.toFixed(1)} 💰${r.oro.toFixed(1)} 📜${r.scienza.toFixed(0)} 🎭${r.cultura.toFixed(0)}</div>`;
+  if (cm.fondata && cm.fazione>=0 && cm.fazione<100){
+    const ca = GAME.caseComune(cm), sv = GAME.serviziComune(cm);
+    const pieno = cm.pop >= ca.n;
+    html += `<div class="p-riga">🏠 Case <b class="${pieno?'giallo':''}">${cm.pop}/${ca.n}</b>
+        <span class="muto">${pieno?'— la città non può crescere oltre':'abitanti'}</span></div>
+      <div class="p-riga">🎪 Servizi <b class="${sv.mancano?'rosso':''}">${sv.offerti}</b>/${sv.richiesti}
+        <span class="muto">${sv.mancano?'— ne mancano '+sv.mancano+', il popolo mormora':'il popolo è servito'}</span></div>`;
+    if (mia) html += `<div class="p-riga muto">Case: ${ca.dett.map(x=>x.t+' +'+x.v).join(', ')}${sv.dett.length?' · Servizi: '+sv.dett.map(x=>x.t+' +'+x.v).join(', '):''}</div>`;
+  }
   if (cm.edifici.length)
     html += `<div class="p-riga muto">Edifici: ${cm.edifici.map(e=>(D().EDIFICI[e]||D().EDIFICI_LOCALI.find(x=>x.id===e)).nome).join(", ")}</div>`;
   for (const mid of Object.keys(st.meraviglie))
@@ -1429,6 +1451,8 @@ function mostraModale(evt, cb){
   let html = "";
   if (evt.img) html += `<div class="m-illustr"><img src="assets/${evt.img}.jpg" alt=""></div>`;
   if (evt.ritratto) html += `<canvas class="m-ritratto" width="200" height="260"></canvas>`;
+  if (evt.ritrattoGrande !== undefined && evt.ritrattoGrande !== null)
+    html += `<canvas class="m-ritratto" id="m-grande" width="200" height="260"></canvas>`;
   html += `<div class="m-titolo">${evt.titolo}</div>`;
   if (evt.html) html += evt.html;
   if (evt.testo) html += `<div class="m-testo">${evt.testo.replace(/\n/g,"<br>")}</div>`;
@@ -1450,6 +1474,15 @@ function mostraModale(evt, cb){
       const iniziale = fz && fz.leader && D().LEADER_STORICI[evt.ritratto.fid] && fz.leader.nome === D().LEADER_STORICI[evt.ritratto.fid][0];
       if (!(iniziale && SPRITES.abilitato.ritratti && SPRITES.drawFit(cc, "ritratto_"+evt.ritratto.fid, 100, 130, null, 240)))
         ART.ritratto(cc, 100, 130, 176, 232, evt.ritratto.fid, evt.ritratto.tratto);
+    }
+  }
+  if (evt.ritrattoGrande !== undefined && evt.ritrattoGrande !== null){
+    const cv = $("m-grande");
+    if (cv){
+      const cc = cv.getContext("2d");
+      const id = "grande_" + evt.ritrattoGrande;
+      if (!(SPRITES.abilitato.ritratti && SPRITES.drawFit(cc, id, 100, 130, null, 250)))
+        ART.ritratto(cc, 100, 130, 176, 232, GAME.st.giocatore, null);
     }
   }
   // animazione d'ingresso
@@ -2075,6 +2108,42 @@ function applicaPotereSuHex(i){
   }
 }
 
+// ---------- GRANDI SICILIANI ----------
+// Non e' una lista della spesa: e' una corsa. Il pannello dice a che punto sei, quanto rendi
+// al turno e quanto e' avanti il rivale piu' vicino — cosi' si capisce se conviene insistere.
+function apriGrandi(){
+  const st = GAME.st, fid = st.giocatore;
+  const s = GAME.statoGrandi(fid);
+  let html = `<div class="p-titolo">🏅 Grandi Siciliani</div>
+    <div class="p-sotto">I quartieri generano punti. Chi arriva primo se li prende: gli altri restano a mani vuote.</div>`;
+  for (const c of s){
+    html += `<div class="p-sez">${c.icona} ${c.nome} <span class="muto">+${c.perTurno} a turno</span></div>`;
+    if (!c.prossimo){
+      html += `<div class="p-riga muto">Non resta nessuno da chiamare.</div>`;
+    } else {
+      const pct = Math.min(100, Math.round(c.punti/c.costo*100));
+      const pctR = Math.min(100, Math.round(c.rivale/c.costo*100));
+      const anno = c.prossimo.anno < 0 ? (-c.prossimo.anno)+" a.C." : c.prossimo.anno+" d.C.";
+      html += `<div class="gr-riga">
+          <canvas class="gr-volto" width="58" height="72" data-volto="${c.prossimo.ritr}"></canvas>
+          <div class="gr-testo">
+            <div><b>${c.prossimo.nome}</b> <span class="muto">${c.prossimo.luogo}, ${anno}</span></div>
+            <div class="muto">«${c.prossimo.testo}»</div>
+            <div class="gr-barra"><i style="width:${pct}%"></i><u style="left:${pctR}%"></u></div>
+            <div class="muto">${Math.round(c.punti)} / ${c.costo} punti${c.rivale>c.punti?" — un altro regno è più avanti":""}</div>
+          </div>
+        </div>`;
+    }
+    if (c.miei.length) html += `<div class="p-riga">Al tuo servizio: <b>${c.miei.join(", ")}</b></div>`;
+  }
+  apri(html);
+  // i volti stanno nell'atlante: si disegnano su canvas, non con un <img>
+  document.querySelectorAll("[data-volto]").forEach(cv => {
+    const cc = cv.getContext("2d");
+    if (!(SPRITES.abilitato.ritratti && SPRITES.drawFit(cc, "grande_"+cv.dataset.volto, 29, 36, null, 72)))
+      cv.style.display = "none";
+  });
+}
 // ---------- HUB: 👑 REGNO (governo) e 🍴 CORTE (sapore e sovrano) ----------
 // Tutto ciò che serve a governare sta in due sole voci, con lo stato scritto sul pulsante:
 // niente più funzioni sparse fra la barra in alto e il menu dei salvataggi.
@@ -2087,6 +2156,12 @@ function vociRegno(){
   return [
     { icona:"📜", nome:"Ricerca", stato: tt ? tt.nome+" — "+Math.min(100,Math.round(f.sciAcc/GAME.costoTech(tt)*100))+"%"
         : (GAME.techDisponibili(fid).length ? "nessuna in corso!" : "tutto scoperto"), fn: apriRicerca, urgente: !tt && GAME.techDisponibili(fid).length>0 },
+    { icona:"🏅", nome:"Grandi Siciliani", stato: (function(){
+        const s = GAME.statoGrandi(fid);
+        const miei = s.reduce((a,x)=>a+x.miei.length, 0);
+        const vicino = s.filter(x=>x.prossimo).sort((a,b)=>(b.punti/b.costo)-(a.punti/a.costo))[0];
+        return miei+" al tuo servizio" + (vicino ? " — "+vicino.prossimo.nome+" al "+Math.min(99,Math.round(vicino.punti/vicino.costo*100))+"%" : " — nessuno resta da chiamare");
+      })(), fn: apriGrandi },
     { icona:"🎯", nome:"Obiettivi e punteggio", stato: p.totale+" punti — "+fatti+"/"+obEra.length+" obiettivi di quest'era", fn: apriObiettivi },
     { icona:"⚔️", nome:"Aggiorna esercito", stato: nU ? nU+" truppe possono passare alle armi della tua era" : "truppe già al passo coi tempi", fn: apriAggiornamento, urgente: nU>0 },
     { icona:"🏭", nome:"Ammoderna migliorie", stato: nM ? nM+" migliorie possono ammodernarsi" : "campagne già aggiornate", fn: apriAggiornamentoMigliorie, urgente: nM>0 },
