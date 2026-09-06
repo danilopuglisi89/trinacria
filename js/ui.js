@@ -1843,10 +1843,12 @@ function mostraEventiTurno(){
 function controllaFinePartita(){
   const st = GAME.st;
   if (!st.vittoria || st.continua) return;
+  const vi = st.vittoriaInfo;
   if (st.vittoria==="vinta"){
     AUDIO.sfx("vittoria"); AUDIO.parla("don_vittoria");
-    mostraModale({ titolo:"🔱 TRINACRIA È TUA!",
-      testo:"Da Messina a Marsala, da Cefalù a Pachino, ogni campanile suona per te.\n\n"+
+    mostraModale({ titolo: vi ? vi.icona+" VITTORIA DI "+vi.nome.toUpperCase() : "🔱 TRINACRIA È TUA!",
+      testo:(vi ? "Hai vinto per "+vi.nome.toLowerCase()+".\n\n" : "")+
+        "Da Messina a Marsala, da Cefalù a Pachino, ogni campanile suona per te.\n\n"+
         st.fazioni[st.giocatore].leader.nome+" di "+st.fazioni[st.giocatore].nome+" regna sulla Sicilia unita, nell'anno "+GAME.annoStr(st.anno)+", dopo "+st.turno+" turni di sangue, grano e gloria.\n\n«Cu' avi 'a Sicilia, avi u munnu.»",
       scelte:[{label:"Continua a regnare", eff:"nulla"},{label:"Nuova partita", eff:"nuova"}] }, idx => {
         if (idx===1) location.reload();
@@ -1854,9 +1856,16 @@ function controllaFinePartita(){
       });
   } else {
     AUDIO.sfx("sconfitta"); AUDIO.parla("don_sconfitta");
-    mostraModale({ titolo:"⚰️ La tua dinastia si spegne",
-      testo:"L'ultima città è caduta, l'ultimo stendardo è bruciato. La storia della Sicilia continuerà — ma senza di te.\n\n«Cu' nesci, arrinesci... ma tu nun ha' nisciutu.»",
-      scelte:[{label:"Nuova partita", eff:"nuova"}] }, () => location.reload());
+    const battuto = vi && vi.fazione !== st.giocatore;
+    mostraModale({ titolo: battuto ? "🏳️ Ti hanno battuto sul tempo" : "⚰️ La tua dinastia si spegne",
+      testo: battuto
+        ? vi.nomeFazione+" ha vinto per "+vi.nome.toLowerCase()+" nell'anno "+GAME.annoStr(st.anno)+".\n\nLa tua dinastia è ancora in piedi, ma la storia ricorderà loro.\n\n«Cu' arriva primu, s'assetta.»"
+        : "L'ultima città è caduta, l'ultimo stendardo è bruciato. La storia della Sicilia continuerà — ma senza di te.\n\n«Cu' nesci, arrinesci... ma tu nun ha' nisciutu.»",
+      // Perdere una CORSA non è perdere il regno: se un rivale arriva primo, il giocatore
+      // deve poter tirare avanti fino al 1700 invece di trovarsi il gioco chiuso in faccia.
+      scelte: battuto ? [{label:"Continua fino al 1700", eff:"nulla"},{label:"Nuova partita", eff:"nuova"}]
+                      : [{label:"Nuova partita", eff:"nuova"}] },
+      idx => { if (!battuto || idx===1) location.reload(); else st.continua = true; });
   }
 }
 
@@ -2207,6 +2216,32 @@ function applicaPotereSuHex(i){
   }
 }
 
+// ---------- LE VIE ALLA VITTORIA ----------
+function apriVittoria(){
+  const st = GAME.st, fid = st.giocatore;
+  const mie = GAME.statoVittoria(fid);
+  // per ogni via, il rivale piu' avanti: serve a sapere se stai perdendo una corsa
+  const rivali = st.fazioni.filter(function(f){ return f.id!==fid && !f.eliminata; })
+                           .map(function(f){ return { f:f, s:GAME.statoVittoria(f.id) }; });
+  let html = `<div class="p-titolo">🏆 Come si vince</div>
+    <div class="p-sotto">Quattro strade. Basta arrivare in fondo a una, prima degli altri.</div>`;
+  mie.forEach(function(v, k){
+    let capo = null;
+    for (const r of rivali){ const p = r.s[k].pct; if (!capo || p > capo.pct) capo = { nome:r.f.nome, pct:p }; }
+    const avanti = capo && capo.pct > v.pct;
+    html += `<div class="vit-riga ${v.fatta?'fatta':''}">
+      <div class="vit-testa">${v.icona} <b>${v.nome}</b> <span class="vit-pct">${v.pct}%</span></div>
+      <div class="vit-barra"><i style="width:${v.pct}%"></i></div>
+      <div class="p-riga muto">${v.desc}</div>`;
+    for (const x of v.voci){
+      const ok = x.ora >= x.serve;
+      html += `<div class="vit-voce ${ok?'ok':''}">${ok?"✔":"•"} ${x.t}: <b>${x.ora}</b> di ${x.serve}</div>`;
+    }
+    if (capo) html += `<div class="p-riga muto">Rivale più avanti: ${capo.nome} al ${capo.pct}%${avanti?" — ti sta battendo":""}</div>`;
+    html += `</div>`;
+  });
+  apri(html);
+}
 // ---------- EDITTI ----------
 function apriEditti(){
   const st = GAME.st, fid = st.giocatore, f = st.fazioni[fid];
@@ -2291,6 +2326,10 @@ function vociRegno(){
   const obEra = GAME.obiettiviEra(st.era), fatti = obEra.filter(o => GAME.stat().obiettivi.includes(o.id)).length;
   const tt = f.ricerca ? D().TECH.find(x=>x.id===f.ricerca) : null;
   return [
+    { icona:"🏆", nome:"Come si vince", stato: (function(){
+        const v = GAME.statoVittoria(fid).slice().sort(function(a,b){ return b.pct-a.pct; })[0];
+        return v.nome+" al "+v.pct+"% — la tua strada migliore";
+      })(), fn: apriVittoria },
     { icona:"📜", nome:"Ricerca", stato: tt ? tt.nome+" — "+Math.min(100,Math.round(f.sciAcc/GAME.costoTech(tt)*100))+"%"
         : (GAME.techDisponibili(fid).length ? "nessuna in corso!" : "tutto scoperto"), fn: apriRicerca, urgente: !tt && GAME.techDisponibili(fid).length>0 },
     { icona:"📜", nome:"Editti", stato: (function(){

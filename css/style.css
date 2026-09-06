@@ -593,3 +593,13 @@ body[class^="era-"] #cons-nome { color: var(--epoca, #d9c48a); }
             border:1px solid rgba(230,200,120,0.35); border-radius:8px; background:rgba(230,200,120,0.07); }
 .ed-attivo .btn-x{ position:absolute; right:6px; top:6px; }
 .btn-lista.ed-on{ opacity:0.55; }
+
+/* Vie alla vittoria */
+.vit-riga{ margin:6px 0 12px; padding:8px 10px; border:1px solid rgba(255,255,255,0.10); border-radius:9px; }
+.vit-riga.fatta{ border-color:rgba(240,205,110,0.6); background:rgba(240,205,110,0.08); }
+.vit-testa{ display:flex; align-items:baseline; gap:6px; }
+.vit-pct{ margin-left:auto; color:#e0c060; font-weight:bold; }
+.vit-barra{ height:7px; border-radius:4px; background:rgba(255,255,255,0.12); overflow:hidden; margin:5px 0 6px; }
+.vit-barra i{ display:block; height:100%; background:linear-gradient(90deg,#a8813a,#f0d06e); }
+.vit-voce{ font-size:12px; opacity:0.85; }
+.vit-voce.ok{ color:#9fd0a8; opacity:1; }

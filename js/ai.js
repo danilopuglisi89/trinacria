@@ -63,7 +63,10 @@ function turnoIA(){
   for (const f of st.fazioni){
     if (!f.ai || f.eliminata) continue;
     f.oro += bonusOro();
-    f.sciAcc += 1 + st.era; // l'IA tiene il passo con le ere
+    // La scienza regalata all'IA (+1 per era, ogni turno) era un aiuto invisibile e innocuo
+    // finche' la ricerca non decideva la partita. Ora che esiste la vittoria scientifica
+    // sarebbe una corsa truccata: resta solo a difficolta' alta, dichiarata.
+    if (st.difficolta === "difficile") f.sciAcc += 1 + st.era;
     diplomaziaIA(f);
     gestioneCittaIA(f);
     if (!f.eroeVivo && f.oro > GAME.costoEroe()+100 && rnd()<0.3) GAME.reclutaEroe(f.id);

@@ -16,7 +16,7 @@ function nuovaPartita(opts){
     era: 0, anno: -735,
     comuni: [], fazioni: [], unita: [], invasori: [],
     nextUid: 1, meraviglie: {}, peste: null, eventiFatti: [], invasioniFatte: [],
-    log: [], pending: [], vittoria: null, continua: false,
+    log: [], pending: [], vittoria: null, vittoriaInfo: null, continua: false,
     effettiTemp: {},  // es. {terrore: turniRestanti}
     sagreAttive: [], visti: {}, aiuto: { azioni:0 }, eventiTurno: [], fumetti: [],
     poteri: { cooldown: {} },   // poteri del sovrano (mosse speciali a ricarica)
@@ -2727,16 +2727,88 @@ function controllaEliminazione(fid){
     if (fid===st.giocatore){ st.vittoria = "persa"; }
   }
 }
+// ---------- LE QUATTRO VIE ALLA VITTORIA ----------
+// Prima si vinceva solo conquistando: o nessun rivale vivo, o il 75% dei 170 comuni, cioe'
+// 128 citta'. In partita se ne possiedono dodici o tredici, e infatti la vittoria non e' mai
+// scattata: si arrivava al 1700 e usciva una classifica. Tutto quello che il gioco fa
+// costruire — meraviglie, quartieri, scienza, prodotti tipici, Grandi Siciliani — non portava
+// a nessun finale. Ora ogni modo di giocare ha il suo traguardo, e le soglie sono tarate sui
+// numeri veri misurati a fine partita, non a occhio.
+const VIE = [
+  { id:"conquista", nome:"Conquista", icona:"\u2694\uFE0F",
+    desc:"Venti città sotto il tuo stendardo, oppure nessun rivale ancora in piedi.",
+    voci: function(fid){
+      return [ { t:"Città possedute", ora: cittaDi(fid), serve: 20 } ];
+    },
+    extra: function(fid){                      // scorciatoia: sei rimasto solo
+      return !st.fazioni.some(function(f){ return f.id!==fid && !f.eliminata; })
+             && !st.comuni.some(function(c){ return c.fazione>=100; });
+    } },
+  { id:"cultura", nome:"Cultura", icona:"\u{1F3AD}",
+    desc:"Otto Grandi Siciliani al tuo servizio e quattro meraviglie costruite: la Sicilia che il mondo viene a vedere.",
+    voci: function(fid){
+      const f = st.fazioni[fid];
+      return [ { t:"Grandi Siciliani", ora: (f.grandi||[]).length, serve: 8 },
+               { t:"Meraviglie", ora: meravigliDi(fid), serve: 4 } ];
+    } },
+  { id:"scienza", nome:"Scienza", icona:"\u{1F4DC}",
+    desc:"Completa per primo tutte le tecnologie: chi arriva secondo non vince niente.",
+    voci: function(fid){
+      return [ { t:"Tecnologie", ora: st.fazioni[fid].techs.length, serve: D().TECH.length } ];
+    } },
+  { id:"ricchezza", nome:"Ricchezza", icona:"\u{1F4B0}",
+    desc:"Cinque prodotti tipici in mano, otto fra Marine e Fondachi, e quindicimila monete in cassa.",
+    voci: function(fid){
+      return [ { t:"Prodotti DOP controllati", ora: dopControllati(fid).length, serve: 5 },
+               { t:"Marine e Fondachi",        ora: quartieriCommerciali(fid), serve: 8 },
+               { t:"Oro",                      ora: Math.floor(st.fazioni[fid].oro), serve: 15000 } ];
+    } }
+];
+function meravigliDi(fid){
+  let n = 0;
+  for (const m of Object.keys(st.meraviglie)){
+    const cm = st.comuni[st.meraviglie[m]];
+    if (cm && cm.fazione === fid) n++;
+  }
+  return n;
+}
+function quartieriCommerciali(fid){
+  let n = 0;
+  for (const h of MAP.terre){
+    if (h.quart !== "marina" && h.quart !== "fondaco") continue;
+    if (h.citta < 0) continue;
+    const cm = st.comuni[h.citta];
+    if (cm && cm.fazione === fid) n++;
+  }
+  return n;
+}
+// stato di tutte le vie per una fazione: serve al pannello e al controllo di fine partita
+function statoVittoria(fid){
+  return VIE.map(function(v){
+    const voci = v.voci(fid);
+    const fatta = (v.extra && v.extra(fid)) || voci.every(function(x){ return x.ora >= x.serve; });
+    let pct = 0;
+    for (const x of voci) pct += Math.min(1, x.ora / x.serve);
+    pct = Math.round(pct / voci.length * 100);
+    return { id:v.id, nome:v.nome, icona:v.icona, desc:v.desc, voci:voci, fatta:fatta,
+             pct: fatta ? 100 : Math.min(99, pct) };
+  });
+}
 function controllaVittoria(){
   if (st.vittoria) return;
-  const gioc = st.giocatore;
-  const rivaliVivi = st.fazioni.filter(f=>f.id!==gioc && !f.eliminata).length;
-  const invOccupano = st.comuni.some(c=>c.fazione>=100);
-  const miei = st.comuni.filter(c=>c.fazione===gioc).length;
-  if ((rivaliVivi===0 && !invOccupano) || miei >= Math.ceil(st.comuni.length*0.75)){
-    st.vittoria = "vinta";
+  // si controllano TUTTE le fazioni: una via alla vittoria che solo il giocatore puo'
+  // percorrere non e' una corsa, e' un compito in classe
+  for (const f of st.fazioni){
+    if (f.eliminata) continue;
+    for (const v of statoVittoria(f.id)){
+      if (!v.fatta) continue;
+      st.vittoriaInfo = { tipo:v.id, nome:v.nome, icona:v.icona, fazione:f.id, nomeFazione:f.nome, turno:st.turno };
+      st.vittoria = (f.id === st.giocatore) ? "vinta" : "persa";
+      return;
+    }
   }
 }
+
 
 // ---------- EROI ----------
 function costoEroe(){ return 80 + st.era*40; }
@@ -3683,7 +3755,7 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,
   miglioramentoAutomatico, azioneLavoratore, esisteMiglioriaPossibile,
   migliorieAggiornabili, upgradaMiglioria, upgradaMiglliorieEconomiche, prossimaMiglioria,
-  stat, statoObiettivi, obiettiviEra, punteggio, carteCostruzione,
+  stat, statoObiettivi, obiettiviEra, punteggio, carteCostruzione, statoVittoria,
   accodaRicerca, rimuoviDaPercorso, percorsoRicercaStato, suggerisciPercorso,
   dichiaraGuerra, proponiPace, proponiPatto, proponiCommercio, regalo, forzaTotale,
   poteriStato, poterePronto, usaPotere, rifocilla,
