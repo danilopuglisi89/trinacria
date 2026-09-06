@@ -118,6 +118,18 @@ function nuovoLeader(fid, era, iniziale){
   return { nome, eta: 25 + Math.floor(rnd()*15), tratto: scegli(tratti), storico: !!storico };
 }
 
+// dove nasce un'unita' appena completata: le navi vanno varate in un esagono d'acqua
+// adiacente alla citta', non sull'esagono della citta' (che e' terra e le lascerebbe incagliate)
+function hexVaro(cm, tipo){
+  if (dominioTipo(tipo) !== "mare") return cm.hex;
+  const acque = MAP.vicini(cm.hex).filter(j => MAP.hexes[j].mare && unitaSuHex(j).length < 4);
+  if (acque.length) return acque[0];
+  // nessuna acqua libera adiacente: allarga di un anello
+  for (const j of MAP.vicini(cm.hex))
+    for (const k of MAP.vicini(j))
+      if (MAP.hexes[k].mare && unitaSuHex(k).length < 4) return k;
+  return cm.hex;
+}
 function creaUnita(tipo, fid, hex, nome){
   const u = { id: st.nextUid++, tipo, fazione: fid, hex, hp: 100, mov: statU(tipo).mov, xp: 0,
               nome: nome||null, goto: null, fortificata: false, camminato: false };
@@ -229,7 +241,7 @@ function reseComune(cm){
   if (cm.tier>=3){ f+=1; p+=1; o+=1; }
   const faz = cm.fazione>=0 && cm.fazione<100 ? st.fazioni[cm.fazione] : null;
   const bonusId = faz ? D().FAZIONI[faz.id].bonusId : null;
-  for (const h of MAP.hexes){
+  for (const h of MAP.terre){
     if (h.comune !== cm.id) continue;
     let hf=0, hp=0, ho=0;
     if (h.terra==="plain"){ hf=2; hp=1; if (faz && faz.techs.includes("grano_t")) hf+=0.5; }
@@ -450,7 +462,7 @@ function lavoraCoda(cm){
 function completaItem(cm, item){
   if (window.FX && item.tipo!=="unita"){ const h=MAP.hexes[cm.hex]; FX.constructionPop(h.x, h.y-3); }
   if (item.tipo==="unita"){
-    creaUnita(item.id, cm.fazione, cm.hex);
+    creaUnita(item.id, cm.fazione, hexVaro(cm, item.id));
     if (cm.fazione===st.giocatore) aggiungiLog(D().UNITA[item.id].nome+" pronti a "+cm.nome+".", "bene");
   } else if (item.tipo==="edificio"){
     cm.edifici.push(item.id);
@@ -481,7 +493,7 @@ function completaItem(cm, item){
 // null se il territorio è troppo misto per avere un carattere unico
 function terrenoDominante(cm){
   const cont = {}; let tot = 0;
-  for (const h of MAP.hexes){
+  for (const h of MAP.terre){
     if (h.comune !== cm.id) continue;
     cont[h.terra] = (cont[h.terra]||0)+1; tot++;
   }
@@ -556,6 +568,13 @@ function lavoratoriFazione(fid){
     for (const it of cm.coda) if (it.tipo==="unita" && it.id==="lavoratore") n++;
   return n;
 }
+// una citta' e' costiera se il suo esagono tocca il mare: e' li' che si costruiscono le navi
+function cittaCostiera(cm){
+  const h = MAP.hexes[cm.hex];
+  if (!h) return false;
+  if (h.costa) return true;
+  return MAP.vicini(cm.hex).some(j => MAP.hexes[j].mare);
+}
 function unitaDisponibili(cm){
   const f = st.fazioni[cm.fazione];
   const alCompleto = truppeFazione(cm.fazione) >= limiteEsercito();
@@ -572,6 +591,12 @@ function unitaDisponibili(cm){
     // reclutamento: edifici militari richiesti
     if (u.tipo==="cav" && !cm.edifici.includes("scuderia")) continue;
     if (u.tipo==="siege" && !cm.edifici.includes("arsenale")) continue;
+    // navi: solo dove c'e' il mare. Serve una citta' sul mare, e dall'era romana in poi
+    // anche un porto: senza banchine non si arma una flotta.
+    if (u.tipo==="naval"){
+      if (!cittaCostiera(cm)) continue;
+      if (st.era >= 1 && !cm.edifici.includes("porto")) continue;
+    }
     if (u.uu!==undefined && !cm.edifici.includes("caserma")) continue;
     if (u.reqEdificio && !cm.edifici.includes(u.reqEdificio)) continue;
     let costo = u.costo;
@@ -636,7 +661,7 @@ function migliora(hexIdx, impId, gratis){
 // altrimenti i lavoratori non saprebbero che fare, meglio non farli reclutare a vuoto
 function esisteMiglioriaPossibile(fid){
   const f = st.fazioni[fid];
-  for (const h of MAP.hexes){
+  for (const h of MAP.terre){
     if (h.imp) continue;
     const cm = st.comuni[h.comune];
     if (cm.fazione !== fid || cm.hex === h.i) continue;
@@ -729,7 +754,7 @@ function prossimaMiglioria(impId, fid){
 }
 function migliorieAggiornabili(fid){
   const out = [];
-  for (const h of MAP.hexes){
+  for (const h of MAP.terre){
     if (!h.imp) continue;
     const cm = st.comuni[h.comune];
     if (!cm || cm.fazione !== fid) continue;
@@ -892,13 +917,37 @@ function passoRicerca(f, sci){
 }
 
 // ---------- MOVIMENTO ----------
-const COSTO_TERRA = { plain:1, hill:2, forest:2, mountain:3, volcano:3, secca:2 };
+const COSTO_TERRA = { plain:1, hill:2, forest:2, mountain:3, volcano:3, secca:2, mare:1 };
 function costoTerreno(h, fid){
   let c = COSTO_TERRA[h.terra]||1;
+  if (h.mare) return c;                                  // in mare le strade non aiutano
   const f = fid>=0&&fid<100 ? st.fazioni[fid] : null;
   if (f && f.techs.includes("strade")) c = Math.max(1, c-0.5);
   return c;
 }
+
+// ---------- DOMINIO: chi puo' stare dove ----------
+// Con il mare navigabile ogni esagono d'acqua e' una casella vera, quindi senza questa regola
+// la fanteria camminerebbe sull'acqua (COSTO_TERRA non aveva la voce "mare" e ricadeva su 1).
+function dominioTipo(tipo){
+  const ud = GDATA.UNITA[tipo];
+  return (ud && ud.dominio) || "terra";
+}
+function eNavale(u){ return dominioTipo(u.tipo) === "mare"; }
+// una casella e' percorribile da questa unita'?
+// Le truppe di terra possono entrare in mare SOLO su un esagono dove c'e' un trasporto amico
+// con posto libero: quello e' l'imbarco.
+function percorribile(h, u){
+  if (dominioTipo(u.tipo) === "mare") return !!h.mare;
+  if (!h.mare) return true;
+  return !!trasportoLibero(h.i, u.fazione);
+}
+// trasporto amico con posto disponibile su questo esagono
+function trasportoLibero(hexIdx, fid){
+  return st.unita.find(t => t.hex===hexIdx && t.fazione===fid && (GDATA.UNITA[t.tipo]||{}).capacita
+                            && (t.carico||[]).length < GDATA.UNITA[t.tipo].capacita) || null;
+}
+function capacitaDi(u){ return (GDATA.UNITA[u.tipo]||{}).capacita || 0; }
 function unitaSuHex(i){ return st.unita.filter(u=>u.hex===i); }
 function nemiciSuHex(i, fid){ return st.unita.filter(u=>u.hex===i && !alleati(u.fazione, fid)); }
 function alleati(a,b){ return a===b; }
@@ -908,6 +957,7 @@ function raggioMovimento(uids){
   if (!us.length) return {};
   const mov = Math.min(...us.map(u=>u.mov));
   const fid = us[0].fazione;
+  const navale = eNavale(us[0]);
   const start = us[0].hex;
   const dist = { [start]:0 };
   const out = {};
@@ -921,10 +971,15 @@ function raggioMovimento(uids){
       const cm = st.comuni[h.comune];
       const cittaNemica = (cm.hex===nb && cm.fazione!==fid);
       if (nem.length || (cittaNemica && cm.fazione!==-1) || (cittaNemica && cm.fazione===-1)){
-        // attaccabile se raggiungibile
-        if (dist[cur] < mov) out[nb] = { costo:dist[cur]+1, attacco:true };
+        // Si attacca solo chi si puo' raggiungere davvero: una fanteria non colpisce una nave
+        // al largo e una nave non assalta un reparto nell'entroterra. Le citta' costiere
+        // restano attaccabili dal mare solo col bombardamento (vedi bombarda).
+        const bersaglioNavale = nem.length ? eNavale(nem[0]) : false;
+        const ok = nem.length ? (bersaglioNavale === navale) : !navale;
+        if (ok && dist[cur] < mov) out[nb] = { costo:dist[cur]+1, attacco:true };
         continue;
       }
+      if (!percorribile(h, us[0])) continue;
       const c = dist[cur] + costoTerreno(h, fid);
       if (c <= mov && (dist[nb]===undefined || c < dist[nb])){
         if (unitaSuHex(nb).length >= 4) continue;
@@ -937,17 +992,56 @@ function raggioMovimento(uids){
   delete out[start];
   return out;
 }
+// Quando una nave affonda porta giu' il carico, e quando muore un reparto imbarcato va tolto
+// dalla stiva: senza questo restano riferimenti a unita' inesistenti e i trasporti risultano
+// pieni per sempre.
+function affondaConCarico(){
+  const morti = st.unita.filter(u => u.hp <= 0);
+  for (const m of morti){
+    if (m.carico && m.carico.length){
+      for (const cid of m.carico){
+        const c = st.unita.find(x => x.id === cid);
+        if (c) c.hp = 0;
+      }
+    }
+    if (m.imbarcataSu !== undefined) sbarca(m);
+  }
+}
 function muovi(uids, dest){
   const r = raggioMovimento(uids);
   if (!r[dest] || r[dest].attacco) return false;
+  const hDest = MAP.hexes[dest];
   for (const u of st.unita){
     if (!uids.includes(u.id)) continue;
+    const daMare = MAP.hexes[u.hex] && MAP.hexes[u.hex].mare;
     u.hex = dest;
     u.mov = Math.max(0, u.mov - r[dest].costo);
     u.camminato = true;
     u.fortificata = false;
+    if (!eNavale(u)){
+      // IMBARCO: una truppa di terra che entra in mare sale sul trasporto che si trova li'
+      if (hDest.mare && !daMare){
+        const t = trasportoLibero(dest, u.fazione);
+        if (t){ (t.carico = t.carico || []).push(u.id); u.imbarcataSu = t.id; u.mov = 0; }
+      }
+      // SBARCO: tornando a terra la truppa lascia la stiva
+      else if (!hDest.mare && daMare) sbarca(u);
+    } else {
+      // il trasporto porta con se' il carico
+      for (const cid of (u.carico||[])){
+        const c = st.unita.find(x=>x.id===cid);
+        if (c){ c.hex = dest; c.mov = 0; }
+      }
+    }
   }
   return true;
+}
+// toglie l'unita' dalla stiva del trasporto su cui viaggiava
+function sbarca(u){
+  if (u.imbarcataSu === undefined) return;
+  const t = st.unita.find(x=>x.id===u.imbarcataSu);
+  if (t && t.carico) t.carico = t.carico.filter(id => id !== u.id);
+  u.imbarcataSu = undefined;
 }
 
 // ---------- PATHFINDING (viaggi lunghi) ----------
@@ -974,6 +1068,9 @@ function trovaPercorso(uid, dest){
         if (nemiciSuHex(nb, fid).length) continue;      // non attraversare nemici
         if (unitaSuHex(nb).length >= 4) continue;        // stack pieno
       }
+      // stesso filtro di dominio del raggio di movimento: senza questo, la marcia su piu'
+      // turni proporrebbe allegramente rotte via mare a una fanteria
+      if (!percorribile(h, u)) continue;
       const c = dist[cur] + costoTerreno(h, fid);
       if (dist[nb]===undefined || c < dist[nb]){
         dist[nb] = c; prev[nb] = cur; coda.push(nb);
@@ -1197,6 +1294,7 @@ function simulaBattaglia(atts, defs, hexDif, applica){
     // Bomba Granita: i difensori sopravvissuti si congelano
     if (atts.some(u=>D().UNITA[u.tipo] && D().UNITA[u.tipo].congela))
       for (const x of B) if (x.u.hp>0) x.u.congelato = 2;
+    affondaConCarico();
     st.unita = st.unita.filter(u=>u.hp>0);
     for (const x of A) if (x.u.hp>0) x.u.xp = Math.min(10, x.u.xp+1);
     for (const x of B) if (x.u.hp>0) x.u.xp = Math.min(10, x.u.xp+1);
@@ -1489,6 +1587,7 @@ function usaPotere(id, hex){
     const zona = areaHex(hex, p.raggio||1);
     const bersagli = st.unita.filter(u => zona.includes(u.hex) && !alleati(u.fazione, fid));
     for (const u of bersagli){ u.hp -= p.danno; if (p.congela) u.congelato = 2; }
+    affondaConCarico();
     st.unita = st.unita.filter(u=>u.hp>0);
     if (window.FX && h){
       if (id==="eruzione"){ FX.eruption(h.x,h.y); FX.shake(9,0.6); FX.flash("255,120,40",0.5); }
@@ -1835,7 +1934,7 @@ function disastro(annoPrec, anno, titolo, testo, lon, lat, raggio, img){
   if (annoPrec < anno && st.anno >= anno){
     aggiungiLog("💥 "+titolo+"!", "era");
     const p = { x:(lon-12.30)*88.5, y:(38.40-lat)*111 };
-    if (window.FX && img==="ev_eruzione") for (const h of MAP.hexes) if (h.terra==="volcano") FX.lava(h.x, h.y);
+    if (window.FX && img==="ev_eruzione") for (const h of MAP.terre) if (h.terra==="volcano") FX.lava(h.x, h.y);
     for (const cm of st.comuni){
       const h = MAP.hexes[cm.hex];
       if (Math.hypot(h.x-p.x, h.y-p.y) < raggio){
@@ -1844,7 +1943,7 @@ function disastro(annoPrec, anno, titolo, testo, lon, lat, raggio, img){
         if (img==="ev_eruzione") cm.eruzioneMalus = 8; // cenere e lava: rese ridotte, si riprendono nei turni
       }
     }
-    for (const h of MAP.hexes){
+    for (const h of MAP.terre){
       if (Math.hypot(h.x-p.x, h.y-p.y) < raggio && h.imp && rnd()<0.4) h.imp = null;
     }
     st.pending.push({ titolo:"💥 "+titolo, testo, img, scelte:[{label:"Che il cielo ci aiuti", eff:"nulla"}] });
@@ -1859,7 +1958,7 @@ function passoPeste(){
     const nuovi = [];
     for (const id of st.peste.infetti){
       const cm = st.comuni[id];
-      for (const h of MAP.hexes){
+      for (const h of MAP.terre){
         if (h.comune!==id) continue;
         for (const nb of MAP.vicini(h.i)){
           const altro = MAP.hexes[nb].comune;
@@ -1891,8 +1990,8 @@ function eventiCasuali(){
     // i briganti non spawnano più milizie dal nulla: derubano semplicemente le trazzere (meno oro)
     if (ev.id==="briganti") st.fazioni[gioc].oro = Math.max(0, st.fazioni[gioc].oro - (15+st.era*5));
     if (ev.id==="eruzione_min"){
-      if (window.FX) for (const h of MAP.hexes) if (h.terra==="volcano") FX.lava(h.x, h.y);
-      for (const h of MAP.hexes){
+      if (window.FX) for (const h of MAP.terre) if (h.terra==="volcano") FX.lava(h.x, h.y);
+      for (const h of MAP.terre){
         if (h.etna && h.imp && rnd()<0.3) h.imp=null;
       }
       const vicine = st.comuni.filter(c=>MAP.hexes[c.hex].etna);
@@ -2351,6 +2450,7 @@ function eseguiProposta(a){
 return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   reseComune, reseFazione, anniPerTurno, annoStr, aggiungiLog,
   raggioMovimento, muovi, anteprima, attacca, bombarda,
+  eNavale, dominioTipo, cittaCostiera, capacitaDi, trasportoLibero,
   trovaPercorso, impostaGoto, processaGoto, fortifica, svegliaUnita, unitaFerme, suggerimenti,
   cucina, dopControllati, piattiSbloccati, faSagra,
   calcolaVisibilita, hexVisibile, hexEsplorato,

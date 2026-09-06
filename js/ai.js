@@ -119,7 +119,7 @@ function diplomaziaIA(f){
 
 function confinanti(a, b){
   const st = GAME.st;
-  for (const h of MAP.hexes){
+  for (const h of MAP.terre){
     if (st.comuni[h.comune].fazione !== a) continue;
     for (const nb of MAP.vicini(h.i))
       if (st.comuni[MAP.hexes[nb].comune].fazione === b) return true;
@@ -187,7 +187,7 @@ function gestioneCittaIA(f){
 
 function miglioriaIA(f){
   const st = GAME.st;
-  const miei = MAP.hexes.filter(h => st.comuni[h.comune].fazione===f.id && !h.imp && h.i!==st.comuni[h.comune].hex);
+  const miei = MAP.terre.filter(h => st.comuni[h.comune].fazione===f.id && !h.imp && h.i!==st.comuni[h.comune].hex);
   if (!miei.length) return;
   const h = scegli(miei);
   for (const id of Object.keys(D().MIGLIORIE))

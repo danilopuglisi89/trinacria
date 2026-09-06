@@ -869,11 +869,12 @@ function ritratto(ctx, cx, cy, w, h, fid, tratto){
 function siciliaMini(ctx, w, h, hexes, comuni, fidEvidenzia, coloreEv){
   // bounding
   let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
-  for (const hx of hexes){ minx=Math.min(minx,hx.x); miny=Math.min(miny,hx.y); maxx=Math.max(maxx,hx.x); maxy=Math.max(maxy,hx.y); }
+  for (const hx of hexes){ if (hx.mare) continue; minx=Math.min(minx,hx.x); miny=Math.min(miny,hx.y); maxx=Math.max(maxx,hx.x); maxy=Math.max(maxy,hx.y); }
   const pad=8; const sc=Math.min((w-pad*2)/(maxx-minx),(h-pad*2)/(maxy-miny));
   const ox=pad+(w-pad*2-(maxx-minx)*sc)/2, oy=pad+(h-pad*2-(maxy-miny)*sc)/2;
   const P=x=>ox+(x-minx)*sc, Q=y=>oy+(y-miny)*sc;
   for (const hx of hexes){
+    if (hx.mare) continue;                 // il mare non appartiene a nessun comune
     const own = comuni[hx.comune].fazione;
     ctx.fillStyle = (own===fidEvidenzia) ? coloreEv : "#cdb96a";
     ctx.globalAlpha = (own===fidEvidenzia) ? 1 : 0.55;

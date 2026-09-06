@@ -183,6 +183,27 @@ const TECH = [
 // ---- UNITÀ ----
 // tipo: inf, ranged, cav, siege, militia, hero — uu: id fazione con unità unica
 const UNITA = {
+  // ---- NAVI ----
+  // Le isole minori non sono piu' collegate da lingue di terra: si raggiungono per mare.
+  // dominio:"mare" = si muove solo sull'acqua; capacita = quante unita' di terra imbarca.
+  // Le navi si reclutano solo nelle citta' costiere (vedi unitaDisponibili) e non possono
+  // conquistare da sole: devono sbarcare le truppe.
+  nave_onerar: { nome:"Nave onerarìa",      era:0, tech:null,       tipo:"naval", dominio:"mare", capacita:2,
+                 atk:2,  def:5,  mov:5, costo:45,  mant:1, desc:"Trasporto da carico: imbarca due reparti e li sbarca dove vuoi." },
+  nave_birem:  { nome:"Bireme",             era:0, tech:null,       tipo:"naval", dominio:"mare",
+                 atk:7,  def:6,  mov:5, costo:55,  mant:1, desc:"Nave da guerra a due ordini di remi, con rostro." },
+  nave_trirem: { nome:"Trireme",            era:1, tech:null,       tipo:"naval", dominio:"mare",
+                 atk:10, def:8,  mov:6, costo:75,  mant:2, desc:"La spina dorsale delle flotte antiche." },
+  nave_dromon: { nome:"Dromone",            era:2, tech:null,       tipo:"naval", dominio:"mare",
+                 atk:13, def:11, mov:6, costo:95,  mant:2, muraDanno:18, desc:"Dromone bizantino col fuoco greco: puo' bombardare le citta' costiere." },
+  nave_sciab:  { nome:"Sciabecco",          era:3, tech:null,       tipo:"naval", dominio:"mare",
+                 atk:16, def:12, mov:8, costo:110, mant:2, desc:"Veloce e maneggevole, il corsaro del Mediterraneo." },
+  nave_galea:  { nome:"Galea",              era:4, tech:null,       tipo:"naval", dominio:"mare",
+                 atk:20, def:16, mov:7, costo:140, mant:3, muraDanno:24, desc:"Galea da battaglia con castello di prua." },
+  nave_galeaz: { nome:"Galeazza",           era:5, tech:null,       tipo:"naval", dominio:"mare",
+                 atk:26, def:22, mov:7, costo:180, mant:3, muraDanno:34, desc:"Fortezza galleggiante irta di artiglierie." },
+  nave_trasp2: { nome:"Galeone da carico",  era:3, tech:null,       tipo:"naval", dominio:"mare", capacita:3,
+                 atk:4,  def:12, mov:7, costo:100, mant:2, desc:"Trasporto d'alto bordo: tre reparti al sicuro." },
   // Era 0
   oplita:      { nome:"Opliti",              era:0, tech:"falange", tipo:"inf",   atk:6,  def:8,  mov:2, costo:40,  mant:1 },
   fromboliere: { nome:"Frombolieri",         era:0, tech:null,      tipo:"ranged",atk:5,  def:3,  mov:2, costo:30,  mant:1 },
@@ -253,6 +274,15 @@ const UNITA = {
 };
 
 // linea "standard" per era usata da IA e milizie
+// per ogni era: [trasporto, nave da guerra] — usata da IA e reclutamento automatico
+const LINEA_NAVALE = [
+  ["nave_onerar","nave_birem"],
+  ["nave_onerar","nave_trirem"],
+  ["nave_onerar","nave_dromon"],
+  ["nave_trasp2","nave_sciab"],
+  ["nave_trasp2","nave_galea"],
+  ["nave_trasp2","nave_galeaz"]
+];
 const LINEA_ERA = [
   ["oplita","fromboliere","cav_greca","ariete"],
   ["legionario","sagittario","equites","balista"],
@@ -624,6 +654,6 @@ const POTERI = [
 ];
 
 return { ERE, VELOCITA, CULTURE, FAZIONI, LEADER_STORICI, NOMI_EREDI, TRATTI, EROI,
-         TECH, UNITA, LINEA_ERA, EDIFICI, EDIFICI_LOCALI, MIGLIORIE, MIGLIORIE_LINEA, MERAVIGLIE, INVASIONI,
+         TECH, UNITA, LINEA_ERA, LINEA_NAVALE, EDIFICI, EDIFICI_LOCALI, MIGLIORIE, MIGLIORIE_LINEA, MERAVIGLIE, INVASIONI,
          EVENTI_STORICI, EVENTI_CASUALI, DILEMMI, OBIETTIVI, DOP, PIATTI, SAGRE, POTERI, GUARDAROBA_EXTRA };
 })();

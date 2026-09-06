@@ -109,7 +109,7 @@ const ISOLE = [
   { lat:37.46, lon:12.42, r:5,  vLat:37.63, vLon:12.58 }  // Pantelleria (stilizzata) ← Mazara
 ];
 
-let hexes = [], grid = {}, comuni = [], strade = [], etnaSummit = -1, luoghi = [], sponsor = [], poi = [], monumenti = [];
+let hexes = [], terre = [], grid = {}, comuni = [], strade = [], etnaSummit = -1, luoghi = [], sponsor = [], poi = [], monumenti = [];
 // --- cache del terreno a due livelli ---
 // Prima c'era un unico canvas-mondo a piena risoluzione: con la mappa attuale sarebbe
 // ~14.000×9.400px (~530MB di RAM), e ogni invalidate() lo ricuoceva TUTTO. Ora:
@@ -228,52 +228,59 @@ function addIsola(iso){
     }
   }
   if (!isolaCells.length) return;
-  // ponte di secche: cammino sul grafo di esagoni verso la costa, garantendo l'adiacenza
-  const t = toXY(iso.vLat, iso.vLon);
-  // parti dalla cella-isola più vicina alla terraferma
-  let cur = isolaCells.reduce((best,cell)=>{
-    const hc=hexCentro(cell.col,cell.row); const d=Math.hypot(hc.x-t.x,hc.y-t.y);
-    return (!best||d<best.d)?{col:cell.col,row:cell.row,d}:best;
-  }, null);
-  const terraferma = (colrow) => vicinatiCR(colrow.col,colrow.row).some(([nc,nr]) => {
-    const k = nc+","+nr;
-    return grid[k]!==undefined && !hexes[grid[k]].isola && hexes[grid[k]].terra!=="secca";
-  });
-  for (let step=0; step<80 && !terraferma(cur); step++){
-    // scegli il vicino il cui centro è più vicino al bersaglio
-    let next=null, nd=1e9;
-    for (const [nc,nr] of vicinatiCR(cur.col,cur.row)){
-      const hc=hexCentro(nc,nr); const d=Math.hypot(hc.x-t.x,hc.y-t.y);
-      if (d<nd){ nd=d; next={col:nc,row:nr}; }
+  // Niente piu' "ponte di secche" verso la terraferma. Prima le isole minori erano collegate
+  // alla Sicilia da una fila di esagoni di terreno percorribile, perche' il gioco non aveva
+  // navi: era un espediente, e sulla mappa si vedeva come una lingua di terra inventata.
+  // Ora il mare e' navigabile e le isole si raggiungono imbarcando le truppe (vedi riempiMare).
+}
+
+// Riempie d'acqua tutte le celle della griglia rimaste vuote. Gli esagoni di mare esistono
+// solo per far navigare le navi: non hanno comune, non si coltivano, non si conquistano, e
+// NON vengono disegnati (il mare a schermo resta il gradiente dipinto da drawSea), altrimenti
+// l'acqua si vedrebbe a nido d'ape. Profondità: le acque vicine alla costa sono "sotto costa"
+// e più avanti serviranno a distinguere le navi che possono avvicinarsi a riva.
+function riempiMare(){
+  for (let row=0; row<ROWS; row++){
+    for (let col=0; col<COLS; col++){
+      const key = col+","+row;
+      if (grid[key] !== undefined) continue;
+      const c = hexCentro(col,row);
+      const idx = hexes.length;
+      hexes.push({ i:idx, col, row, x:c.x, y:c.y, terra:"mare", mare:true, elev:0, fiume:false,
+                   costa:false, etna:false, comune:-1, imp:null, impTurni:0, res:null, shade:0 });
+      grid[key] = idx;
     }
-    if (!next) break;
-    const key = next.col+","+next.row;
-    if (grid[key] === undefined) creaHex(next.col, next.row, "secca", 0.02);
-    cur = next;
   }
-  // riparazione: il cammino verso l'ancoraggio approssimato (vLat/vLon) può stallare/oscillare
-  // se il punto non cade esattamente sulla vera costa (specie su mappe grandi) — in quel caso si
-  // ripunta dritti verso l'esagono di vera terraferma più vicino alla posizione attuale del ponte
-  if (!terraferma(cur)){
-    const hcCur = hexCentro(cur.col, cur.row);
-    let bestH = null, bd = 1e9;
-    for (const h of hexes){
-      if (h.isola || h.terra==="secca") continue;
-      const d = Math.hypot(h.x-hcCur.x, h.y-hcCur.y);
-      if (d < bd){ bd = d; bestH = h; }
-    }
-    for (let step=0; bestH && step<80 && !terraferma(cur); step++){
-      let next=null, nd=1e9;
-      for (const [nc,nr] of vicinatiCR(cur.col,cur.row)){
-        const hc=hexCentro(nc,nr); const d=Math.hypot(hc.x-bestH.x,hc.y-bestH.y);
-        if (d<nd){ nd=d; next={col:nc,row:nr}; }
+  // sottocosta = mare adiacente alla terra: è lì che si sbarca e che pescano le barche
+  for (const h of hexes){
+    if (!h.mare) continue;
+    for (const j of vicini(h.i)) if (!hexes[j].mare){ h.sottocosta = true; break; }
+  }
+}
+
+// Esagono più vicino a una coordinata-mondo, SENZA scandire tutta la mappa.
+// Con il mare navigabile gli esagoni sono passati da ~10.000 a ~40.000: le vecchie ricerche
+// lineari (una per comune, per sponsor, per POI e a ogni click) erano diventate il grosso del
+// tempo di build. Qui si parte dalla cella che contiene il punto e si allarga ad anelli,
+// fermandosi appena si trova un candidato valido: costo praticamente costante.
+function hexPiuVicino(x, y, soloTerra){
+  const cr = colRowDaXY(x, y);
+  let best = -1, bd = 1e9;
+  for (let anello = 0; anello <= 6; anello++){
+    for (let dr = -anello; dr <= anello; dr++){
+      for (let dc = -anello; dc <= anello; dc++){
+        if (anello > 0 && Math.max(Math.abs(dr), Math.abs(dc)) !== anello) continue;  // solo il bordo
+        const j = grid[(cr.col+dc)+","+(cr.row+dr)];
+        if (j === undefined) continue;
+        const h = hexes[j];
+        if (soloTerra && h.mare) continue;
+        const d = Math.hypot(h.x-x, h.y-y);
+        if (d < bd){ bd = d; best = j; }
       }
-      if (!next) break;
-      const key = next.col+","+next.row;
-      if (grid[key] === undefined) creaHex(next.col, next.row, "secca", 0.02);
-      cur = next;
     }
+    if (best >= 0 && anello >= 1) break;   // un anello di margine basta a garantire il minimo
   }
+  return { i: best, d: bd };
 }
 
 function build(){
@@ -310,37 +317,50 @@ function build(){
       grid[col+","+row] = idx;
     }
   }
-  // isole minori + ponti di "secche" (aggiunte prima di costa/ombre/voronoi)
+  // isole minori (senza ponti: si raggiungono per mare)
   for (const iso of ISOLE) addIsola(iso);
-  // costa
+  // il mare diventa percorribile: ogni cella della griglia ancora vuota diventa un esagono
+  // d'acqua. Serve perché le navi hanno bisogno di caselle vere su cui stare e muoversi,
+  // esattamente come le truppe di terra. Va fatto DOPO le isole, altrimenti il mare
+  // occuperebbe le celle che spettano alle isole.
+  riempiMare();
+  terre = hexes.filter(h => !h.mare);
+  // costa: terra che confina col mare (o col bordo della griglia)
   for (const h of hexes){
-    for (const [nc,nr] of vicinatiCR(h.col,h.row))
-      if (grid[nc+","+nr] === undefined){ h.costa = true; if (h.elev>0.3) h.elev=0.3; break; }
+    if (h.mare) continue;
+    for (const [nc,nr] of vicinatiCR(h.col,h.row)){
+      const j = grid[nc+","+nr];
+      if (j === undefined || hexes[j].mare){ h.costa = true; if (h.elev>0.3) h.elev=0.3; break; }
+    }
   }
   // hillshade
   calcolaOmbre();
   // Etna summit
-  { let bd=1e9; for (const h of hexes){ const d=Math.hypot(h.x-ETNA.x,h.y-ETNA.y); if(h.terra==="volcano"&&d<bd){bd=d;etnaSummit=h.i;} } }
+  { let bd=1e9; for (const h of hexes){ if (h.mare) continue; const d=Math.hypot(h.x-ETNA.x,h.y-ETNA.y); if(h.terra==="volcano"&&d<bd){bd=d;etnaSummit=h.i;} } }
   // comuni + voronoi
   comuni = window.DATA_COMUNI.map((c,id) => {
     const p = toXY(c[1], c[2]);
     return { id, nome:c[0], prov:c[3], tier:c[4], res:c[5], x:p.x, y:p.y, hex:-1 };
   });
   for (const cm of comuni){
-    let best=-1, bd=1e9;
-    for (const h of hexes){ const d = Math.hypot(h.x-cm.x, h.y-cm.y); if (d < bd){ bd=d; best=h.i; } }
-    cm.hex = best;
+    cm.hex = hexPiuVicino(cm.x, cm.y, true).i;
   }
   const presi = {};
   for (const cm of comuni){
     if (presi[cm.hex] !== undefined){
       let best=-1, bd=1e9;
-      for (const h of hexes){ if (presi[h.i]!==undefined) continue; const d = Math.hypot(h.x-cm.x, h.y-cm.y); if (d<bd){ bd=d; best=h.i; } }
+      for (const h of hexes){ if (h.mare || presi[h.i]!==undefined) continue; const d = Math.hypot(h.x-cm.x, h.y-cm.y); if (d<bd){ bd=d; best=h.i; } }
       cm.hex = best;
     }
     presi[cm.hex] = cm.id;
   }
   for (const h of hexes){
+    // NB: anche il mare riceve un comune di appartenenza. Non e' territorio (h.mare lo
+    // esclude da rese, migliorie, confini e conquista) ma serve perche' in tutto il motore
+    // st.comuni[h.comune] viene letto senza guardie: con -1 andrebbe in errore ovunque.
+    // Per il mare pero' il valore e' irrilevante, quindi si evita il Voronoi completo: con
+    // 30.000 esagoni d'acqua costerebbe da solo mezzo secondo di caricamento per niente.
+    if (h.mare){ h.comune = 0; continue; }
     let best=-1, bd=1e9;
     for (const cm of comuni){ const hc = hexes[cm.hex]; const d = Math.hypot(h.x-hc.x, h.y-hc.y); if (d<bd){ bd=d; best=cm.id; } }
     h.comune = best;
@@ -392,26 +412,20 @@ function build(){
   // POI sponsor (prototipo): ancorati all'esagono più vicino alla posizione reale
   sponsor = (window.DATA_SPONSOR||[]).map(s => {
     const p = toXY(s.lat, s.lon);
-    let best=-1, bd=1e9;
-    for (const h of hexes){ const d = Math.hypot(h.x-p.x, h.y-p.y); if (d<bd){ bd=d; best=h.i; } }
-    return Object.assign({}, s, { x:p.x, y:p.y, hex:best });
+    return Object.assign({}, s, { x:p.x, y:p.y, hex:hexPiuVicino(p.x, p.y, true).i });
   });
   // sponsor personalizzati (demo locale) aggiunti dal giocatore via il form "Diventa Sponsor"
   try {
     const custom = JSON.parse(localStorage.getItem("trinacria_sponsor_custom") || "[]");
     for (const s of custom){
       const p = toXY(s.lat, s.lon);
-      let best=-1, bd=1e9;
-      for (const h of hexes){ const d=Math.hypot(h.x-p.x,h.y-p.y); if(d<bd){bd=d;best=h.i;} }
-      sponsor.push(Object.assign({}, s, { x:p.x, y:p.y, hex:best, custom:true }));
+      sponsor.push(Object.assign({}, s, { x:p.x, y:p.y, hex:hexPiuVicino(p.x, p.y, true).i, custom:true }));
     }
   } catch(e){ /* localStorage assente o dati corrotti: ignora */ }
   // POI di contorno (nomi di fantasia, non dati reali): ancorati all'esagono più vicino
   poi = (window.DATA_POI||[]).map(p => {
     const w = toXY(p.lat, p.lon);
-    let best=-1, bd=1e9;
-    for (const h of hexes){ const d=Math.hypot(h.x-w.x,h.y-w.y); if(d<bd){bd=d;best=h.i;} }
-    return { n:p.n, c:p.c, lat:p.lat, lon:p.lon, x:w.x, y:w.y, hex:best };
+    return { n:p.n, c:p.c, lat:p.lat, lon:p.lon, x:w.x, y:w.y, hex:hexPiuVicino(w.x, w.y, true).i };
   });
   epoch++;   // mondo nuovo: base e tiles vanno ricotte
   return { hexes, comuni };
@@ -419,7 +433,7 @@ function build(){
 
 function calcolaOmbre(){
   const LX=-0.72, LY=-0.69; // luce da NW
-  for (const h of hexes){
+  for (const h of terre){
     let gx=0, gy=0, n=0;
     for (const j of vicini(h.i)){
       const o=hexes[j], dx=o.x-h.x, dy=o.y-h.y, dl=Math.hypot(dx,dy)||1;
@@ -453,9 +467,8 @@ function w2s(v, x, y){ return { x: x*v.z + v.x, y: y*v.z + v.y }; }
 function s2w(v, sx, sy){ return { x:(sx-v.x)/v.z, y:(sy-v.y)/v.z }; }
 function hexAt(v, sx, sy){
   const w = s2w(v, sx, sy);
-  let best=-1, bd=1e9;
-  for (const h of hexes){ const d = Math.hypot(h.x-w.x, h.y-w.y); if (d<bd){ bd=d; best=h.i; } }
-  return (bd < R*1.25) ? best : -1;
+  const r = hexPiuVicino(w.x, w.y, false);
+  return (r.d < R*1.25) ? r.i : -1;
 }
 
 function coloreFazione(st, fid){
@@ -613,14 +626,14 @@ function renderTerreno(ctx, v, st, rz){
   // devono essere disegnati anche quando il loro centro cade appena fuori da una tile
   const vis = h => { const s=w2s(v,h.x,h.y); return !(s.x<-rz*3||s.y<-rz*3||s.x>W+rz*3||s.y>H+rz*3); };
   // coste: alone di sabbia sotto agli esagoni costieri
-  for (const h of hexes){
+  for (const h of terre){
     if (!h.costa || !vis(h)) continue;
     const s = w2s(v,h.x,h.y);
     ctx.fillStyle = "#d8c88f"; ART.hexPath(ctx, s.x, s.y, rz+Math.max(2,rz*0.28)); ctx.fill();
   }
   // terreno mosaico (texture AI se disponibili, altrimenti tessere procedurali)
   const texAI = SPRITES.abilitato.terreno;
-  for (const h of hexes){
+  for (const h of terre){
     if (!vis(h)) continue;
     const s = w2s(v, h.x, h.y);
     if (!(texAI && disegnaTexturaHex(ctx, v, s, h, rz))) ART.mosaicoHex(ctx, s.x, s.y, rz, h.terra, h.i, h.shade);
@@ -646,11 +659,11 @@ function renderTerreno(ctx, v, st, rz){
   // territorio + confini: come su un atlante, il colore è pieno all'interno del regno
   // e si ammorbidisce verso la frontiera, dove poi la linea di confine netta lo ridisegna
   if (st){
-    for (const h of hexes){
+    for (const h of terre){
       const own = st.comuni[h.comune].fazione;
       if (own===-1 || !vis(h)) continue;
       // velo leggerissimo: il possesso si legge dal confine e dal suo alone, la texture resta protagonista
-      const frontiera = vicini(h.i).some(j => st.comuni[hexes[j].comune].fazione !== own);
+      const frontiera = vicini(h.i).some(j => !hexes[j].mare && st.comuni[hexes[j].comune].fazione !== own);
       const s = w2s(v, h.x, h.y);
       ctx.fillStyle = coloreFazione(st, own) + (frontiera ? "10" : "18");
       ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.fill();
@@ -660,7 +673,7 @@ function renderTerreno(ctx, v, st, rz){
   // migliorie e risorse
   if (rz > 6){
     ctx.textAlign="center"; ctx.textBaseline="middle";
-    for (const h of hexes){
+    for (const h of terre){
       if (!vis(h)) continue;
       const s = w2s(v, h.x, h.y);
       const icoAI = SPRITES.abilitato.icone;
@@ -749,7 +762,7 @@ function renderDynamic(ctx, v, st, sel, rz){
   const vis = h => { const s=w2s(v,h.x,h.y); return !(s.x<-rz*3||s.y<-rz*3||s.x>W+rz*3||s.y>H+rz*3); };
   // nebbia di guerra: copre la mappa non in vista
   if (st && st.nebbia){
-    for (const h of hexes){
+    for (const h of terre){
       if (GAME.hexVisibile(h.i)) continue;
       if (!vis(h)) continue;
       const s = w2s(v, h.x, h.y);
@@ -945,7 +958,8 @@ function dirMare(h){
   if (h._mare !== undefined) return h._mare;
   let vx=0, vy=0;
   for (const [c,r] of vicinatiCR(h.col,h.row)){
-    if (grid[c+","+r] !== undefined) continue;
+    const j = grid[c+","+r];
+    if (j !== undefined && !hexes[j].mare) continue;   // vicino di terra: non e' il largo
     const p = hexCentro(c, r);
     vx += p.x - h.x; vy += p.y - h.y;
   }
@@ -960,7 +974,7 @@ function vitaSullaMappa(ctx, v, st, rz, W, H){
   ctx.save();
   // 1) onde lungo la costa
   ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = Math.max(1, rz*0.035); ctx.lineCap="round";
-  for (const h of hexes){
+  for (const h of terre){
     if (!h.costa) continue;
     const s = w2s(v, h.x, h.y); if (!dentro(s)) continue;
     for (let k=0;k<2;k++){
@@ -1021,7 +1035,7 @@ function vitaSullaMappa(ctx, v, st, rz, W, H){
   }
   // 4) chi lavora la terra: greggi sui pascoli, contadini nei campi, vendemmia nei vigneti
   if (rz > 46){
-    for (const h of hexes){
+    for (const h of terre){
       if (!h.imp) continue;
       const s = w2s(v, h.x, h.y); if (!dentro(s)) continue;
       const imp = h.imp;
@@ -1164,7 +1178,7 @@ function etichetta(ctx, testo, x, y, fs, bold, fid, st){
 // I segmenti coprono l'intero lato dell'esagono e vengono uniti in polilinee: niente più trattini.
 function latiConfine(v, st, rz, W, H){
   const per = {};   // colore -> lista di lati {a:{x,y}, b:{x,y}}
-  for (const h of hexes){
+  for (const h of terre){
     const own = st.comuni[h.comune].fazione;
     if (own===-1) continue;
     const s = w2s(v, h.x, h.y);
@@ -1172,7 +1186,7 @@ function latiConfine(v, st, rz, W, H){
     const dirs = vicinatiCR(h.col,h.row);
     for (let d=0; d<dirs.length; d++){
       const j = grid[dirs[d][0]+","+dirs[d][1]];
-      if (j===undefined) continue;                       // mare / fuori mappa: nessuna linea
+      if (j===undefined || hexes[j].mare) continue;      // mare / fuori mappa: nessuna linea
       const altro = st.comuni[hexes[j].comune].fazione;
       if (altro === own) continue;
       const nx = hexes[j];
@@ -1429,7 +1443,7 @@ const WORLD = { w: HEXW*COLS+8, h: ROWH*ROWS+8 };
 let mmBounds = null;
 function calcolaBounds(){
   let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
-  for (const h of hexes){ minx=Math.min(minx,h.x); miny=Math.min(miny,h.y); maxx=Math.max(maxx,h.x); maxy=Math.max(maxy,h.y); }
+  for (const h of terre){ minx=Math.min(minx,h.x); miny=Math.min(miny,h.y); maxx=Math.max(maxx,h.x); maxy=Math.max(maxy,h.y); }
   mmBounds = { minx, miny, maxx, maxy };
 }
 // disegna la minimappa in un canvas mmW×mmH; mostra territori e riquadro-vista
@@ -1444,7 +1458,7 @@ function disegnaMinimappa(ctx, mmW, mmH, v, st){
   // mare di fondo
   ctx.fillStyle="rgba(18,40,55,0.85)"; ctx.fillRect(0,0,mmW,mmH);
   const dot = Math.max(1.4, sc*R*0.95);
-  for (const h of hexes){
+  for (const h of terre){
     const cm = st ? st.comuni[h.comune] : null;
     let col = "#b7a668"; // terra neutra
     if (h.terra==="secca") col = "#2f6f88";
@@ -1473,7 +1487,7 @@ function minimappaVersoMondo(mx, my, mmW, mmH){
 
 return { build, vicini, distKm, hexAt, render, frame, invalidate, w2s, s2w, R, WORLD,
          disegnaMinimappa, minimappaVersoMondo, sponsorAt, poiAt,
-         get hexes(){ return hexes; }, get comuniGeo(){ return comuni; }, get sponsor(){ return sponsor; }, get poi(){ return poi; },
+         get hexes(){ return hexes; }, get terre(){ return terre; }, get comuniGeo(){ return comuni; }, get sponsor(){ return sponsor; }, get poi(){ return poi; },
          get monumenti(){ return monumenti; },
          get cacheStats(){ return { tiles: tiles.size, epoch, base: !!baseCanvas, baseEpoch,
            tileBytes: tiles.size*(TILE+PAD*2)*(TILE+PAD*2)*4,
