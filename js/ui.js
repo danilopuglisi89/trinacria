@@ -2097,11 +2097,19 @@ function apriRicerca(){
       const fatta = f.techs.includes(t.id);
       const inCorso = f.ricerca===t.id;
       const inCoda = percorso.some(x=>x.id===t.id);
-      const ct = GAME.costoTech(t);
+      const ct = GAME.costoTech(t, st.giocatore);
       const badge = t.ramo ? `<span class="m-ramo ramo-${t.ramo}">${t.ramo}</span>` : "";
-      html += `<button class="m-tech ${fatta?'fatta':''} ${inCorso?'incorso':''}" data-tech="${t.id}" ${(fatta||inCorso||inCoda)?"disabled":""}>
+      // albero: senza i prerequisiti la tecnologia si vede ma non si sceglie
+      const mancanti = (t.req||[]).filter(r => !f.techs.includes(r));
+      const bloccata = !fatta && mancanti.length > 0;
+      const reqTxt = bloccata ? `<span class="m-req">🔒 richiede ${mancanti.map(r => (D().TECH.find(x=>x.id===r)||{}).nome || r).join(", ")}</span>` : "";
+      // intuizione: l'azione che sconta del 40%, e se e' gia' scattata
+      const intu = t.intuizione ? (f.intuizioni && f.intuizioni[t.id]
+          ? `<span class="m-intu fatta">💡 ${t.intuizione.testo} — fatto, −40%</span>`
+          : `<span class="m-intu">💡 ${t.intuizione.testo} → −40%</span>`) : "";
+      html += `<button class="m-tech ${fatta?'fatta':''} ${inCorso?'incorso':''} ${bloccata?'bloccata':''}" data-tech="${t.id}" ${(fatta||inCorso||inCoda||bloccata)?"disabled":""}>
         <b>${t.nome}</b>${badge} <span class="muto">${ct}📜${inCorso?" — "+Math.min(100,Math.round(f.sciAcc/ct*100))+"%":(inCoda?" — in coda":"")}</span>
-        <span class="m-desc">${t.desc}</span></button>`;
+        <span class="m-desc">${t.desc}</span>${reqTxt}${fatta?"":intu}</button>`;
     }
     html += `</div>`;
   }

@@ -44,7 +44,8 @@ function nuovaPartita(opts){
     capitale: -1, oro: 120, sciAcc: 0, cultura: 0,
     techs: [], ricerca: null, percorsoRicerca: [], cultureId: f.cultura0,
     leader: null, dinastia: [], eroeVivo: false,
-    diplo: {}, accordi: {}, ai: f.id !== st.giocatore
+    diplo: {}, accordi: {}, ai: f.id !== st.giocatore,
+    cont: { vinte:0, conquiste:0, briganti:0 }, intuizioni: {}, eta: "normale"
   }));
   for (const f of st.fazioni)
     for (const g of st.fazioni)
@@ -79,12 +80,22 @@ function nuovaPartita(opts){
   // Briganti erranti al posto delle guarnigioni: le milizie stavano DENTRO le citta'
   // indipendenti, che ora non esistono piu'. Restano come pericolo sparso per le campagne,
   // cosi' i primi turni non sono una passeggiata.
+  // Covi di briganti: otto accampamenti sui rilievi, lontani dalle capitali, che sfornano
+  // bande e crescono se ignorati. Danno ai primi turni un nemico con un indirizzo, e un motivo
+  // per addestrare la prima truppa d'attacco invece del terzo colono. Spazzarne uno rende oro
+  // e conta per l'Intuizione della Falange. Le bande erranti di prima nascevano a caso.
+  st.covi = [];
   {
-    const posti = MAP.terre.filter(h => !h.lago && st.comuni[h.comune].tier >= 3);
-    for (let k=0; k<26 && posti.length; k++){
+    const capitali = st.comuni.filter(c => c.fondata).map(c => c.hex);
+    const posti = MAP.terre.filter(h => !h.lago && !h.isola && (h.terra==="mountain" || h.terra==="hill" || h.terra==="forest")
+                                   && capitali.every(c => MAP.distKm(c, h.i) > MAP.R*2*14));
+    for (let tent=0; tent<400 && st.covi.length<8 && posti.length; tent++){
       const h = posti[Math.floor(rnd()*posti.length)];
-      if (st.unita.some(u => MAP.distKm(u.hex, h.i) < 18)) continue;   // non addosso alle capitali
+      if (st.covi.some(c => MAP.distKm(c.hex, h.i) < MAP.R*2*10)) continue;   // ben distanziati
+      st.covi.push({ hex:h.i, forza:1, prossimo: 6 + Math.floor(rnd()*6), nato: 1 });
       creaUnita("milizia", -1, h.i);
+      const v = MAP.vicini(h.i).find(j => !MAP.hexes[j].mare && !MAP.hexes[j].lago);
+      if (v !== undefined) creaUnita("milizia", -1, v);
     }
   }
   aggiungiLog("🔱 " + D().ERE[0].nome + " — La Sicilia attende il suo padrone. " +
@@ -133,7 +144,13 @@ function creaUnita(tipo, fid, hex, nome){
 // stat unità con scala per era (milizie/eroi)
 function statU(tipo){
   const b = D().UNITA[tipo];
-  if (tipo==="milizia" || tipo==="eroe" || tipo==="guarnigione"){
+  if (tipo==="milizia"){
+    // briganti e ribelli: il 70% del fante di linea dell'era corrente. Con il vecchio ×0.75 per
+    // era, nell'era 5 una milizia (def 24) batteva un balestriere (def 12) e nessuno la attaccava
+    const linea = D().UNITA[(D().LINEA_ERA[st?st.era:0]||[])[0]] || b;
+    return { ...b, atk: Math.max(b.atk, Math.round(linea.atk*0.7)), def: Math.max(b.def, Math.round(linea.def*0.7)) };
+  }
+  if (tipo==="eroe" || tipo==="guarnigione"){
     const m = 1 + (st?st.era:0) * 0.75;
     return { ...b, atk: Math.round(b.atk*m), def: Math.round(b.def*m) };
   }
@@ -338,6 +355,7 @@ function reseComune(cm){
     if (faz.techs.includes("barocco")) cu+=4;
     if (faz.techs.includes("monasteri") && ed.includes("tempio")) cu+=3;
   }
+  { const em = etaMult(faz); f *= em.cibo; cu *= em.cultura; }   // età d'oro / oscura
   return { cibo:f, prod:p, oro:o, scienza:s, cultura:cu };
 }
 
@@ -419,6 +437,7 @@ function aggiornaComune(cm){
     // cucina + tecnologie che riducono il malcontento
     u -= cucinaBonus(faz.id).malcontento;
     u -= techBonus(faz.id).malcontento;
+    u += etaMult(faz).unrest;                       // età d'oro calma, età oscura agita
   }
   // malcontento "extra" dei dilemmi: si riassorbe di 1 a turno
   if (cm.unrestExtra){ u += cm.unrestExtra; cm.unrestExtra += cm.unrestExtra > 0 ? -1 : 1; if (Math.abs(cm.unrestExtra) < 1) cm.unrestExtra = 0; }
@@ -923,7 +942,13 @@ function suggerisciPercorso(fid){
   return n;
 }
 const COSTO_TECH = 0.5;   // ricerche più veloci: costo effettivo dimezzato
-function costoTech(t){ return Math.max(8, Math.round(t.costo * COSTO_TECH)); }
+// Intuizione ottenuta = tecnologia scontata del 40%, come le Eureka di Civ VI. Lo sconto
+// resta valido anche se la si studia molto dopo: e' un premio per aver FATTO la cosa giusta.
+function costoTech(t, fid){
+  const f = st.fazioni[fid === undefined ? st.giocatore : fid];
+  const base = Math.max(8, Math.round(t.costo * COSTO_TECH));
+  return (f && f.intuizioni && f.intuizioni[t.id]) ? Math.max(5, Math.round(base * 0.6)) : base;
+}
 // cosa sblocca una tecnologia (unità + edifici + migliorie)
 function sbloccatiDaTech(techId){
   const u = Object.values(D().UNITA).filter(x=>x.tech===techId).map(x=>x.nome);
@@ -948,8 +973,8 @@ function passoRicerca(f, sci){
   }
   f.sciAcc += sci;
   const t = D().TECH.find(x=>x.id===f.ricerca);
-  if (t && f.sciAcc >= costoTech(t)){
-    f.sciAcc -= costoTech(t);
+  if (t && f.sciAcc >= costoTech(t, f.id)){
+    f.sciAcc -= costoTech(t, f.id);
     f.techs.push(t.id);
     f.ricerca = null;
     cucinaReset(); techBonusReset();
@@ -1092,6 +1117,7 @@ function muovi(uids, dest){
     if (!uids.includes(u.id)) continue;
     const daMare = MAP.hexes[u.hex] && MAP.hexes[u.hex].mare;
     u.hex = dest;
+    if (!eNavale(u) && u.fazione >= 0) liberaCovo(dest, u.fazione);
     u.mov = Math.max(0, u.mov - r[dest].costo);
     u.camminato = true;
     u.fortificata = false;
@@ -1559,6 +1585,13 @@ function attacca(uids, hexDif){
   }
   if (r.vinceA && atts[0] && atts[0].fazione===st.giocatore){ provaSbloccoGuardaroba("battaglia", 0.12); stat().vinte++; }
   if (!r.vinceA && defs.some(d=>d.fazione===st.giocatore)) stat().vinte++;   // difesa riuscita
+  // contatori per fazione (servono alle Intuizioni, anche dell'IA)
+  {
+    const vinc = r.vinceA ? atts[0].fazione : (defs[0] ? defs[0].fazione : -1);
+    const fv = (vinc>=0 && vinc<100) ? st.fazioni[vinc] : null;
+    if (fv){ fv.cont = fv.cont||{vinte:0,conquiste:0,briganti:0}; fv.cont.vinte++;
+      if (r.vinceA && defs.some(d=>d.fazione===-1)) fv.cont.briganti++; }
+  }
   const nomeDif = cm.hex===hexDif ? cm.nome : "campo aperto";
   aggiungiLog((r.vinceA?"⚔️ Vittoria":"⚔️ Sconfitta")+" a "+nomeDif+" — perdite: "+r.perditeA+" nostre, "+r.perditeD+" nemiche.", r.vinceA?"bene":"male");
   return r;
@@ -1628,6 +1661,162 @@ function espandiTerritorio(cm){
   }
   if (best < 0) return false;
   return rivendica(best, cm.id);
+}
+
+// ---------- ETA' D'ORO, NORMALE, OSCURA, EROICA ----------
+// A ogni cambio d'era il regno riceve un giudizio sull'era appena chiusa. Il giocatore lo
+// guadagna con gli obiettivi d'era (che gia' esistono: qui trovano la conseguenza che mancava);
+// l'IA con la classifica del punteggio. Un'eta' oscura seguita da un'eta' d'oro e' EROICA.
+function etaDiFazione(f, eraChiusa){
+  let livello;
+  if (f.id === st.giocatore){
+    const fatti = obiettiviEra(eraChiusa).filter(o => stat().obiettivi.includes(o.id)).length;
+    livello = fatti >= 2 ? "oro" : (fatti === 1 ? "normale" : "oscura");
+  } else {
+    const vive = st.fazioni.filter(x => !x.eliminata);
+    const ordine = vive.map(x => ({ id:x.id, p:punteggio(x.id).totale })).sort((a,b)=>b.p-a.p);
+    const pos = ordine.findIndex(x => x.id === f.id);
+    livello = pos < 2 ? "oro" : (pos >= vive.length-2 ? "oscura" : "normale");
+  }
+  if (livello === "oro" && f.eta === "oscura") livello = "eroica";
+  return livello;
+}
+const ETA_INFO = {
+  oro:     { nome:"Età d'oro",   icona:"🌞", desc:"+15% cibo e cultura, il popolo è sereno (−1 malcontento)." },
+  eroica:  { nome:"Età eroica",  icona:"🔥", desc:"Dalle ceneri alla gloria: +25% cibo e cultura, −2 malcontento." },
+  normale: { nome:"Età normale", icona:"⚖️", desc:"Nessun bonus, nessuna penalità." },
+  oscura:  { nome:"Età oscura",  icona:"🌑", desc:"−10% cultura, il popolo mormora (+1 malcontento). Ma da qui si può risorgere: la prossima età d'oro sarà eroica." }
+};
+function etaMult(faz){
+  if (!faz) return { cibo:1, cultura:1, unrest:0 };
+  switch(faz.eta){
+    case "oro":    return { cibo:1.15, cultura:1.15, unrest:-1 };
+    case "eroica": return { cibo:1.25, cultura:1.25, unrest:-2 };
+    case "oscura": return { cibo:1.0,  cultura:0.90, unrest:+1 };
+  }
+  return { cibo:1, cultura:1, unrest:0 };
+}
+
+// ---------- COVI DI BRIGANTI ----------
+function brigantiVicino(hexIdx, r){
+  return st.unita.filter(u => u.fazione===-1 && MAP.distKm(u.hex, hexIdx) < MAP.R*2*r).length;
+}
+function turnoCovi(){
+  if (!st.covi) return;
+  // nuovi covi nelle terre disabitate: senza, dopo che l'IA ha bonificato gli otto iniziali
+  // (verso il turno 100) la meccanica sparisce per meta' partita. Nascono sui rilievi, a
+  // piu' di 8 esagoni da ogni citta' fondata e da ogni altro covo.
+  if (st.covi.length < 3 + Math.floor(st.era/2) && rnd() < 0.08){
+    const citta = st.comuni.filter(c => c.fondata).map(c => c.hex);
+    for (let tent=0; tent<60; tent++){
+      const h = MAP.terre[Math.floor(rnd()*MAP.terre.length)];
+      if (h.lago || h.isola || !(h.terra==="mountain" || h.terra==="hill" || h.terra==="forest")) continue;
+      if (citta.some(c => MAP.distKm(c, h.i) < MAP.R*2*8)) continue;
+      if (st.covi.some(c => MAP.distKm(c.hex, h.i) < MAP.R*2*8)) continue;
+      if (unitaSuHex(h.i).length) continue;
+      st.covi.push({ hex:h.i, forza:1, prossimo: st.turno + 4, nato: st.turno });
+      creaUnita("milizia", -1, h.i);
+      if (hexVisibile(h.i)) aggiungiLog("🏕️ Un nuovo covo di briganti si è insediato sui monti.", "male");
+      break;
+    }
+  }
+  for (const c of st.covi){
+    // cresce se nessuno lo disturba a lungo
+    if (st.turno - c.nato > 25 * c.forza && c.forza < 3) c.forza++;
+    if (st.turno < c.prossimo) continue;
+    // tetto globale: i briganti vagano verso le citta' e il covo, restando "vuoto", ne
+    // sfornava senza fine (38 sulla mappa al turno 120). Oltre il tetto il covo non recluta.
+    const tetto = 6 + st.era*2 + st.covi.length*2;
+    const totale = st.unita.reduce((a,u)=>a+(u.fazione===-1?1:0), 0);
+    if (totale < tetto && brigantiVicino(c.hex, 5) < 1 + c.forza){
+      const liberi = [c.hex].concat(MAP.vicini(c.hex)).filter(j => !MAP.hexes[j].mare && !MAP.hexes[j].lago && unitaSuHex(j).length < 4);
+      if (liberi.length) creaUnita("milizia", -1, liberi[Math.floor(rnd()*liberi.length)]);
+    }
+    c.prossimo = st.turno + Math.max(4, 12 - c.forza*3);
+  }
+}
+// un'unita' di fazione entra nell'esagono del covo senza briganti sopra: il covo e' spazzato via
+function liberaCovo(hexIdx, fid){
+  if (!st.covi) return false;
+  const i = st.covi.findIndex(c => c.hex === hexIdx);
+  if (i < 0) return false;
+  if (nemiciSuHex(hexIdx, fid).length) return false;
+  const c = st.covi[i];
+  st.covi.splice(i, 1);
+  const f = (fid>=0 && fid<100) ? st.fazioni[fid] : null;
+  if (!f) return true;
+  const premio = 30 + st.era*20 + c.forza*15;
+  f.oro += premio;
+  f.cont = f.cont || { vinte:0, conquiste:0, briganti:0 }; f.cont.briganti++;
+  if (fid === st.giocatore){
+    aggiungiLog("🏕️ Covo di briganti spazzato via! Bottino: +"+premio+" oro.", "bene");
+    const h = MAP.hexes[hexIdx];
+    if (window.FX){ FX.confetti(h.x, h.y); FX.floatText(h.x, h.y-4, "+"+premio+" 💰", "#e0c060"); }
+    spara("vittoriaBattaglia");
+  }
+  return true;
+}
+
+// ---------- INTUIZIONI (le Eureka) ----------
+// Ogni tecnologia ha un'azione concreta che, compiuta, la sconta del 40%. Non missioni da
+// menu: cose che si fanno comunque giocando, e che il gioco riconosce. Trasforma l'albero
+// delle ricerche in una lista di cose da fare sulla mappa.
+function checkIntuizione(check, fid){
+  const parti = check.split(":");
+  const k = parti[0], v = parti[1], w = parti[2];
+  const f = st.fazioni[fid];
+  const mie = st.comuni.filter(c => c.fazione===fid && c.fondata);
+  const mieUnita = st.unita.filter(u => u.fazione===fid);
+  const adiac = (cm, pred) => MAP.vicini(cm.hex).some(j => pred(MAP.hexes[j]));
+  switch(k){
+    case "citta":     return mie.length >= +v;
+    case "pop":       return mie.some(c => c.pop >= +v);
+    case "oro":       return f.oro >= +v;
+    case "tech":      return f.techs.length >= +v;
+    case "costiera":  return mie.some(c => cittaCostiera(c));
+    case "fiume":     return mie.some(c => MAP.hexes[c.hex].fiume || adiac(c, h => h.fiume));
+    case "monte":     return mie.some(c => adiac(c, h => h.terra==="mountain"));
+    case "isola":     return mie.some(c => MAP.hexes[c.hex].isola);
+    case "nave":      return mieUnita.some(u => eNavale(u) && !capacitaDi(u));
+    case "eroe":      return !!f.eroeVivo;
+    case "unitaTipo": return mieUnita.filter(u => (D().UNITA[u.tipo]||{}).tipo===v).length >= +w;
+    case "edificio":  return mie.some(c => c.edifici.includes(v));
+    case "edificioN": return mie.filter(c => c.edifici.includes(v)).length >= +w;
+    case "mig":       return MAP.terre.filter(h => h.citta>=0 && st.comuni[h.citta].fazione===fid && h.imp===v).length >= +w;
+    case "meraviglie":return Object.keys(st.meraviglie).filter(m => st.comuni[st.meraviglie[m]] && st.comuni[st.meraviglie[m]].fazione===fid).length >= +v;
+    case "dop":       return dopControllati(fid).length >= +v;
+    case "patti":     return Object.values(f.diplo).filter(d=>d.stato==="patto").length >= +v;
+    case "commercio": return Object.values(f.diplo).filter(d=>d.commercio>0).length >= +v;
+    case "vinte":     return (f.cont||{}).vinte >= +v;
+    case "conquiste": return (f.cont||{}).conquiste >= +v;
+    case "briganti":  return (f.cont||{}).briganti >= +v;
+  }
+  return false;
+}
+// a fine turno, per ogni fazione: quali intuizioni sono scattate?
+function controllaIntuizioni(){
+  for (const f of st.fazioni){
+    if (f.eliminata) continue;
+    f.intuizioni = f.intuizioni || {};
+    f.cont = f.cont || { vinte:0, conquiste:0, briganti:0 };
+    const nuove = [];
+    for (const t of D().TECH){
+      if (!t.intuizione || f.techs.includes(t.id) || f.intuizioni[t.id]) continue;
+      if (t.era > st.era + 1) continue;             // non si anticipa troppo il futuro
+      if (checkIntuizione(t.intuizione.check, f.id)){ f.intuizioni[t.id] = true; nuove.push(t); }
+    }
+    if (nuove.length && f.id === st.giocatore){
+      for (const t of nuove) aggiungiLog("💡 Intuizione: "+t.intuizione.testo+" → "+t.nome+" costa il 40% in meno.", "bene");
+      if (nuove.length === 1)
+        st.pending.push({ titolo:"💡 Intuizione — "+nuove[0].nome, vox:"don_consiglio_3",
+          testo:nuove[0].intuizione.testo+".\n\nI tuoi sapienti hanno capito qualcosa sul campo: "+nuove[0].nome+" costerà il 40% in meno.",
+          scelte:[{label:"Eureka!", eff:"nulla"}] });
+      else
+        st.pending.push({ titolo:"💡 "+nuove.length+" intuizioni", vox:"don_consiglio_3",
+          testo:"Dal campo arrivano nuove idee:\n\n"+nuove.map(t=>"• "+t.intuizione.testo+" → "+t.nome).join("\n")+"\n\nCiascuna costerà il 40% in meno.",
+          scelte:[{label:"Eureka!", eff:"nulla"}] });
+    }
+  }
 }
 
 // ---------- FONDAZIONE DI CITTA' ----------
@@ -1801,6 +1990,7 @@ function catturaComune(cm, fid){
   aggiungiLog("🏴 "+cm.nome+" è caduta! Ora è di "+nomeF+".", fid===st.giocatore?"bene":"male");
   if (fid===st.giocatore){
     stat().conquiste++;
+    { const fc = st.fazioni[fid]; if (fc){ fc.cont = fc.cont||{vinte:0,conquiste:0,briganti:0}; fc.cont.conquiste++; } }
     if (vecchio>=100){
       stat().invasoriCitta++;
       // ultimo caposaldo degli invasori cacciato: grande ricompensa
@@ -2106,9 +2296,22 @@ function controllaEra(){
       }
     }
     for (const cm of st.comuni) cm.integr = Math.max(0, cm.integr-25);
+    // giudizio sull'era appena chiusa
+    for (const f of st.fazioni){
+      if (f.eliminata) continue;
+      f.eta = etaDiFazione(f, st.era-1);
+    }
     aggiungiLog("🔱 Inizia l'"+era.nome+" ("+annoStr(era.da)+")! I tempi cambiano, le genti mormorano.", "era");
     st.pending.push({ titolo:"🔱 "+era.nome, img:"era_"+st.era, vox:"nar_era_"+st.era, testo:"Un'epoca nuova cala sulla Sicilia. Nuove tecnologie, nuove genti, nuovi padroni. Le popolazioni guardano con sospetto i nuovi costumi (integrazione -25).\n\n🎯 Obiettivi dell'era:\n• "+obiettiviEra(st.era).map(o=>o.testo).join("\n• ")+"\n\nPunteggio attuale: "+punteggio(st.giocatore).totale,
       scelte:[{label:"La storia avanza", eff:"nulla"}] });
+    {
+      const fg = st.fazioni[st.giocatore], info = ETA_INFO[fg.eta] || ETA_INFO.normale;
+      const fatti = obiettiviEra(st.era-1).filter(o => stat().obiettivi.includes(o.id)).length;
+      st.pending.push({ titolo: info.icona+" "+info.nome, vox: fg.eta==="oscura" ? "don_rivolta_3" : "don_meraviglia_1",
+        testo:"Nell'era appena conclusa hai compiuto "+fatti+" obiettivi su "+obiettiviEra(st.era-1).length+".\n\n"+info.desc+
+              "\n\nL'età dura per tutta l'"+era.nome+".",
+        scelte:[{label: fg.eta==="oscura" ? "Risorgeremo" : "Che continui così", eff:"nulla"}] });
+    }
     // suggerisci l'aggiornamento delle truppe del giocatore alle unità della nuova era (solo se sostenibile)
     const upg = unitaAggiornabili(st.giocatore);
     if (upg.length){
@@ -2155,21 +2358,23 @@ function controllaInvasioni(annoPrec){
       const fid = 100 + st.invasori.length;
       st.invasori.push({ id:fid, nome:inv.nome, colore:inv.colore });
       const cm = st.comuni.find(c=>c.nome===inv.sbarco);
-      // mobilitazione: chi subisce lo sbarco riceve difensori
-      if (cm.fazione>=0 && cm.fazione<100){
-        const dif = st.fazioni[cm.fazione];
-        const linea0 = D().LINEA_ERA[st.era];
-        creaUnita(linea0[0], dif.id, st.comuni[dif.capitale].hex);
-        creaUnita(linea0[1], dif.id, st.comuni[dif.capitale].hex);
-        aggiungiLog(dif.nome+" chiama il popolo alle armi contro gli "+inv.nome+"!", "info");
-      }
       const linea = D().LINEA_ERA[st.era];
-      const liberi = [cm.hex, ...MAP.vicini(cm.hex), ...MAP.vicini(cm.hex).flatMap(i=>MAP.vicini(i))]
-        .filter((v,i,a)=>a.indexOf(v)===i)
-        .filter(i=>unitaSuHex(i).length<3 && MAP.hexes[i]);
       // invasioni più rare e più deboli: meno unità e con meno vigore (hp ridotti)
       const kInv = st.difficolta==="facile" ? 0.4 : (st.difficolta==="difficile" ? 0.75 : 0.55);
       const nInv = Math.max(2, Math.round(inv.n * kInv));
+      // mobilitazione: chi subisce lo sbarco riceve difensori NELLA CITTA' COLPITA (non nella
+      // capitale, che puo' essere altrove) e in numero pari agli sbarcati: da quando si parte
+      // con il solo esploratore, due difensori non bastavano e gli Ateniesi al turno 23
+      // cancellavano dalla storia chi aveva ancora una citta' sola
+      if (cm.fazione>=0 && cm.fazione<100){
+        const dif = st.fazioni[cm.fazione];
+        const hexDif = cm.fondata ? cm.hex : st.comuni[dif.capitale].hex;
+        for (let k=0;k<nInv;k++) creaUnita(linea[k%2], dif.id, hexDif);
+        aggiungiLog(dif.nome+" chiama il popolo alle armi contro gli "+inv.nome+"!", "info");
+      }
+      const liberi = [cm.hex, ...MAP.vicini(cm.hex), ...MAP.vicini(cm.hex).flatMap(i=>MAP.vicini(i))]
+        .filter((v,i,a)=>a.indexOf(v)===i)
+        .filter(i=>unitaSuHex(i).length<3 && MAP.hexes[i] && !MAP.hexes[i].mare && !MAP.hexes[i].lago);
       for (let k=0;k<nInv;k++){
         const tipo = linea[k%3];
         const u = creaUnita(tipo, fid, liberi[k%liberi.length]);
@@ -2564,6 +2769,8 @@ function fineTurno(){
   // dall'IA (impostaGoto) non venivano mai eseguite: i coloni restavano fermi in capitale
   // con la destinazione gia' impostata, e tre fazioni su sei non fondavano mai una seconda citta'.
   for (const f of st.fazioni) if (!f.eliminata) processaGoto(f.id);
+  turnoCovi();
+  controllaIntuizioni();
   calcolaVisibilita();
   // eliminazioni e vittoria
   for (const f of st.fazioni) controllaEliminazione(f.id);
@@ -2762,7 +2969,7 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   calcolaVisibilita, hexVisibile, hexEsplorato,
   fondaCitta, puoFondare, fondaComune, comuneCheDaIlNome, fazioneDiHex, territorioDi, espandiTerritorio, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, techBonusReset, costoTech, sbloccatiDaTech, miglioreCostruzione,
   costruzioniDisponibili, unitaDisponibili, accoda, compraSubito, migliora,
-  techDisponibili, techSbloccateDa, ricerca, statU, costoEroe, reclutaEroe, limiteEsercito, limiteLavoratori, truppeFazione, cittaDi,
+  techDisponibili, techSbloccateDa, checkIntuizione, ricerca, ETA_INFO, etaMult, liberaCovo, get covi(){ return st ? st.covi : []; }, statU, costoEroe, reclutaEroe, limiteEsercito, limiteLavoratori, truppeFazione, cittaDi,
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,
   miglioramentoAutomatico, azioneLavoratore, esisteMiglioriaPossibile,
   migliorieAggiornabili, upgradaMiglioria, upgradaMiglliorieEconomiche, prossimaMiglioria,

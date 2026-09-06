@@ -380,23 +380,79 @@ function muoviFlottaIA(fid){
     if (best && best.d < MAP.distKm(u.hex, meta.h)) GAME.muovi([u.id], best.i);
   }
 }
+// Bonifica dei covi di briganti. Gira SEMPRE, non solo quando l'IA e' senza bersagli
+// (con 7 fazioni c'e' quasi sempre un nemico in lista e la vecchia versione non partiva mai).
+// Una squadra di 3 unita' — le piu' vicine al covo — viene distaccata e mossa subito,
+// cosi' consuma il movimento e la logica di guerra sotto non la richiama indietro.
+// Il raggio e' misurato dalla citta' PIU' VICINA: i covi nascono per costruzione a piu'
+// di 14 esagoni da ogni capitale, quindi dalla capitale non se ne trovava mai uno.
+// Briganti sotto le mura: ogni pila propria (le unita' sullo stesso esagono attaccano insieme)
+// che li ha a tiro li carica, dalla pila piu' forte alla piu' debole, finche' l'esagono e' pulito.
+// Prima l'IA provava un'unita' alla volta contro pile da quattro e con pWin 0 non partiva mai.
+function difesaDaBrigantiIA(fid){
+  const st = GAME.st;
+  const mieCitta = st.comuni.filter(c => c.fondata && c.fazione===fid);
+  if (!mieCitta.length) return;
+  const vicine = st.unita.filter(u => u.fazione===-1 && mieCitta.some(c => MAP.distKm(c.hex, u.hex) < MAP.R*2*3.5));
+  if (!vicine.length) return;
+  const bersagli = [...new Set(vicine.map(u => u.hex))];
+  for (const hexB of bersagli){
+    const pile = {};
+    for (const u of st.unita) if (u.fazione===fid && u.mov>0 && u.tipo!=="colono" && u.tipo!=="lavoratore" && u.tipo!=="esploratore" && !GAME.eNavale(u)) (pile[u.hex]=pile[u.hex]||[]).push(u);
+    const ordine = Object.values(pile).sort((a,b)=>b.length-a.length);
+    for (const pila of ordine){
+      if (!GAME.nemiciSuHex(hexB, fid).length) break;
+      const ids = pila.map(u=>u.id);
+      const r = GAME.raggioMovimento(ids);
+      if (!r[hexB] || !r[hexB].attacco) continue;
+      const ant = GAME.anteprima(ids, hexB);
+      if (!ant || ant.vuoto || (ant.pWin!==undefined && ant.pWin > (pila.length>1 ? 0.35 : 0.45))) GAME.attacca(ids, hexB);
+    }
+  }
+}
+function cacciaCoviIA(fid){
+  const st = GAME.st;
+  const covi = GAME.covi || [];
+  if (!covi.length) return;
+  const mieCitta = st.comuni.filter(c => c.fondata && c.fazione===fid);
+  if (!mieCitta.length) return;
+  const covo = covi.reduce((b,c)=>{
+    const d = Math.min(...mieCitta.map(m => MAP.distKm(m.hex, c.hex)));
+    return (d<MAP.R*2*24 && (!b||d<b.d)) ? {c,d} : b; }, null);
+  if (!covo) return;
+  const truppe = st.unita.filter(x=>x.fazione===fid && x.mov>0 && x.tipo!=="colono" && x.tipo!=="lavoratore" && x.tipo!=="esploratore" && !GAME.eNavale(x));
+  if (truppe.length < 3) return;                      // con meno di 3 unita' si tiene tutto a casa
+  const squadra = truppe.sort((a,b)=>MAP.distKm(a.hex,covo.c.hex)-MAP.distKm(b.hex,covo.c.hex)).slice(0,3);
+  for (const u of squadra){
+    u.caccia = st.turno;    // distaccata: la logica di guerra sotto non la richiama indietro con il movimento residuo
+    const r = GAME.raggioMovimento([u.id]);
+    // nemiciSuHex(i, fid) = nemici DI fid sull'esagono: si filtra sui briganti (fazione -1).
+    // La versione precedente chiedeva i nemici di -1, cioe' chiunque tranne i briganti.
+    const att = Object.keys(r).find(i => r[i].attacco && GAME.nemiciSuHex(+i,fid).some(x=>x.fazione===-1) && MAP.distKm(+i, covo.c.hex) < MAP.R*2*2.5);
+    if (att !== undefined){ const ant=GAME.anteprima([u.id], +att); if (!ant || ant.pWin===undefined || ant.pWin>0.45){ GAME.attacca([u.id], +att); continue; } }
+    if (r[covo.c.hex] && !r[covo.c.hex].attacco){ GAME.muovi([u.id], covo.c.hex); continue; }
+    passoVerso(u, covo.c.hex);
+  }
+}
 function muoviUnitaIA(fid, bersagli){
   const st = GAME.st;
   muoviColoniIA(fid);   // i coloni non combattono mai: hanno una logica di movimento separata
   muoviLavoratoriIA(fid);
   muoviFlottaIA(fid);   // le navi hanno una logica loro: quella di terra le incaglierebbe
+  difesaDaBrigantiIA(fid);
+  cacciaCoviIA(fid);
   if (!bersagli.length){
     // niente da fare: torna a difendere la capitale
     const f = fid>=0&&fid<100 ? st.fazioni[fid] : null;
     if (!f) return;
     const cap = st.comuni[f.capitale];
-    for (const u of st.unita.filter(x=>x.fazione===fid && x.mov>0 && x.tipo!=="colono" && x.tipo!=="lavoratore" && !GAME.eNavale(x))){
+    for (const u of st.unita.filter(x=>x.fazione===fid && x.mov>0 && x.caccia!==st.turno && x.tipo!=="colono" && x.tipo!=="lavoratore" && !GAME.eNavale(x))){
       if (MAP.distKm(u.hex, cap.hex) > 15) passoVerso(u, cap.hex);
     }
     return;
   }
   const stacks = {};
-  for (const u of st.unita) if (u.fazione===fid && u.mov>0 && u.tipo!=="colono" && u.tipo!=="lavoratore" && !GAME.eNavale(u)) (stacks[u.hex]=stacks[u.hex]||[]).push(u);
+  for (const u of st.unita) if (u.fazione===fid && u.mov>0 && u.caccia!==st.turno && u.tipo!=="colono" && u.tipo!=="lavoratore" && !GAME.eNavale(u)) (stacks[u.hex]=stacks[u.hex]||[]).push(u);
   for (const k of Object.keys(stacks)){
     const gruppo = stacks[k];
     const hex = parseInt(k);
@@ -452,11 +508,12 @@ function muoviUnitaIA(fid, bersagli){
   }
 }
 
-function passoVerso(u, target){
+function passoVerso(u, target, evita){
   const raggio = GAME.raggioMovimento([u.id]);
   let bestHex=-1, bd=MAP.distKm(u.hex,target);
   for (const i of Object.keys(raggio)){
     if (raggio[i].attacco) continue;
+    if (evita && evita(parseInt(i))) continue;
     const d = MAP.distKm(parseInt(i), target);
     if (d<bd){ bd=d; bestHex=parseInt(i); }
   }
@@ -513,10 +570,11 @@ function turnoRibelli(){
     return !(cm.fazione===-1 && cm.hex===u.hex); // le guarnigioni restano ferme
   });
   for (const u of ribelli){
-    // bersaglio: comune di fazione entro 25 km
-    let best=null, bd=25;
+    // bersaglio: citta' di fazione entro dieci esagoni (la soglia era in unita'-mondo della
+    // vecchia scala: 25 unita' = 8 km, e i briganti non si muovevano quasi mai)
+    let best=null, bd=MAP.R*2*10;
     for (const cm of st.comuni){
-      if (cm.fazione===-1) continue;
+      if (cm.fazione===-1 || !cm.fondata) continue;
       const d = MAP.distKm(u.hex, cm.hex);
       if (d<bd){ bd=d; best=cm; }
     }
@@ -527,7 +585,7 @@ function turnoRibelli(){
     if (att.length){
       const ant = GAME.anteprima([u.id], att[0]);
       if (ant.vuoto || ant.assaltoMura || (ant.pWin!==undefined && ant.pWin>0.4)) GAME.attacca([u.id], att[0]);
-    } else passoVerso(u, best.hex);
+    } else passoVerso(u, best.hex, i => GAME.unitaSuHex(i).length >= 2);   // mai pile: una pila da 4 nessuno la attacca e non attacca mai
   }
 }
 

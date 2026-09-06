@@ -917,6 +917,7 @@ function renderDynamic(ctx, v, st, sel, rz){
     }
   }
   // POI di contorno (fantasia) sotto, poi i pin sponsor sopra
+  disegnaCovi(ctx, v, st, rz);
   disegnaPOI(ctx, v, st, rz);
   if (rz > 7) disegnaSponsor(ctx, v, st, rz);
   // unità: mini-eserciti animati
@@ -1474,6 +1475,37 @@ function disegnaEsercito(ctx, v, rz, lista, st, sel){
 // ---- POI SPONSOR (prototipo) ----
 const SP_R = 13;   // raggio del pin in px-schermo (dimensione costante col zoom)
 function pinCentro(v, sp){ const s = w2s(v, sp.x, sp.y); return { x:s.x, y:s.y - SP_R*1.6, base:s.y }; }
+// covi di briganti: tenda, fuoco e fumo. Si vedono solo se la casella e' stata esplorata.
+function disegnaCovi(ctx, v, st, rz){
+  if (!st || !st.covi || !st.covi.length || rz < 5) return;
+  const t = performance.now()/1000;
+  for (const c of st.covi){
+    if (st.nebbia && !GAME.hexEsplorato(c.hex)) continue;
+    const h = hexes[c.hex]; const s = w2s(v, h.x, h.y);
+    if (s.x<-rz*2||s.y<-rz*2||s.x>window.innerWidth+rz*2||s.y>window.innerHeight+rz*2) continue;
+    const k = rz*0.9;
+    ctx.save();
+    ctx.fillStyle="rgba(0,0,0,0.25)"; ctx.beginPath(); ctx.ellipse(s.x, s.y+k*0.45, k*0.75, k*0.22, 0, 0, 7); ctx.fill();
+    for (let i=0;i<c.forza;i++){
+      const ox = (i - (c.forza-1)/2) * k*0.55;
+      ctx.fillStyle="#6b4a28"; ctx.strokeStyle="rgba(20,12,6,0.8)"; ctx.lineWidth=Math.max(1,k*0.05);
+      ctx.beginPath(); ctx.moveTo(s.x+ox-k*0.32, s.y+k*0.3); ctx.lineTo(s.x+ox, s.y-k*0.35); ctx.lineTo(s.x+ox+k*0.32, s.y+k*0.3); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle="#2a1a0c"; ctx.beginPath(); ctx.moveTo(s.x+ox-k*0.1, s.y+k*0.3); ctx.lineTo(s.x+ox, s.y+k*0.02); ctx.lineTo(s.x+ox+k*0.1, s.y+k*0.3); ctx.closePath(); ctx.fill();
+    }
+    const fl = 0.8 + 0.25*Math.sin(t*9 + c.hex);
+    ctx.fillStyle="#e0521e"; ctx.beginPath(); ctx.ellipse(s.x, s.y+k*0.38, k*0.13, k*0.16*fl, 0, 0, 7); ctx.fill();
+    ctx.fillStyle="#f6c045"; ctx.beginPath(); ctx.ellipse(s.x, s.y+k*0.40, k*0.07, k*0.09*fl, 0, 0, 7); ctx.fill();
+    ctx.fillStyle="rgba(120,110,100,0.35)";
+    for (let i=0;i<3;i++){ const ph=(t*0.5+i*0.33+c.hex*0.1)%1; ctx.beginPath(); ctx.arc(s.x+Math.sin(ph*6)*k*0.12, s.y+k*0.25-ph*k*1.1, k*(0.06+ph*0.14), 0, 7); ctx.fill(); }
+    if (rz >= 11){
+      ctx.font = Math.max(10, rz*0.28)+"px Georgia, serif"; ctx.textAlign="center"; ctx.textBaseline="top";
+      ctx.lineWidth=3; ctx.strokeStyle="rgba(20,12,6,0.85)"; ctx.fillStyle="#f0d9a8";
+      const tx = "☠ Covo di briganti" + (c.forza>1 ? " ×"+c.forza : "");
+      ctx.strokeText(tx, s.x, s.y+k*0.55); ctx.fillText(tx, s.x, s.y+k*0.55);
+    }
+    ctx.restore();
+  }
+}
 function disegnaSponsor(ctx, v, st, rz){
   const W = window.innerWidth, H = window.innerHeight;
   const puls = 0.5 + 0.5*Math.sin(performance.now()*0.005);
