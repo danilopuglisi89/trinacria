@@ -726,6 +726,7 @@ function renderTerreno(ctx, v, st, rz){
   // città
   if (st){
     for (const cm of st.comuni){
+      if (!cm.fondata) continue;              // e' solo un toponimo: non c'e' nessun abitato
       const h = hexes[cm.hex];
       if (!vis(h)) continue;
       const s = w2s(v, h.x, h.y);
@@ -876,6 +877,7 @@ function renderDynamic(ctx, v, st, sel, rz){
       const h = hexes[cm.hex];
       if (!vis(h)) continue;
       if (st.nebbia && !GAME.hexEsplorato(cm.hex)) continue;
+      if (!cm.fondata){ toponimoLibero(ctx, cm, w2s(v, h.x, h.y), rz); continue; }
       const s = w2s(v, h.x, h.y);
       const col = coloreFazione(st, cm.fazione);
       // bandiera solo dove conta: capitali e città grandi (i borghi restano puliti)
@@ -930,6 +932,7 @@ function renderDynamic(ctx, v, st, sel, rz){
     }
     // ...poi i tetti delle città si riservano il loro spazio: nessun'altra etichetta ci finirà sopra
     for (const cm of st.comuni){
+      if (!cm.fondata) continue;
       const h = hexes[cm.hex]; if (!vis(h)) continue;
       const s = w2s(v, h.x, h.y);
       const k = 1 + Math.max(0, Math.min(3, cm.tier-1))*0.28;
@@ -1209,6 +1212,21 @@ function etichetta(ctx, testo, x, y, fs, bold, fid, st){
 // è già un confine naturale) più un alone del colore del regno che sfuma verso l'interno, così
 // il possesso si legge anche con il velo sul territorio quasi trasparente.
 // I segmenti coprono l'intero lato dell'esagono e vengono uniti in polilinee: niente più trattini.
+// Nome di un luogo dove NON c'e' ancora nessuna citta': si legge in corsivo tenue, come su
+// una carta geografica. Serve al giocatore per sapere come si chiamera' la citta' se fonda li'.
+function toponimoLibero(ctx, cm, s, rz){
+  if (rz < 9) return;                                  // a mappa larga sarebbe solo confusione
+  const fs = Math.max(9, Math.min(15, rz*0.30));
+  ctx.font = "italic " + fs + "px Georgia, serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.lineWidth = Math.max(2, fs*0.28); ctx.strokeStyle = "rgba(28,20,10,0.55)";
+  ctx.strokeText(cm.nome, s.x, s.y);
+  ctx.fillStyle = "rgba(255,246,224,0.72)";
+  ctx.fillText(cm.nome, s.x, s.y);
+  // pallino discreto: qui c'e' un sito abitabile
+  ctx.fillStyle = "rgba(255,246,224,0.5)";
+  ctx.beginPath(); ctx.arc(s.x, s.y + fs*0.95, Math.max(1.5, rz*0.06), 0, 7); ctx.fill();
+}
 function latiConfine(v, st, rz, W, H){
   const per = {};   // colore -> lista di lati {a:{x,y}, b:{x,y}}
   for (const h of terre){

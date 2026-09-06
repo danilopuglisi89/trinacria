@@ -138,7 +138,9 @@ function gestioneCittaIA(f){
     if (cm.coda.length) continue;
     // ogni tanto un colono, per espandersi pacificamente verso gli indipendenti indifesi vicini
     const coloniAttivi = st.unita.filter(u=>u.fazione===f.id && u.tipo==="colono").length;
-    if (coloniAttivi < 2 && rnd()<0.15){
+    // con la mappa vuota i coloni sono l'UNICO modo di espandersi: molti, e presto
+    const pochiCentri = mieCitta.length < 6;
+    if (coloniAttivi < (pochiCentri?3:1) && rnd()<(pochiCentri?0.55:0.12)){
       const col = GAME.unitaDisponibili(cm).find(x=>x.id==="colono");
       if (col && GAME.accoda(cm.id, col)) continue;
     }
@@ -208,9 +210,11 @@ function miglioriaIA(f){
 }
 
 function bersagliFazione(f){
+  // una citta' non ancora fondata e' solo un nome sulla mappa: non si conquista
   const st = GAME.st;
   const out = [];
   for (const cm of st.comuni){
+    if (!cm.fondata) continue;                 // e' solo un toponimo, non c'e' nulla da prendere
     if (cm.fazione === f.id) continue;
     // nella fase protetta le IA NON conquistano gli indipendenti: restano al giocatore
     if (cm.fazione === -1){ if (!faseProtetta()) out.push(cm); continue; }
@@ -224,25 +228,36 @@ function bersagliFazione(f){
 }
 
 // il colono IA non combatte mai: cerca la città indipendente indifesa più vicina e la colonizza
+// I coloni dell'IA FONDANO citta'. Prima annettevano le citta' indipendenti gia' presenti
+// sulla mappa: ora la Sicilia parte vuota e quelle citta' non esistono, quindi senza questa
+// logica ogni fazione resterebbe per sempre con la sola capitale.
 function muoviColoniIA(fid){
   const st = GAME.st;
   const coloni = st.unita.filter(u=>u.fazione===fid && u.tipo==="colono" && u.mov>0);
   if (!coloni.length) return;
-  const indifese = st.comuni.filter(c => c.fazione===-1 && !GAME.nemiciSuHex(c.hex, fid).length);
-  if (!indifese.length) return;
+  // siti liberi: toponimi non ancora fondati, ordinati per bonta' (grandi e vicini prima)
+  const liberi = st.comuni.filter(c => !c.fondata);
+  if (!liberi.length) return;
   for (const u of coloni){
+    // gia' su un punto valido? fonda subito
+    if (GAME.puoFondare(u.hex, fid).ok && GAME.fondaCitta(u.id).ok) continue;
+    // altrimenti punta al sito libero piu' promettente
     let best=null, bd=1e9;
-    for (const cm of indifese){ const d = MAP.distKm(u.hex, cm.hex); if (d<bd){ bd=d; best=cm; } }
-    if (!best) continue;
-    const raggio = GAME.raggioMovimento([u.id]);
-    if (raggio[best.hex] && raggio[best.hex].attacco){ GAME.colonizza(u.id, best.id); continue; }
-    let bestHex=-1, bhd=1e9;
-    for (const i of Object.keys(raggio)){
-      if (raggio[i].attacco) continue;
-      const d = MAP.distKm(parseInt(i), best.hex);
-      if (d<bhd){ bhd=d; bestHex=parseInt(i); }
+    for (const cm of liberi){
+      if (cm.fondata) continue;
+      const d = MAP.distKm(u.hex, cm.hex) - cm.tier*6;      // le localita' maggiori attirano
+      if (d<bd && GAME.puoFondare(cm.hex, fid).ok){ bd=d; best=cm; }
     }
-    if (bestHex>=0 && bhd < MAP.distKm(u.hex,best.hex)) GAME.muovi([u.id], bestHex);
+    if (!best) continue;
+    // Marcia con il pathfinding vero, non col passo greedy verso il punto piu' vicino in linea
+    // d'aria: quel criterio incastra i coloni dietro montagne, laghi e insenature, e infatti
+    // tre fazioni su sei restavano ferme a una sola citta' con tre coloni fermi in casa.
+    // marcia su piu' turni col pathfinding vero: il passo greedy verso il punto piu' vicino
+    // in linea d'aria incastrava i coloni dietro montagne, laghi e insenature
+    if (u.goto) continue;                       // gia' in viaggio: ci pensa processaGoto
+    const p = GAME.trovaPercorso(u.id, best.hex);
+    if (!p || !p.percorso.length){ GAME.fondaCitta(u.id); continue; }   // irraggiungibile: fonda dove sei
+    GAME.impostaGoto(u.id, best.hex);
   }
 }
 

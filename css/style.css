@@ -537,3 +537,7 @@ body[class^="era-"] #cons-nome { color: var(--epoca, #d9c48a); }
 .m-audio input[type=range]{ flex:1; accent-color:#c9a227; }
 .m-audio .m-check{ font-size:13px; opacity:.9; }
 .m-audio .m-check input{ accent-color:#c9a227; }
+
+/* --- fondazione di una nuova città: l'azione principale del colono --- */
+.btn-fonda{ border-color:#e0c060 !important; background:linear-gradient(180deg,#4a3a18,#2e2410) !important; }
+.btn-fonda:hover{ background:linear-gradient(180deg,#5c4820,#3a2c14) !important; }

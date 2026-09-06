@@ -29,6 +29,11 @@ function nuovaPartita(opts){
   // comuni
   st.comuni = geo.comuni.map(cm => ({
     id: cm.id, nome: cm.nome, prov: cm.prov, tier: cm.tier, hex: cm.hex, res: cm.res,
+    // fondata:false = il comune e' solo un TOPONIMO sulla mappa, non una citta'. La partita
+    // comincia con l'isola vuota: ogni fazione fonda la sua capitale e poi ci si espande coi
+    // coloni. Il nome di una citta' fondata arriva gratis dal Voronoi: l'esagono appartiene
+    // gia' al comune piu' vicino, quindi fondare presso Gravina di Catania la chiama cosi'.
+    fondata: false,
     fazione: -1, pop: cm.tier+1, cibo: 0, unrest: 0, malusConq: 0, eruzioneMalus: 0,
     cultura: culturaIniziale(cm), integr: 100, dop: dopPerComune[cm.nome] || null,
     edifici: [], mura: 0, muraHP: 0, coda: [], prodAcc: 0, barocca: false, tributi: {}
@@ -44,15 +49,17 @@ function nuovaPartita(opts){
   for (const f of st.fazioni)
     for (const g of st.fazioni)
       if (f.id!==g.id) f.diplo[g.id] = { stato:"pace", atteggiamento: -5, turniPatto:0, turniGuerra:0, commercio:0 };
-  // assegna capitali e città iniziali
+  // Ogni fazione fonda UNA sola citta': la sua capitale storica. Il giocatore ne sceglie
+  // l'esagono esatto entro pochi passi dalla posizione reale (opts.hexCapitale).
   for (const fd of D().FAZIONI){
     const f = st.fazioni[fd.id];
-    const cap = st.comuni.find(c => c.nome === fd.capitale);
-    cap.fazione = fd.id; cap.pop += 2; f.capitale = cap.id;
-    for (const nome of fd.citta){
-      const c = st.comuni.find(x => x.nome === nome);
-      if (c) c.fazione = fd.id;
+    let cap = st.comuni.find(c => c.nome === fd.capitale);
+    if (fd.id === st.giocatore && opts.hexCapitale !== undefined && opts.hexCapitale >= 0){
+      const scelto = st.comuni[MAP.hexes[opts.hexCapitale].comune];
+      if (scelto && !scelto.fondata){ cap = scelto; cap.hex = opts.hexCapitale; }
     }
+    fondaComune(cap, fd.id);
+    cap.pop += 2; f.capitale = cap.id;
     f.leader = nuovoLeader(fd.id, 0, true);
     // sovrano personalizzato del giocatore (nome + aspetto scelti nella schermata iniziale)
     if (fd.id === st.giocatore){
@@ -63,37 +70,22 @@ function nuovaPartita(opts){
     // unità iniziali
     creaUnita("oplita", fd.id, cap.hex);
     creaUnita("fromboliere", fd.id, cap.hex);
+    // un colono in dote: con la Sicilia vuota e' l'unico modo di cominciare a espandersi
+    creaUnita("colono", fd.id, cap.hex);
   }
-  // ridefinisce i confini dei regni iniziali: espansione geografica dal capoluogo (non solo
-  // capitale + 3 città storiche isolate). Ogni comune ancora indipendente entro un raggio di
-  // esagoni dal capoluogo più vicino si unisce a quel regno, dando fin da subito un territorio
-  // contiguo e credibile; il resto della Sicilia resta indipendente (conquista/colonizzazione).
+  // NIENTE regno iniziale gia' formato: prima ogni comune entro 9 esagoni dal capoluogo
+  // entrava d'ufficio nel regno, e si partiva con una decina di citta' in mano. Ora la
+  // Sicilia e' vuota e il territorio se lo guadagna chi fonda.
+  // Briganti erranti al posto delle guarnigioni: le milizie stavano DENTRO le citta'
+  // indipendenti, che ora non esistono piu'. Restano come pericolo sparso per le campagne,
+  // cosi' i primi turni non sono una passeggiata.
   {
-    const RAGGIO_REGNO = 9;
-    const distDaCap = D().FAZIONI.map(fd => {
-      const capHex = st.comuni.find(c => c.nome === fd.capitale).hex;
-      const dist = { [capHex]: 0 }; const coda = [capHex];
-      while (coda.length){
-        const cur = coda.shift();
-        if (dist[cur] >= RAGGIO_REGNO) continue;
-        for (const nb of MAP.vicini(cur)) if (dist[nb] === undefined){ dist[nb] = dist[cur]+1; coda.push(nb); }
-      }
-      return dist;
-    });
-    for (const cm of st.comuni){
-      if (cm.fazione !== -1) continue; // già capitale o città storica
-      let best = -1, bd = 1e9;
-      for (let fid = 0; fid < distDaCap.length; fid++){
-        const d = distDaCap[fid][cm.hex];
-        if (d !== undefined && d < bd){ bd = d; best = fid; }
-      }
-      if (best >= 0){ cm.fazione = best; cm.integr = 70; }
+    const posti = MAP.terre.filter(h => !h.lago && st.comuni[h.comune].tier >= 3);
+    for (let k=0; k<26 && posti.length; k++){
+      const h = posti[Math.floor(rnd()*posti.length)];
+      if (st.unita.some(u => MAP.distKm(u.hex, h.i) < 18)) continue;   // non addosso alle capitali
+      creaUnita("milizia", -1, h.i);
     }
-  }
-  // milizie negli indipendenti
-  for (const c of st.comuni){
-    if (c.fazione === -1)
-      for (let k=0; k<Math.min(3,c.tier); k++) creaUnita("milizia", -1, c.hex);
   }
   aggiungiLog("🔱 " + D().ERE[0].nome + " — La Sicilia attende il suo padrone. " +
     D().FAZIONI[st.giocatore].motto, "era");
@@ -997,7 +989,7 @@ function raggioMovimento(uids){
       const h = MAP.hexes[nb];
       const nem = nemiciSuHex(nb, fid);
       const cm = st.comuni[h.comune];
-      const cittaNemica = (cm.hex===nb && cm.fazione!==fid);
+      const cittaNemica = (cm.fondata && cm.hex===nb && cm.fazione!==fid);
       if (nem.length || (cittaNemica && cm.fazione!==-1) || (cittaNemica && cm.fazione===-1)){
         // Si attacca solo chi si puo' raggiungere davvero: una fanteria non colpisce una nave
         // al largo e una nave non assalta un reparto nell'entroterra. Le citta' costiere
@@ -1009,7 +1001,13 @@ function raggioMovimento(uids){
       }
       if (!percorribile(h, us[0])) continue;
       const c = dist[cur] + costoTerreno(h, fid);
-      if (c <= mov && (dist[nb]===undefined || c < dist[nb])){
+      // Con del movimento ancora disponibile si puo' SEMPRE fare almeno un passo, anche se la
+      // casella costa piu' di quanto resta. Senza questa regola un'unita' con 2 movimenti non
+      // poteva entrare in montagna (costo 3) e restava murata: i coloni di Palermo, Messina e
+      // Trapani, circondate da monti, non uscivano mai di casa e quelle fazioni non fondavano
+      // una seconda citta' per l'intera partita.
+      const primoPasso = (dist[cur] === 0 && mov > 0);
+      if ((c <= mov || primoPasso) && (dist[nb]===undefined || c < dist[nb])){
         if (unitaSuHex(nb).length >= 4) continue;
         dist[nb] = c;
         out[nb] = { costo:c, attacco:false };
@@ -1072,6 +1070,42 @@ function sbarca(u){
   u.imbarcataSu = undefined;
 }
 
+// Coda di priorita' a heap binario. Serve a trovaPercorso: prima la coda veniva RIORDINATA
+// per intero a ogni estrazione (`coda.sort(...)`), e su una mappa da 40.000 esagoni una
+// singola ricerca di percorso costava 59,7 ms — con sette coloni in marcia, mezzo secondo
+// per turno solo di pathfinding. Con lo heap l'estrazione e' logaritmica.
+function CodaPri(){
+  const a = [];                     // elementi: [priorita', valore]
+  return {
+    get size(){ return a.length; },
+    push(pri, val){
+      a.push([pri, val]);
+      let i = a.length-1;
+      while (i > 0){
+        const p = (i-1)>>1;
+        if (a[p][0] <= a[i][0]) break;
+        const t = a[p]; a[p] = a[i]; a[i] = t; i = p;
+      }
+    },
+    pop(){
+      if (!a.length) return undefined;
+      const top = a[0], last = a.pop();
+      if (a.length){
+        a[0] = last;
+        let i = 0;
+        for (;;){
+          const l = i*2+1, r = l+1; let m = i;
+          if (l < a.length && a[l][0] < a[m][0]) m = l;
+          if (r < a.length && a[r][0] < a[m][0]) m = r;
+          if (m === i) break;
+          const t = a[m]; a[m] = a[i]; a[i] = t; i = m;
+        }
+      }
+      return top[1];
+    }
+  };
+}
+
 // ---------- PATHFINDING (viaggi lunghi) ----------
 // Dijkstra sul grafo di esagoni per una singola unità. Evita nemici e stack pieni.
 function trovaPercorso(uid, dest){
@@ -1082,10 +1116,15 @@ function trovaPercorso(uid, dest){
   if (start === dest) return { percorso:[], costo:0, turni:0 };
   const dist = { [start]:0 }, prev = {};
   const visti = {};
-  const coda = [start];
-  while (coda.length){
-    coda.sort((a,b)=>dist[a]-dist[b]);
-    const cur = coda.shift();
+  // A*: alla priorita' si somma una STIMA di quanto manca alla meta, cosi' la ricerca punta
+  // verso la destinazione invece di espandersi in tondo su tutta l'isola (mare compreso).
+  // La stima e' la distanza in linea d'aria divisa per la larghezza di un esagono: non puo'
+  // mai sopravvalutare il costo reale, quindi il percorso trovato resta il piu' breve.
+  const PASSO = MAP.R*2;
+  const stima = (i) => MAP.distKm(i, dest) / PASSO;
+  const coda = CodaPri(); coda.push(stima(start), start);
+  while (coda.size){
+    const cur = coda.pop();
     if (visti[cur]) continue;
     visti[cur] = true;
     if (cur === dest) break;
@@ -1101,7 +1140,7 @@ function trovaPercorso(uid, dest){
       if (!percorribile(h, u)) continue;
       const c = dist[cur] + costoTerreno(h, fid);
       if (dist[nb]===undefined || c < dist[nb]){
-        dist[nb] = c; prev[nb] = cur; coda.push(nb);
+        dist[nb] = c; prev[nb] = cur; coda.push(c + stima(nb), nb);
       }
     }
   }
@@ -1420,6 +1459,47 @@ function bombarda(uid, cmId){
   return true;
 }
 
+// ---------- FONDAZIONE DI CITTA' ----------
+// Un comune "fondato" e' una citta' vera; finche' non lo e', e' solo un nome sulla mappa.
+function fondaComune(cm, fid){
+  if (!cm || cm.fondata) return false;
+  cm.fondata = true;
+  cm.fazione = fid;
+  cm.integr = 100;
+  cm.unrest = 0;
+  return true;
+}
+// si puo' fondare qui? (serve un colono, terra libera, e nessuna citta' troppo vicina)
+const DIST_MIN_CITTA = 3;      // in esagoni: due citta' non possono stare appiccicate
+function puoFondare(hexIdx, fid){
+  const h = MAP.hexes[hexIdx];
+  if (!h || h.mare || h.lago) return { ok:false, motivo:"acqua" };
+  const cm = st.comuni[h.comune];
+  if (!cm) return { ok:false, motivo:"nessun_comune" };
+  if (cm.fondata) return { ok:false, motivo:"gia_fondata", cm };
+  for (const c of st.comuni){
+    if (!c.fondata) continue;
+    if (MAP.distKm(c.hex, hexIdx) < DIST_MIN_CITTA*MAP.R*2) return { ok:false, motivo:"troppo_vicina", vicina:c };
+  }
+  return { ok:true, cm, nome:cm.nome };
+}
+// il colono fonda: la citta' prende il nome del comune a cui l'esagono appartiene
+function fondaCitta(uid){
+  const u = st.unita.find(x=>x.id===uid);
+  if (!u || u.tipo!=="colono" || u.mov<=0) return { ok:false, motivo:"non_valido" };
+  const p = puoFondare(u.hex, u.fazione);
+  if (!p.ok) return p;
+  p.cm.hex = u.hex;                       // la citta' nasce dove sta il colono
+  fondaComune(p.cm, u.fazione);
+  p.cm.pop = 2;
+  st.unita = st.unita.filter(x=>x.id!==uid);   // il colono si consuma
+  if (window.FX){ const h=MAP.hexes[p.cm.hex]; FX.constructionPop(h.x,h.y); FX.confetti(h.x,h.y); }
+  aggiungiLog("🏛️ Fondata la citta' di "+p.cm.nome+"!", "bene");
+  spara("colonizzazione", { luogo:p.cm.nome });
+  calcolaVisibilita();
+  return { ok:true, cm:p.cm };
+}
+
 // ---------- COLONIZZAZIONE PACIFICA (unità Colono) ----------
 // annette una città indipendente SENZA combattere, ma solo se non ha difensori;
 // il colono si consuma nell'impresa (a differenza della conquista militare non lascia malcontento).
@@ -1427,6 +1507,7 @@ function colonizza(uid, cmId){
   const u = st.unita.find(x=>x.id===uid);
   if (!u || u.tipo!=="colono" || u.mov<=0) return { ok:false, motivo:"non_valido" };
   const cm = st.comuni[cmId];
+  if (!cm.fondata) return { ok:false, motivo:"non_fondata" };
   if (cm.fazione !== -1) return { ok:false, motivo:"non_indipendente" };
   if (nemiciSuHex(cm.hex, u.fazione).length) return { ok:false, motivo:"difesa" };
   if (u.hex !== cm.hex){
@@ -2285,8 +2366,10 @@ function fineTurno(){
     u.camminato = false; u.mov = statU(u.tipo).mov;
     if (u.congelato>0){ u.congelato--; u.mov = Math.floor(u.mov/2); }  // scongelamento graduale
   }
-  // viaggi automatici del giocatore
-  processaGoto(st.giocatore);
+  // Viaggi automatici: di TUTTE le fazioni, non solo del giocatore. Le marce impostate
+  // dall'IA (impostaGoto) non venivano mai eseguite: i coloni restavano fermi in capitale
+  // con la destinazione gia' impostata, e tre fazioni su sei non fondavano mai una seconda citta'.
+  for (const f of st.fazioni) if (!f.eliminata) processaGoto(f.id);
   calcolaVisibilita();
   // eliminazioni e vittoria
   for (const f of st.fazioni) controllaEliminazione(f.id);
@@ -2483,7 +2566,7 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   trovaPercorso, impostaGoto, processaGoto, fortifica, svegliaUnita, unitaFerme, suggerimenti,
   cucina, dopControllati, piattiSbloccati, faSagra,
   calcolaVisibilita, hexVisibile, hexEsplorato,
-  cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, costoTech, sbloccatiDaTech, miglioreCostruzione,
+  fondaCitta, puoFondare, fondaComune, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, costoTech, sbloccatiDaTech, miglioreCostruzione,
   costruzioniDisponibili, unitaDisponibili, accoda, compraSubito, migliora,
   techDisponibili, ricerca, statU, costoEroe, reclutaEroe, limiteEsercito, truppeFazione,
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,

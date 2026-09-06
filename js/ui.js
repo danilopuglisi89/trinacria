@@ -60,8 +60,8 @@ function initAvvio(){
     const vel = $("sel-velocita").value;
     const dif = $("sel-difficolta").value;
     const neb = $("sel-nebbia").value === "nebbia";
-    avviaPartita({ fazione:fid, velocita:vel, difficolta:dif, nebbia:neb,
-                   sovranoLook: sovLook, sovranoNome: sovNome });
+    scegliSitoCapitale({ fazione:fid, velocita:vel, difficolta:dif, nebbia:neb,
+                         sovranoLook: sovLook, sovranoNome: sovNome }, avviaPartita);
   };
   scegliSovrano(0); // preseleziona la prima civiltà
   // carica salvataggi
@@ -128,13 +128,58 @@ function renderOpzioniSovrano(){
   });
 }
 
+// Prima di cominciare si sceglie DOVE fondare la capitale, entro pochi passi dalla posizione
+// storica. E' il momento piu' identitario della partita: la Sicilia parte vuota e quella e'
+// l'unica citta' che si riceve in dono, tutto il resto va fondato coi coloni.
+const RAGGIO_SCELTA = 5;                 // esagoni attorno alla posizione storica
+function scegliSitoCapitale(opts, poi){
+  const fid = opts.fazione !== undefined ? opts.fazione : 0;
+  const nomeCap = D().FAZIONI[fid].capitale;
+  const cmGeo = MAP.comuniGeo.find(c => c.nome === nomeCap);
+  if (!cmGeo){ poi(opts); return; }
+  // esagoni ammessi: entro RAGGIO_SCELTA passi, su terra asciutta
+  const dist = { [cmGeo.hex]: 0 }; const coda = [cmGeo.hex]; const ammessi = [];
+  while (coda.length){
+    const cur = coda.shift();
+    const h = MAP.hexes[cur];
+    if (!h.mare && !h.lago) ammessi.push(cur);
+    if (dist[cur] >= RAGGIO_SCELTA) continue;
+    for (const nb of MAP.vicini(cur)) if (dist[nb] === undefined){ dist[nb] = dist[cur]+1; coda.push(nb); }
+  }
+  const set = new Set(ammessi);
+  $("avvio").classList.add("nascosto");
+  $("gioco").classList.remove("nascosto");
+  scelta = { set, hex:-1, centro:cmGeo.hex, nome:nomeCap, opts, poi };
+  const h0 = MAP.hexes[cmGeo.hex];
+  view.z = 11;
+  view.x = window.innerWidth/2 - h0.x*view.z;
+  view.y = window.innerHeight/2 - h0.y*view.z;
+  $("pannello").classList.add("nascosto");
+  mostraModale({ titolo:"🏛️ Dove sorgerà la tua capitale",
+    testo:"La Sicilia è ancora tutta da fondare. Scegli l'esagono dove piantare la prima pietra: "+
+          "puoi restare sulla posizione storica di "+nomeCap+" oppure spostarti di qualche casella, "+
+          "per prenderti una collina difendibile, un fiume o un tratto di costa.\n\n"+
+          "Le caselle disponibili sono evidenziate. Il nome della città sarà quello della località più vicina.",
+    scelte:[{label:"Scelgo io sulla mappa", eff:"nulla"},{label:"Va bene la posizione storica", eff:"storica"}] },
+    idx => { if (idx===1) confermaSito(cmGeo.hex); });
+}
+// il giocatore ha cliccato (o accettato) un esagono: si parte da lì
+function confermaSito(hexIdx){
+  if (!scelta) return;
+  const o = Object.assign({}, scelta.opts, { hexCapitale: hexIdx });
+  const poi = scelta.poi;
+  scelta = null;
+  poi(o);
+}
+
 function avviaPartita(opts){
   FX.reset();
   GAME.nuovaPartita(opts);
   entraInGioco();
   mostraModale({ titolo:"🔱 TRINACRIA", testo:
     "Sicilia, 735 avanti Cristo. Le navi greche toccano le coste, i punici tengono l'occidente, i siculi l'interno.\n\n"+
-    "Tu guidi "+D().FAZIONI[GAME.st.giocatore].nome+". Ventiquattro secoli di storia ti aspettano: conquista i 166 comuni dell'isola, o cadi nell'oblio.\n\n«"+
+    "Tu guidi "+D().FAZIONI[GAME.st.giocatore].nome+". Hai una città, due reparti e un colono: tutto il resto dell'isola è da fondare. "+
+    "Manda i coloni a piantare nuove città — prenderanno il nome del luogo in cui sorgono — e in ventiquattro secoli fatti la Sicilia.\n\n«"+
     D().FAZIONI[GAME.st.giocatore].motto+"»",
     scelte:[{label:"All'armi, picciotti!", eff:"nulla"}] }, ()=>{
       consigliere("benvenuto", "«Maestà, sugnu Don Calorio, u vostru consigghieri. Cliccati 'na truppa e po' 'na casella verdi p'a moviri. Iu vi dicu chi fari, nun v'agitati.»", 11000);
@@ -228,11 +273,45 @@ function ridimensiona(){
   canvas.height = Math.round(h*dpr);
   ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
+// Illumina gli esagoni dove si può fondare la capitale, con un pulsare dorato.
+function disegnaCaselleScelta(ctx){
+  if (!scelta) return;
+  const rz = MAP.R*view.z;
+  const puls = 0.5 + 0.5*Math.sin(performance.now()/380);
+  ctx.save();
+  for (const i of scelta.set){
+    const h = MAP.hexes[i];
+    const s = MAP.w2s(view, h.x, h.y);
+    if (s.x<-rz || s.y<-rz || s.x>window.innerWidth+rz || s.y>window.innerHeight+rz) continue;
+    ART.hexPath(ctx, s.x, s.y, rz+0.6);
+    ctx.fillStyle = "rgba(240,208,110,"+(0.13+puls*0.10).toFixed(3)+")"; ctx.fill();
+    ctx.strokeStyle = "rgba(255,232,150,"+(0.55+puls*0.35).toFixed(3)+")";
+    ctx.lineWidth = Math.max(1.5, rz*0.06); ctx.stroke();
+  }
+  // il punto storico si distingue
+  const hc = MAP.hexes[scelta.centro];
+  const sc = MAP.w2s(view, hc.x, hc.y);
+  ART.hexPath(ctx, sc.x, sc.y, rz+0.6);
+  ctx.strokeStyle = "#fff6d0"; ctx.lineWidth = Math.max(2.5, rz*0.10); ctx.stroke();
+  ctx.font = "bold "+Math.max(12, rz*0.42)+"px Georgia, serif";
+  ctx.textAlign="center"; ctx.textBaseline="bottom";
+  ctx.lineWidth = 4; ctx.strokeStyle = "rgba(20,14,6,0.8)";
+  ctx.strokeText(scelta.nome, sc.x, sc.y - rz*1.1);
+  ctx.fillStyle = "#fff6d0"; ctx.fillText(scelta.nome, sc.x, sc.y - rz*1.1);
+  ctx.restore();
+}
 let ultimoT = 0;
 function loop(t){
   const dt = ultimoT ? Math.min(0.05, (t-ultimoT)/1000) : 0.016;
   ultimoT = t;
   try {
+    // Fase di scelta del sito: la partita non esiste ancora, quindi si disegna la mappa nuda
+    // con le caselle candidate illuminate. MAP.frame regge st = null (tutti i blocchi che
+    // usano lo stato sono gia' protetti da `if (st)`).
+    if (!GAME.st && scelta){
+      MAP.frame(ctx2d, view, null, null);
+      disegnaCaselleScelta(ctx2d);
+    }
     if (GAME.st) {
       FX.update(dt);
       // scuotimento cinematografico della camera (non altera lo stato reale della view)
@@ -295,7 +374,12 @@ function suPuntatore(e){
   if (puntatori.size === 0){
     const era = drag;
     drag = null;
-    if (!era || era.mosso || !GAME.st) return;
+    if (!era || era.mosso) return;
+    // durante la scelta del sito la partita non esiste ancora: il click serve proprio li'
+    if (!GAME.st){
+      if (scelta) clickHex(MAP.hexAt(view, e.clientX, e.clientY));
+      return;
+    }
     const i = MAP.hexAt(view, e.clientX, e.clientY);
     // click su un POI sponsor (ha priorità, tranne quando sto comandando truppe o mirando un potere)
     const comando = sel.unita.length && sel.raggio && i>=0 && sel.raggio[i];
@@ -330,6 +414,12 @@ function rotella(e){
 }
 
 function clickHex(i){
+  // fase di scelta del sito della capitale: il click vale solo per confermare l'esagono
+  if (scelta){
+    if (scelta.set.has(i)) confermaSito(i);
+    else consigliere("cons", "«Maestà, troppo lontano dalle terre dei nostri avi. Scegliete fra le caselle illuminate.»", 3500);
+    return;
+  }
   const st = GAME.st;
   // mira di un potere del sovrano: il tap sceglie il bersaglio
   if (modoPotere){ applicaPotereSuHex(i); return; }
@@ -721,8 +811,17 @@ function apriPannelloUnita(i){
       html += `<button class="btn-lista" id="btn-annulla-marcia">✋ Ferma la marcia</button>`;
     if (selUn.every(u=>u.tipo==="lavoratore"))
       html += `<button class="btn-lista" id="btn-migliora-auto">🔧 Migliora automaticamente le vicinanze</button>`;
-    if (selUn.every(u=>u.tipo==="colono"))
-      html += `<button class="btn-lista" id="btn-colonizza-auto">🏘️ Fonda nuova città (automatico)</button>`;
+    if (selUn.every(u=>u.tipo==="colono")){
+      // fondare QUI e' l'azione principale del colono: se si puo', va in cima e ben visibile
+      const p = GAME.puoFondare(selUn[0].hex, st.giocatore);
+      if (p.ok)
+        html += `<button class="btn-lista btn-fonda" id="btn-fonda-qui">🏛️ <b>Fonda qui la città di ${p.nome}</b></button>`;
+      else if (p.motivo === "troppo_vicina")
+        html += `<div class="p-riga muto">🏛️ Troppo vicino a ${p.vicina.nome}: allontanati di qualche casella per fondare.</div>`;
+      else if (p.motivo === "gia_fondata")
+        html += `<div class="p-riga muto">🏛️ Qui sorge già ${p.cm.nome}.</div>`;
+      html += `<button class="btn-lista" id="btn-colonizza-auto">🧭 Cerca da solo un buon sito e fonda</button>`;
+    }
     if (selUn.every(u=>u.tipo!=="lavoratore" && u.tipo!=="colono"))
       html += `<button class="btn-lista" id="btn-conquista-auto">⚔️ Conquista automaticamente</button>`;
     html += `<button class="btn-lista" id="btn-fortifica">🛡️ Fortifica — di guardia qui (si cura, non ti disturbo più)</button>`;
@@ -751,6 +850,16 @@ function apriPannelloUnita(i){
     sel.unita = sel.unita.filter(id => st.unita.some(u=>u.id===id));
     if (sel.unita.length) apriPannelloUnita(i); else chiudiPannello();
     aggiornaTutto();
+  };
+  const btnFonda = $("btn-fonda-qui");
+  if (btnFonda) btnFonda.onclick = () => {
+    const r = GAME.fondaCitta(selUn[0].id);
+    if (r.ok){
+      AUDIO.sfx("vittoria"); AUDIO.parlaUna("don_citta_presa", 3);
+      chiudiPannello(); aggiornaTutto(); mostraFumetti();
+    } else {
+      consigliere("cons", "«Qui non si può fondare, Maestà.»", 3000);
+    }
   };
   const btnColonizza = $("btn-colonizza-auto");
   if (btnColonizza) btnColonizza.onclick = () => {
@@ -1148,6 +1257,7 @@ function processaPending(){
 
 // ---------- FINE TURNO ----------
 let inTurno = false;
+let scelta = null;      // scelta del sito della capitale prima dell'inizio
 function fineTurno(force){
   if (inTurno || !GAME.st) return;
   if (!$("modale-sfondo").classList.contains("nascosto")) return;
