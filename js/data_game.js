@@ -118,6 +118,7 @@ const TECH = [
   { id:"moneta",    era:0, nome:"Monetazione",           costo:35,  desc:"Sblocca il Mercato. +10% oro." },
   { id:"cavalli",   era:0, nome:"Allevamento dei Cavalli", costo:40, desc:"Sblocca la Cavalleria greca." },
   { id:"poliorcetica", era:0, nome:"Poliorcetica",       costo:45,  desc:"Sblocca l'Ariete. Sblocca le Mura di pietra." },
+  { id:"navigazione", era:0, nome:"Navigazione",         costo:40,  desc:"Sblocca la Nave onerarìa e la Bireme. Permette di imbarcare i coloni per popolare le isole." },
   // Era 1 — Romana
   { id:"strade",    era:1, nome:"Strade Romane",         costo:60,  desc:"+1 movimento a tutte le unità. +5% oro." },
   { id:"legioni",   era:1, nome:"Legioni",               costo:70,  desc:"Sblocca i Legionari e i Sagittari." },
@@ -188,21 +189,21 @@ const UNITA = {
   // dominio:"mare" = si muove solo sull'acqua; capacita = quante unita' di terra imbarca.
   // Le navi si reclutano solo nelle citta' costiere (vedi unitaDisponibili) e non possono
   // conquistare da sole: devono sbarcare le truppe.
-  nave_onerar: { nome:"Nave onerarìa",      era:0, tech:null,       tipo:"naval", dominio:"mare", capacita:2,
+  nave_onerar: { nome:"Nave onerarìa",      era:0, tech:"navigazione",       tipo:"naval", dominio:"mare", capacita:2,
                  atk:2,  def:5,  mov:5, costo:45,  mant:1, desc:"Trasporto da carico: imbarca due reparti e li sbarca dove vuoi." },
-  nave_birem:  { nome:"Bireme",             era:0, tech:null,       tipo:"naval", dominio:"mare",
+  nave_birem:  { nome:"Bireme",             era:0, tech:"navigazione",       tipo:"naval", dominio:"mare",
                  atk:7,  def:6,  mov:5, costo:55,  mant:1, desc:"Nave da guerra a due ordini di remi, con rostro." },
-  nave_trirem: { nome:"Trireme",            era:1, tech:null,       tipo:"naval", dominio:"mare",
+  nave_trirem: { nome:"Trireme",            era:1, tech:"navigazione",       tipo:"naval", dominio:"mare",
                  atk:10, def:8,  mov:6, costo:75,  mant:2, desc:"La spina dorsale delle flotte antiche." },
-  nave_dromon: { nome:"Dromone",            era:2, tech:null,       tipo:"naval", dominio:"mare",
+  nave_dromon: { nome:"Dromone",            era:2, tech:"navigazione",       tipo:"naval", dominio:"mare",
                  atk:13, def:11, mov:6, costo:95,  mant:2, muraDanno:18, desc:"Dromone bizantino col fuoco greco: puo' bombardare le citta' costiere." },
-  nave_sciab:  { nome:"Sciabecco",          era:3, tech:null,       tipo:"naval", dominio:"mare",
+  nave_sciab:  { nome:"Sciabecco",          era:3, tech:"navigazione",       tipo:"naval", dominio:"mare",
                  atk:16, def:12, mov:8, costo:110, mant:2, desc:"Veloce e maneggevole, il corsaro del Mediterraneo." },
-  nave_galea:  { nome:"Galea",              era:4, tech:null,       tipo:"naval", dominio:"mare",
+  nave_galea:  { nome:"Galea",              era:4, tech:"navigazione",       tipo:"naval", dominio:"mare",
                  atk:20, def:16, mov:7, costo:140, mant:3, muraDanno:24, desc:"Galea da battaglia con castello di prua." },
-  nave_galeaz: { nome:"Galeazza",           era:5, tech:null,       tipo:"naval", dominio:"mare",
+  nave_galeaz: { nome:"Galeazza",           era:5, tech:"navigazione",       tipo:"naval", dominio:"mare",
                  atk:26, def:22, mov:7, costo:180, mant:3, muraDanno:34, desc:"Fortezza galleggiante irta di artiglierie." },
-  nave_trasp2: { nome:"Galeone da carico",  era:3, tech:null,       tipo:"naval", dominio:"mare", capacita:3,
+  nave_trasp2: { nome:"Galeone da carico",  era:3, tech:"navigazione",       tipo:"naval", dominio:"mare", capacita:3,
                  atk:4,  def:12, mov:7, costo:100, mant:2, desc:"Trasporto d'alto bordo: tre reparti al sicuro." },
   // Era 0
   oplita:      { nome:"Opliti",              era:0, tech:"falange", tipo:"inf",   atk:6,  def:8,  mov:2, costo:40,  mant:1 },

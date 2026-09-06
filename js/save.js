@@ -24,11 +24,16 @@ function specchiaSuFile(){
   window.DESKTOP.archivioScrivi(JSON.stringify(tutto));
 }
 
+const VERSIONE = 2;
 function fotografa(){
   const st = GAME.st;
   if (!st) return null;
   return {
-    v: 1, quando: Date.now(),
+    // v2 = mappa col mare navigabile. La mappa non viene serializzata ma RIGENERATA, e
+    // posizioni di unita', citta' e migliorie sono riferimenti per INDICE di esagono:
+    // dalla v1 alla v2 gli esagoni sono passati da ~10.400 a 40.356, quindi un salvataggio
+    // vecchio caricherebbe tutto in posti sbagliati invece di dare errore. Meglio rifiutarlo.
+    v: VERSIONE, quando: Date.now(),
     st: JSON.parse(JSON.stringify(st)),
     imps: MAP.hexes.filter(h=>h.imp).map(h=>({ i:h.i, imp:h.imp }))
   };
@@ -45,6 +50,10 @@ function carica(chiave){
   if (!raw) return false;
   try {
     const s = JSON.parse(raw);
+    if ((s.v||1) !== VERSIONE){
+      GAME.aggiungiLog("Salvataggio di una versione precedente della mappa: non è più compatibile.", "male");
+      return false;
+    }
     MAP.build();                       // la mappa è deterministica
     for (const r of s.imps) MAP.hexes[r.i].imp = r.imp;
     GAME.st = s.st;
@@ -59,6 +68,11 @@ function lista(){
     try {
       const s = JSON.parse(raw);
       const f = GDATA.FAZIONI[s.st.giocatore];
+      if ((s.v||1) !== VERSIONE){
+        out.push({ chiave:k, vuoto:false, obsoleto:true, quando:new Date(s.quando).toLocaleString("it-IT"),
+                   info:"versione precedente della mappa — non caricabile" });
+        continue;
+      }
       out.push({ chiave:k, vuoto:false, quando:new Date(s.quando).toLocaleString("it-IT"),
         info: f.nome+" — turno "+s.st.turno+", "+(s.st.anno<0?Math.round(-s.st.anno)+" a.C.":Math.round(s.st.anno)+" d.C.") });
     } catch(e){ out.push({ chiave:k, vuoto:true }); }

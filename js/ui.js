@@ -1868,6 +1868,10 @@ function apriMenu(){
   html += `<div class="m-sez">Carica</div>`;
   for (const s of salv){
     if (s.vuoto) continue;
+    if (s.obsoleto){   // salvataggio di una mappa precedente: si mostra ma non si carica
+      html += `<div class="p-riga muto">📂 ${s.chiave==="auto"?"Autosalvataggio":s.chiave.toUpperCase()} — ${s.info}</div>`;
+      continue;
+    }
     html += `<button class="btn-lista" data-carica="${s.chiave}">📂 ${s.chiave==="auto"?"Autosalvataggio":s.chiave.toUpperCase()} — ${s.info}</button>`;
   }
   const A = AUDIO.imp;

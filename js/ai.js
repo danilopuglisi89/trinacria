@@ -4,7 +4,7 @@ const D = () => GDATA;
 function rnd(){ return Math.random(); }
 function scegli(a){ return a[Math.floor(rnd()*a.length)]; }
 
-const PRIORITA_EDIFICI = ["granaio","mercato","caserma","tempio","mura1","scuderia","arsenale","porto","accademia","teatro","mura2","castello","cattedrale","banco","casascienza","mura3",
+const PRIORITA_EDIFICI = ["granaio","mercato","porto","caserma","tempio","mura1","scuderia","arsenale","accademia","teatro","mura2","castello","cattedrale","banco","casascienza","mura3",
   "silos_grano","cava_marmo","cantiere","fonderia"];
 
 // Fase iniziale protetta: fino a QUESTA era le IA restano quasi ferme a svilupparsi,
@@ -148,6 +148,19 @@ function gestioneCittaIA(f){
       const lav = GAME.unitaDisponibili(cm).find(x=>x.id==="lavoratore");
       if (lav && GAME.accoda(cm.id, lav)) continue;
     }
+    // FLOTTA: decisa PRIMA e fuori dal limite dell'esercito di terra. Agganciata al ramo
+    // terrestre non veniva mai raggiunta, perche' quel ramo si chiude appena l'esercito e'
+    // al completo — ed e' quasi sempre al completo. Risultato: zero navi in tutta la partita.
+    if (GAME.cittaCostiera(cm) && GAME.flottaFazione(f.id) < GAME.limiteFlotta()){
+      const navi = GAME.unitaDisponibili(cm).filter(x => D().UNITA[x.id].tipo==="naval" && !x.pieno);
+      if (navi.length && rnd() < 0.35){
+        navi.sort((a,b)=>(b.atk+b.def)-(a.atk+a.def));
+        // il primo scafo e' un trasporto, cosi' l'IA puo' popolare le isole; poi da guerra
+        const vuoleTrasporto = !GAME.st.unita.some(u=>u.fazione===f.id && D().UNITA[u.tipo] && D().UNITA[u.tipo].capacita);
+        const scelta = (vuoleTrasporto && navi.find(x=>D().UNITA[x.id].capacita)) || navi[0];
+        if (GAME.accoda(cm.id, scelta)) continue;
+      }
+    }
     const truppeOra = GAME.truppeFazione(f.id);
     const vuoleUnita = truppeOra < limite && (inGuerra || truppeOra < mieCitta.length);
     let costruito = false;
@@ -240,22 +253,63 @@ function muoviLavoratoriIA(fid){
     GAME.miglioramentoAutomatico(u.id);
 }
 // muove tutte le unità di una fazione verso i bersagli
+// quante navi ha questa fazione
+function flottaDi(fid){
+  return GAME.st.unita.filter(u => u.fazione===fid && GAME.eNavale(u)).length;
+}
+// Movimento delle navi. La logica di terra insegue il bersaglio con un gradiente sulla distanza
+// in linea d'aria: in mare quel criterio incaglia le navi contro la costa, quindi le flotte
+// hanno un comportamento loro. Semplice ma coerente: caccia la nave nemica piu' vicina,
+// altrimenti bombarda una citta' costiera nemica a tiro, altrimenti pattuglia le proprie coste.
+function muoviFlottaIA(fid){
+  const st = GAME.st, H = MAP.hexes;
+  const navi = st.unita.filter(u => u.fazione===fid && u.mov>0 && GAME.eNavale(u));
+  if (!navi.length) return;
+  const nemiche = st.unita.filter(u => GAME.eNavale(u) && !GAME.alleatiPub(u.fazione, fid));
+  for (const u of navi){
+    const r = GAME.raggioMovimento([u.id]);
+    // 1) c'e' una nave nemica a tiro? attaccala
+    const preda = Object.keys(r).find(i => r[i].attacco);
+    if (preda !== undefined){
+      const prev = GAME.anteprima([u.id], +preda);
+      if (!prev || prev.pWin >= 0.45){ GAME.attacca([u.id], +preda); continue; }
+    }
+    // 2) bombarda una citta' costiera nemica adiacente
+    if ((D().UNITA[u.tipo]||{}).muraDanno){
+      const cmAdj = MAP.vicini(u.hex)
+        .map(j => st.comuni[H[j].comune])
+        .find(cm => cm && cm.fazione!==fid && cm.fazione!==-1 && cm.muraHP>0 && MAP.vicini(u.hex).includes(cm.hex));
+      if (cmAdj && GAME.bombarda(u.id, cmAdj.id)) continue;
+    }
+    // 3) avvicinati alla nave nemica piu' vicina, restando in mare
+    let meta = null;
+    if (nemiche.length){
+      meta = nemiche.reduce((b,n)=>{ const d=MAP.distKm(u.hex,n.hex); return (!b||d<b.d)?{h:n.hex,d}:b; }, null);
+    }
+    if (!meta) continue;
+    const passi = Object.keys(r).filter(i => !r[i].attacco && H[i].mare);
+    if (!passi.length) continue;
+    const best = passi.reduce((b,i)=>{ const d=MAP.distKm(+i, meta.h); return (!b||d<b.d)?{i:+i,d}:b; }, null);
+    if (best && best.d < MAP.distKm(u.hex, meta.h)) GAME.muovi([u.id], best.i);
+  }
+}
 function muoviUnitaIA(fid, bersagli){
   const st = GAME.st;
   muoviColoniIA(fid);   // i coloni non combattono mai: hanno una logica di movimento separata
   muoviLavoratoriIA(fid);
+  muoviFlottaIA(fid);   // le navi hanno una logica loro: quella di terra le incaglierebbe
   if (!bersagli.length){
     // niente da fare: torna a difendere la capitale
     const f = fid>=0&&fid<100 ? st.fazioni[fid] : null;
     if (!f) return;
     const cap = st.comuni[f.capitale];
-    for (const u of st.unita.filter(x=>x.fazione===fid && x.mov>0 && x.tipo!=="colono" && x.tipo!=="lavoratore")){
+    for (const u of st.unita.filter(x=>x.fazione===fid && x.mov>0 && x.tipo!=="colono" && x.tipo!=="lavoratore" && !GAME.eNavale(x))){
       if (MAP.distKm(u.hex, cap.hex) > 15) passoVerso(u, cap.hex);
     }
     return;
   }
   const stacks = {};
-  for (const u of st.unita) if (u.fazione===fid && u.mov>0 && u.tipo!=="colono" && u.tipo!=="lavoratore") (stacks[u.hex]=stacks[u.hex]||[]).push(u);
+  for (const u of st.unita) if (u.fazione===fid && u.mov>0 && u.tipo!=="colono" && u.tipo!=="lavoratore" && !GAME.eNavale(u)) (stacks[u.hex]=stacks[u.hex]||[]).push(u);
   for (const k of Object.keys(stacks)){
     const gruppo = stacks[k];
     const hex = parseInt(k);

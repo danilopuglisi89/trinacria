@@ -556,9 +556,24 @@ function limiteEsercito(){ return st.era <= 1 ? 4 : 5; }
 const LIMITE_LAVORATORI = 3;
 function truppeFazione(fid){
   let n = 0;
-  for (const u of st.unita) if (u.fazione===fid && u.tipo!=="colono" && u.tipo!=="lavoratore") n++;
+  for (const u of st.unita) if (u.fazione===fid && !fuoriConteggio(u.tipo)) n++;
   for (const cm of st.comuni) if (cm.fazione===fid)
-    for (const it of cm.coda) if (it.tipo==="unita" && it.id!=="colono" && it.id!=="lavoratore") n++;
+    for (const it of cm.coda) if (it.tipo==="unita" && !fuoriConteggio(it.id)) n++;
+  return n;
+}
+// coloni, lavoratori e NAVI non pesano sul limite dell'esercito di terra. Le navi in
+// particolare: contandole, un'IA col limite gia' saturo non avrebbe mai armato una flotta
+// e le isole sarebbero rimaste deserte per sempre.
+function fuoriConteggio(tipo){
+  return tipo==="colono" || tipo==="lavoratore" || dominioTipo(tipo)==="mare";
+}
+// tetto separato per le flotte, cresce con le ere
+function limiteFlotta(){ return 2 + Math.floor(st.era/2); }
+function flottaFazione(fid){
+  let n = 0;
+  for (const u of st.unita) if (u.fazione===fid && eNavale(u)) n++;
+  for (const cm of st.comuni) if (cm.fazione===fid)
+    for (const it of cm.coda) if (it.tipo==="unita" && dominioTipo(it.id)==="mare") n++;
   return n;
 }
 function lavoratoriFazione(fid){
@@ -581,6 +596,7 @@ function unitaDisponibili(cm){
   const lavCapRaggiunto = lavoratoriFazione(cm.fazione) >= LIMITE_LAVORATORI;
   const lavNienteDaFare = !lavCapRaggiunto && !esisteMiglioriaPossibile(cm.fazione);
   const lavoratoriPieni = lavCapRaggiunto || lavNienteDaFare;
+  const flottaPiena = flottaFazione(cm.fazione) >= limiteFlotta();
   const out = [];
   for (const id of Object.keys(D().UNITA)){
     const u = D().UNITA[id];
@@ -595,7 +611,7 @@ function unitaDisponibili(cm){
     // anche un porto: senza banchine non si arma una flotta.
     if (u.tipo==="naval"){
       if (!cittaCostiera(cm)) continue;
-      if (st.era >= 1 && !cm.edifici.includes("porto")) continue;
+      if (st.era >= 2 && !cm.edifici.includes("porto")) continue;
     }
     if (u.uu!==undefined && !cm.edifici.includes("caserma")) continue;
     if (u.reqEdificio && !cm.edifici.includes(u.reqEdificio)) continue;
@@ -604,7 +620,8 @@ function unitaDisponibili(cm){
     const colono = id==="colono", lavoratore = id==="lavoratore";
     out.push({ tipo:"unita", id, nome:u.nome, costo, atk:u.atk, def:u.def, mov:u.mov,
                uu:u.uu!==undefined, supporto:!!u.supporto, buffa:!!u.buffa, colono, lavoratore, ruolo:ruoloUnita(id), era:u.era,
-               pieno: lavoratore ? lavoratoriPieni : (alCompleto && !colono),
+               pieno: lavoratore ? lavoratoriPieni
+                      : (u.tipo==="naval" ? flottaPiena : (alCompleto && !colono)),
                motivoPieno: lavoratore && lavNienteDaFare ? "niente_da_fare" : (lavoratore && lavCapRaggiunto ? "al_completo" : null) });
   }
   // le più recenti in cima; mai lasciare la lista vuota
@@ -620,7 +637,11 @@ function accoda(cmId, item){
   if (cm.coda.length >= 6) return false;
   if (item.tipo==="unita" && item.id==="lavoratore" &&
       (lavoratoriFazione(cm.fazione) >= LIMITE_LAVORATORI || !esisteMiglioriaPossibile(cm.fazione))) return false;
-  if (item.tipo==="unita" && item.id!=="colono" && item.id!=="lavoratore" && truppeFazione(cm.fazione) >= limiteEsercito()) return false;
+  // Le navi hanno un tetto proprio: applicare loro il limite dell'esercito di terra le
+  // bloccava sempre (l'esercito e' quasi sempre al completo) e nessuna flotta veniva mai varata.
+  if (item.tipo==="unita" && dominioTipo(item.id)==="mare"){
+    if (flottaFazione(cm.fazione) >= limiteFlotta()) return false;
+  } else if (item.tipo==="unita" && !fuoriConteggio(item.id) && truppeFazione(cm.fazione) >= limiteEsercito()) return false;
   cm.coda.push({ tipo:item.tipo, id:item.id, costo:item.costo });
   return true;
 }
@@ -940,6 +961,11 @@ function eNavale(u){ return dominioTipo(u.tipo) === "mare"; }
 function percorribile(h, u){
   if (dominioTipo(u.tipo) === "mare") return !!h.mare;
   if (!h.mare) return true;
+  // In mare non ci va la truppa di terra: solo i COLONI possono essere imbarcati, e solo
+  // dopo aver scoperto la navigazione. Le isole quindi si popolano, non si invadono.
+  if (u.tipo !== "colono") return false;
+  const f = u.fazione>=0 && u.fazione<100 ? st.fazioni[u.fazione] : null;
+  if (!f || !f.techs.includes("navigazione")) return false;
   return !!trasportoLibero(h.i, u.fazione);
 }
 // trasporto amico con posto disponibile su questo esagono
@@ -2450,7 +2476,8 @@ function eseguiProposta(a){
 return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   reseComune, reseFazione, anniPerTurno, annoStr, aggiungiLog,
   raggioMovimento, muovi, anteprima, attacca, bombarda,
-  eNavale, dominioTipo, cittaCostiera, capacitaDi, trasportoLibero,
+  eNavale, dominioTipo, cittaCostiera, capacitaDi, trasportoLibero, limiteFlotta, flottaFazione,
+  alleatiPub: alleati,
   trovaPercorso, impostaGoto, processaGoto, fortifica, svegliaUnita, unitaFerme, suggerimenti,
   cucina, dopControllati, piattiSbloccati, faSagra,
   calcolaVisibilita, hexVisibile, hexEsplorato,
