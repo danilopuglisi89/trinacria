@@ -72,6 +72,8 @@ function nuovaPartita(opts){
     creaUnita("fromboliere", fd.id, cap.hex);
     // un colono in dote: con la Sicilia vuota e' l'unico modo di cominciare a espandersi
     creaUnita("colono", fd.id, cap.hex);
+    // e un esploratore: con la nebbia attiva di default serve subito qualcuno che vada a vedere
+    creaUnita("esploratore", fd.id, cap.hex);
   }
   // NIENTE regno iniziale gia' formato: prima ogni comune entro 9 esagoni dal capoluogo
   // entrava d'ufficio nel regno, e si partiva con una decina di citta' in mano. Ora la
@@ -1219,8 +1221,18 @@ function calcolaVisibilita(){
       layer = next;
     }
   };
-  for (const cm of st.comuni) if (cm.fazione===gioc) espandi(cm.hex, 2);
-  for (const u of st.unita) if (u.fazione===gioc) espandi(u.hex, u.tipo==="esploratore"?4:2);
+  // Quanto lontano si vede. Il raggio base tiene la partenza stretta (una citta' scopre
+  // ~19 caselle) e cresce con le tecnologie della conoscenza — astronomia, universita',
+  // stampa — cosi' l'orizzonte si allarga man mano che il regno impara.
+  const extra = techBonus(gioc).vista || 0;
+  for (const cm of st.comuni) if (cm.fazione===gioc && cm.fondata) espandi(cm.hex, 2 + extra);
+  for (const u of st.unita) if (u.fazione===gioc){
+    const ud = D().UNITA[u.tipo];
+    let r = 1;                                                // una truppa vede poco: e' fanteria
+    if (u.tipo==="esploratore") r = 3;                        // e' il suo mestiere
+    else if (ud && ud.dominio==="mare") r = 3;                // dal mare aperto si vede lontano
+    espandi(u.hex, r + extra);
+  }
   st.visibile = vis;
 }
 function hexVisibile(hex){ return !st.nebbia || st.visibile[hex]; }
@@ -2566,7 +2578,7 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   trovaPercorso, impostaGoto, processaGoto, fortifica, svegliaUnita, unitaFerme, suggerimenti,
   cucina, dopControllati, piattiSbloccati, faSagra,
   calcolaVisibilita, hexVisibile, hexEsplorato,
-  fondaCitta, puoFondare, fondaComune, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, costoTech, sbloccatiDaTech, miglioreCostruzione,
+  fondaCitta, puoFondare, fondaComune, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, techBonusReset, costoTech, sbloccatiDaTech, miglioreCostruzione,
   costruzioniDisponibili, unitaDisponibili, accoda, compraSubito, migliora,
   techDisponibili, ricerca, statU, costoEroe, reclutaEroe, limiteEsercito, truppeFazione,
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,

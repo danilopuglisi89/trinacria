@@ -169,14 +169,14 @@ const TECH = [
   { id:"tattica_b",    era:2, ramo:"militare", nome:"Tattica dei Themi", costo:125, bonus:{combatPct:0.10}, desc:"+10% forza in battaglia." },
   // Era 3
   { id:"medicina_a",   era:3, ramo:"civile",   nome:"Medicina Araba", costo:180, bonus:{growthPct:0.20}, desc:"+20% crescita: gli ospedali di Palermo." },
-  { id:"astronomia",   era:3, ramo:"civile",   nome:"Astronomia", costo:190, bonus:{sciPct:0.15}, desc:"+15% scienza." },
+  { id:"astronomia",   era:3, ramo:"civile",   nome:"Astronomia", costo:190, bonus:{sciPct:0.15, vista:1}, desc:"+15% scienza." },
   { id:"mercanti_a",   era:3, ramo:"economia", nome:"Mercanti d'Oriente", costo:185, bonus:{oroPct:0.12}, desc:"+12% oro." },
   // Era 4
-  { id:"universita",   era:4, ramo:"civile",   nome:"Studium di Federico II", costo:250, bonus:{sciPct:0.20}, desc:"+20% scienza: la prima università laica." },
+  { id:"universita",   era:4, ramo:"civile",   nome:"Studium di Federico II", costo:250, bonus:{sciPct:0.20, vista:1}, desc:"+20% scienza: la prima università laica." },
   { id:"araldica",     era:4, ramo:"militare", nome:"Araldica e Cavalleria", costo:260, bonus:{combatPct:0.12}, desc:"+12% forza in battaglia." },
   { id:"fiere_n",      era:4, ramo:"economia", nome:"Fiere e Gabelle", costo:280, bonus:{oroPct:0.12}, desc:"+12% oro." },
   // Era 5
-  { id:"stampa",       era:5, ramo:"cultura",  nome:"La Stampa", costo:380, bonus:{culturaPct:0.20, sciPct:0.10}, desc:"+20% cultura, +10% scienza." },
+  { id:"stampa",       era:5, ramo:"cultura",  nome:"La Stampa", costo:380, bonus:{culturaPct:0.20, sciPct:0.10, vista:1}, desc:"+20% cultura, +10% scienza." },
   { id:"artiglieria",  era:5, ramo:"militare", nome:"Artiglieria Moderna", costo:420, bonus:{combatPct:0.15}, desc:"+15% forza in battaglia." },
   { id:"mercantilismo",era:5, ramo:"economia", nome:"Mercantilismo", costo:440, bonus:{oroPct:0.15}, desc:"+15% oro." }
 ];
