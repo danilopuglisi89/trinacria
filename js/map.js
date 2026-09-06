@@ -127,6 +127,31 @@ const ISOLE = [
   { lat:37.46, lon:12.42, r:5,  vLat:37.63, vLon:12.58 }  // Pantelleria (stilizzata) ← Mazara
 ];
 
+let mareBasso = [];
+// Macchia morbida pre-dipinta (gradiente radiale bianco -> trasparente). Crearne una per
+// casella a ogni fotogramma raddoppiava il costo del disegno a zoom alto; cosi' e' un drawImage.
+let macchiaCanvas = null;
+function macchia(){
+  if (macchiaCanvas) return macchiaCanvas;
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d");
+  const rg = g.createRadialGradient(64,64,0, 64,64,64);
+  rg.addColorStop(0, "rgba(255,255,255,1)"); rg.addColorStop(0.55, "rgba(255,255,255,0.55)"); rg.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = rg; g.fillRect(0,0,128,128);
+  macchiaCanvas = c;
+  return c;
+}
+const macchieTinte = {};
+function macchiaTinta(colore){
+  if (macchieTinte[colore]) return macchieTinte[colore];
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d");
+  g.drawImage(macchia(), 0, 0);
+  g.globalCompositeOperation = "source-in";
+  g.fillStyle = colore; g.fillRect(0,0,128,128);
+  macchieTinte[colore] = c;
+  return c;
+}
 let hexes = [], terre = [], grid = {}, comuni = [], strade = [], etnaSummit = -1, luoghi = [], sponsor = [], poi = [], monumenti = [];
 // --- cache del terreno a due livelli ---
 // Prima c'era un unico canvas-mondo a piena risoluzione: con la mappa attuale sarebbe
@@ -363,6 +388,43 @@ function build(){
       if (Math.hypot(h.x-L.x, h.y-L.y) < L.r){ h.terra = "lago"; h.lago = true; h.elev = 0.05; }
     }
   }
+  // Profondita' del mare: anelli di distanza dalla costa (1 = bagnasciuga, 5 = gia' al largo).
+  // Serve a schiarire l'acqua verso riva: prima il mare era una tinta unica da Messina a Malta.
+  mareBasso = [];
+  {
+    let fronte = [];
+    for (const h of hexes) if (h.mare) h.prof = 0;
+    for (const h of hexes){
+      if (!h.mare) continue;
+      for (const j of vicini(h.i)) if (!hexes[j].mare){ h.prof = 1; fronte.push(h.i); break; }
+    }
+    for (let anello = 2; anello <= 5 && fronte.length; anello++){
+      const prossimo = [];
+      for (const i of fronte) for (const j of vicini(i)){
+        const n = hexes[j];
+        if (n.mare && !n.prof){ n.prof = anello; prossimo.push(j); }
+      }
+      fronte = prossimo;
+    }
+    for (const h of hexes) if (h.mare && h.prof) mareBasso.push(h);
+  }
+  // Rilievo: di quanto una casella "sale" rispetto al piano, in unita' mondo. E' il
+  // tridimensionale che mancava: colline e monti si estrudono con una parete in ombra e
+  // coprono un pezzo della casella dietro, come in una veduta a tre quarti. La costa resta
+  // a terra (la sua quota e' gia' tagliata a 0,3) e cosi' la spiaggia non diventa una scogliera.
+  // A GRADINI, non continuo: con la quota continua due caselle vicine differivano di pochi
+  // pixel e la parete era un filo invisibile. A gradini per tipo di terreno, una collina che
+  // confina con la pianura mostra sempre una parete intera, e un altopiano resta liscio
+  // all'interno (giusto: e' piatto) e scosceso solo sul bordo.
+  for (const h of hexes){
+    if (h.mare || h.lago || h.costa){ h.alt = 0; continue; }
+    let g = 0;
+    if (h.terra === "hill") g = 0.32;
+    else if (h.terra === "forest") g = h.elev > 0.42 ? 0.32 : 0;
+    else if (h.terra === "mountain") g = 0.70;
+    else if (h.terra === "volcano") g = h.elev > 0.9 ? 0.95 : 0.70;
+    h.alt = g * R;
+  }
   // hillshade
   calcolaOmbre();
   // Etna summit
@@ -535,6 +597,10 @@ function vicini(i){
   return out;
 }
 const VUOTO = [];
+// Dove si disegna cio' che sta SU una casella: il centro, sollevato del suo rilievo.
+// Tutto quello che poggia sul terreno (citta', truppe, icone, etichette) usa questa, cosi'
+// una citta' su un colle sta in cima al colle e non ai suoi piedi.
+function wh(v, h){ return w2s(v, h.x, h.y - (h.alt||0)); }
 function distKm(a,b){ return Math.hypot(hexes[a].x-hexes[b].x, hexes[a].y-hexes[b].y); }
 
 // ---- proiezione ----
@@ -543,7 +609,15 @@ function s2w(v, sx, sy){ return { x:(sx-v.x)/v.z, y:(sy-v.y)/v.z }; }
 function hexAt(v, sx, sy){
   const w = s2w(v, sx, sy);
   const r = hexPiuVicino(w.x, w.y, false);
-  return (r.d < R*1.25) ? r.i : -1;
+  if (r.d >= R*1.25) return -1;
+  // una casella in rilievo subito SOTTO (sullo schermo) sale e copre il punto: e' lei
+  const h = hexes[r.i];
+  for (const j of vicini(r.i)){
+    const n = hexes[j];
+    if (!n.alt || n.y <= h.y + 0.1) continue;
+    if (Math.hypot(w.x - n.x, w.y - (n.y - n.alt)) < R*0.92) return j;
+  }
+  return r.i;
 }
 
 function coloreFazione(st, fid){
@@ -575,13 +649,11 @@ function render(ctx, v, st, sel){ frame(ctx, v, st, sel); }
 
 function drawSea(ctx, v){
   const W = window.innerWidth, H = window.innerHeight;
-  const g = ctx.createLinearGradient(0,0,0,H);
+  // il gradiente e' ancorato al MONDO, non allo schermo: prima scorreva con la mappa e il
+  // mare sembrava cambiare colore ogni volta che si trascinava
+  const g = ctx.createLinearGradient(0, v.y, 0, v.y + WORLD.h*v.z);
   g.addColorStop(0, ART.PAL.mareChiaro); g.addColorStop(0.5, ART.PAL.mare); g.addColorStop(1, ART.PAL.mareProf);
   ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
-  if (v.z>3){
-    ctx.strokeStyle="rgba(255,255,255,0.045)"; ctx.lineWidth=1;
-    for (let y=(v.y%22+22)%22; y<H; y+=22){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-  }
 }
 
 // disegna la cache-mondo sullo schermo: base sotto (sempre), tiles nitide sopra a zoom alto
@@ -661,11 +733,27 @@ function disegnaTexturaHex(ctx, v, s, h, rz){
     const ix = Math.round(px), iy = Math.round(py);
     SPRITES.drawTL(ctx, id, ix, iy, Math.round(px+T)-ix, Math.round(py+T)-iy);
   }
+  // Da lontano la texture diventa coriandoli: alberi grandi un quinto di casella, ripetuti a
+  // migliaia. Sotto una certa scala si vela con la tinta piatta del terreno, come farebbe una
+  // carta geografica, e l'isola torna a leggersi per zone e non per puntini.
+  if (rz < 24){
+    ctx.globalAlpha = Math.min(0.8, (24 - rz) / 24);
+    ctx.fillStyle = ART.terrenoPalette(h.terra).base;
+    ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
   // hillshade come in mosaicoHex
   const a = Math.min(0.45, Math.abs(h.shade||0));
   if (a > 0.01){ ctx.fillStyle = (h.shade<0 ? "rgba(0,0,0," : "rgba(255,255,255,")+a+")"; ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.fill(); }
   ctx.restore();
-  if (rz >= 4) contornoCasella(ctx, s.x, s.y, rz);
+  // Da lontano la griglia sparisce: a zoom basso il contorno pieno trasformava l'isola in
+  // un nido d'ape. Sfuma sotto le quattordici unita' di raggio, e a quattro e' quasi invisibile.
+  if (rz >= 4){
+    const a = rz < 14 ? Math.max(0.12, (rz-4)/10) : 1;
+    if (a < 1) ctx.globalAlpha = a;
+    contornoCasella(ctx, s.x, s.y, rz);
+    if (a < 1) ctx.globalAlpha = 1;
+  }
   return true;
 }
 const STILI_ARCH = ["greca","romana","araba","normanna"];
@@ -734,18 +822,57 @@ function renderTerreno(ctx, v, st, rz){
   const W = ctx.canvas.width, H = ctx.canvas.height;
   // margine rz*3: gli elementi più larghi di una città (alone capitale rz*2.4, cinta muraria)
   // devono essere disegnati anche quando il loro centro cade appena fuori da una tile
-  const vis = h => { const s=w2s(v,h.x,h.y); return !(s.x<-rz*3||s.y<-rz*3||s.x>W+rz*3||s.y>H+rz*3); };
-  // coste: alone di sabbia sotto agli esagoni costieri
+  const vis = h => { const s=wh(v, h); return !(s.x<-rz*3||s.y<-rz*3||s.x>W+rz*3||s.y>H+rz*3); };
+  // mare basso: l'acqua schiarisce verso riva, anello per anello, e prende il verde dei
+  // fondali sabbiosi. E' dipinto nella cache come il terreno: costa zero a ogni fotogramma.
+  // Non a esagoni: a macchie morbide che si sovrappongono. Dipinte a esagoni, gli anelli si
+  // leggevano come un nido d'ape concentrico, peggio del mare piatto di prima.
+  const ALFA = [0, 0.50, 0.34, 0.21, 0.11, 0.05];
+  {
+    // la macchia e' bianca: la si tinge una volta sola con un canvas colorato per il turchese
+    const mc = macchiaTinta("rgb(150,220,206)");
+    for (const h of mareBasso){
+      if (!vis(h)) continue;
+      const s = w2s(v, h.x, h.y);
+      const rr = rz * 1.75;
+      ctx.globalAlpha = ALFA[h.prof];
+      ctx.drawImage(mc, s.x-rr, s.y-rr, rr*2, rr*2);
+    }
+    ctx.globalAlpha = 1;
+  }
+  // coste: prima la schiuma (larga, bianca, tenue), poi la sabbia (stretta) — la scala di
+  // esagoni si ammorbidisce e il bagnasciuga si legge come tale
   for (const h of terre){
     if (!h.costa || !vis(h)) continue;
-    const s = w2s(v,h.x,h.y);
-    ctx.fillStyle = "#d8c88f"; ART.hexPath(ctx, s.x, s.y, rz+Math.max(2,rz*0.28)); ctx.fill();
+    const s = wh(v, h);
+    const rr = rz + Math.max(3, rz*0.55);
+    ctx.globalAlpha = 0.34;
+    ctx.drawImage(macchia(), s.x-rr, s.y-rr, rr*2, rr*2);
+    ctx.globalAlpha = 1;
+  }
+  for (const h of terre){
+    if (!h.costa || !vis(h)) continue;
+    const s = wh(v, h);
+    ctx.fillStyle = "#d8c88f"; ART.hexPath(ctx, s.x, s.y, rz+Math.max(2,rz*0.22)); ctx.fill();
   }
   // terreno mosaico (texture AI se disponibili, altrimenti tessere procedurali)
   const texAI = SPRITES.abilitato.terreno;
   for (const h of terre){
     if (!vis(h)) continue;
-    const s = w2s(v, h.x, h.y);
+    const piede = w2s(v, h.x, h.y);
+    const salita = h.alt ? h.alt * v.z : 0;
+    if (salita > 0.8){
+      // la parete: la striscia bassa dell'impronta che la casella sollevata lascia scoperta.
+      // Sta dentro l'impronta, quindi non sconfina nella casella davanti; la cima invece
+      // copre un pezzo della casella dietro, gia' disegnata perche' le righe scendono.
+      ctx.fillStyle = ART.terrenoPalette(h.terra).base;      // roccia del suo colore...
+      ART.hexPath(ctx, piede.x, piede.y, rz+0.6); ctx.fill();
+      ctx.fillStyle = "rgba(24,14,8,0.62)";                   // ...in ombra
+      ART.hexPath(ctx, piede.x, piede.y, rz+0.6); ctx.fill();
+      ctx.fillStyle = "rgba(255,225,170,0.12)";                     // filo di luce sullo spigolo
+      ART.hexPath(ctx, piede.x, piede.y - salita*0.55, rz+0.6); ctx.fill();
+    }
+    const s = salita > 0.8 ? { x:piede.x, y:piede.y - salita } : piede;
     if (!(texAI && disegnaTexturaHex(ctx, v, s, h, rz))) ART.mosaicoHex(ctx, s.x, s.y, rz, h.terra, h.i, h.shade);
   }
   // fiumi
@@ -774,7 +901,7 @@ function renderTerreno(ctx, v, st, rz){
       if (own===-1 || !vis(h)) continue;
       // velo leggerissimo: il possesso si legge dal confine e dal suo alone, la texture resta protagonista
       const frontiera = vicini(h.i).some(j => !hexes[j].mare && GAME.fazioneDiHex(hexes[j]) !== own);
-      const s = w2s(v, h.x, h.y);
+      const s = wh(v, h);
       ctx.fillStyle = coloreFazione(st, own) + (frontiera ? "10" : "18");
       ART.hexPath(ctx, s.x, s.y, rz+0.6); ctx.fill();
     }
@@ -785,7 +912,7 @@ function renderTerreno(ctx, v, st, rz){
     ctx.textAlign="center"; ctx.textBaseline="middle";
     for (const h of terre){
       if (!vis(h)) continue;
-      const s = w2s(v, h.x, h.y);
+      const s = wh(v, h);
       const icoAI = SPRITES.abilitato.icone;
       if (h.quart){
         disegnaQuartiere(ctx, s, rz, h, st);
@@ -808,7 +935,7 @@ function renderTerreno(ctx, v, st, rz){
       if (!cm.fondata) continue;              // e' solo un toponimo: non c'e' nessun abitato
       const h = hexes[cm.hex];
       if (!vis(h)) continue;
-      const s = w2s(v, h.x, h.y);
+      const s = wh(v, h);
       const hasCatt = cm.edifici.includes("cattedrale") || cm.edifici.includes("castello");
       const isCap = !!(st.fazioni[cm.fazione] && st.fazioni[cm.fazione].capitale === cm.id);
       const idC = SPRITES.abilitato.citta ? idSpriteCitta(cm, isCap) : null;
@@ -820,7 +947,7 @@ function renderTerreno(ctx, v, st, rz){
         for (let k=0; k<Math.min(nSat, satelliti.length); k++){
           const vh = hexes[satelliti[k]];
           if (!vis(vh)) continue;
-          const sp = w2s(v, vh.x, vh.y);
+          const sp = wh(v, vh);
           ART.periferia(ctx, sp.x, sp.y, rz, cm.id, k, coloreFazione(st, cm.fazione));
         }
       }
@@ -858,7 +985,7 @@ function renderTerreno(ctx, v, st, rz){
     for (const m of monumenti){
       const h = hexes[m.hex];
       if (!vis(h)) continue;
-      const s = w2s(v, h.x, h.y);
+      const s = wh(v, h);
       ctx.beginPath(); ctx.ellipse(s.x, s.y+rz*0.42, rz*0.6, rz*0.24, 0, 0, 7);
       ctx.fillStyle="rgba(0,0,0,0.22)"; ctx.fill();
       const idM = "mon_"+(MON_ALIAS[m.mon]||m.mon);
@@ -872,13 +999,13 @@ function renderTerreno(ctx, v, st, rz){
 // livello dinamico (screen-space): selezione, Etna, unità animate, particelle, etichette
 function renderDynamic(ctx, v, st, sel, rz){
   const W = window.innerWidth, H = window.innerHeight;
-  const vis = h => { const s=w2s(v,h.x,h.y); return !(s.x<-rz*3||s.y<-rz*3||s.x>W+rz*3||s.y>H+rz*3); };
+  const vis = h => { const s=wh(v, h); return !(s.x<-rz*3||s.y<-rz*3||s.x>W+rz*3||s.y>H+rz*3); };
   // nebbia di guerra: copre la mappa non in vista
   if (st && st.nebbia){
     for (const h of terre){
       if (GAME.hexVisibile(h.i)) continue;
       if (!vis(h)) continue;
-      const s = w2s(v, h.x, h.y);
+      const s = wh(v, h);
       ART.hexPath(ctx, s.x, s.y, rz+1);
       ctx.fillStyle = GAME.hexEsplorato(h.i) ? "rgba(9,14,20,0.55)" : "rgba(6,10,14,0.96)";
       ctx.fill();
@@ -894,7 +1021,7 @@ function renderDynamic(ctx, v, st, sel, rz){
       if (!vis(h)) continue;
       if (st.nebbia && !GAME.hexEsplorato(h.i)) continue;
       const velata = st.nebbia && !GAME.hexVisibile(h.i);
-      const s = w2s(v, h.x, h.y);
+      const s = wh(v, h);
       if (h.citta < 0){
         ctx.beginPath(); ctx.arc(s.x, s.y+rz*0.05, rz*0.42, 0, 7);
         ctx.strokeStyle = "rgba(240,205,110,0.55)"; ctx.lineWidth = Math.max(1, rz*0.05); ctx.stroke();
@@ -906,6 +1033,24 @@ function renderDynamic(ctx, v, st, sel, rz){
       ctx.globalAlpha = 1;
     }
   }
+  // luccichio sul mare basso: lame di luce che scorrono e svaniscono, solo vicino a riva.
+  // E' l'unica cosa del mare che si muove, ed e' quella che lo fa sembrare acqua.
+  if (rz > 7 && mareBasso.length){
+    const tt = performance.now()/1000;
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,1)"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(1, rz*0.045);
+    for (const h of mareBasso){
+      if (h.prof > 3 || !vis(h)) continue;
+      const s = w2s(v, h.x, h.y);
+      const f = ((h.i*7919) % 997)/997;
+      const ph = (tt*0.28 + f) % 1;
+      const ox = (ph - 0.5) * rz * 1.3;
+      const oy = (f - 0.5) * rz * 0.9 + Math.sin(ph*6.283 + f*6.283) * rz*0.12;
+      ctx.globalAlpha = Math.sin(ph*Math.PI) * 0.30 / h.prof;
+      ctx.beginPath(); ctx.moveTo(s.x+ox-rz*0.20, s.y+oy); ctx.lineTo(s.x+ox+rz*0.20, s.y+oy); ctx.stroke();
+    }
+    ctx.restore();
+  }
   const puls = 0.5 + 0.5*Math.sin(performance.now()*0.005);
   // colono e lavoratore non combattono mai: le caselle "raggiungibili con azione" si colorano di
   // verde-oro (azione pacifica) invece che di rosso (attacco), per non confondere il giocatore
@@ -915,7 +1060,7 @@ function renderDynamic(ctx, v, st, sel, rz){
   // evidenzia raggio movimento
   if (sel && sel.raggio){
     for (const i of Object.keys(sel.raggio)){
-      const h = hexes[i]; const s = w2s(v, h.x, h.y);
+      const h = hexes[i]; const s = wh(v, h);
       ART.hexPath(ctx, s.x, s.y, rz*0.9);
       const azione = sel.raggio[i].attacco;
       ctx.fillStyle = !azione ? "rgba(120,220,120,0.22)" : (soloColono ? "rgba(220,190,80,0.30)" : "rgba(220,80,60,0.34)"); ctx.fill();
@@ -934,7 +1079,7 @@ function renderDynamic(ctx, v, st, sel, rz){
   // casella selezionata: velo viola + doppio contorno pulsante. Prima era un filo bianco,
   // che sul mosaico chiaro spariva e non diceva quale casella fosse davvero scelta.
   if (sel && sel.hex >= 0){
-    const h = hexes[sel.hex]; const s = w2s(v, h.x, h.y);
+    const h = hexes[sel.hex]; const s = wh(v, h);
     ctx.save();
     ART.hexPath(ctx, s.x, s.y, rz+0.6);
     ctx.fillStyle = "rgba(150,70,220,"+(0.20+puls*0.10).toFixed(3)+")"; ctx.fill();
@@ -951,7 +1096,7 @@ function renderDynamic(ctx, v, st, sel, rz){
     for (const cm of st.comuni){
       if (cm.fazione!==st.giocatore || cm.coda.length) continue;
       const h = hexes[cm.hex]; if (!vis(h)) continue;
-      const s = w2s(v, h.x, h.y);
+      const s = wh(v, h);
       ctx.globalAlpha = 0.45 + puls*0.35;
       ctx.font = Math.floor(Math.min(24, rz*0.6))+"px serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
       ctx.fillText("🔨", s.x + rz*0.75, s.y - rz*1.0);
@@ -978,8 +1123,8 @@ function renderDynamic(ctx, v, st, sel, rz){
       const h = hexes[cm.hex];
       if (!vis(h)) continue;
       if (st.nebbia && !GAME.hexEsplorato(cm.hex)) continue;
-      if (!cm.fondata){ borgoInterno(ctx, cm, w2s(v, h.x, h.y), rz, st); continue; }
-      const s = w2s(v, h.x, h.y);
+      if (!cm.fondata){ borgoInterno(ctx, cm, wh(v, h), rz, st); continue; }
+      const s = wh(v, h);
       const col = coloreFazione(st, cm.fazione);
       // bandiera solo dove conta: capitali e città grandi (i borghi restano puliti)
       const isCap = st.fazioni[cm.fazione] && st.fazioni[cm.fazione].capitale === cm.id;
@@ -1036,7 +1181,7 @@ function renderDynamic(ctx, v, st, sel, rz){
     for (const cm of st.comuni){
       if (!cm.fondata) continue;
       const h = hexes[cm.hex]; if (!vis(h)) continue;
-      const s = w2s(v, h.x, h.y);
+      const s = wh(v, h);
       const k = 1 + Math.max(0, Math.min(3, cm.tier-1))*0.28;
       LBL.occupa(s.x, s.y - rz*0.25, rz*2.0*k, rz*1.4*k);
     }
@@ -1045,7 +1190,7 @@ function renderDynamic(ctx, v, st, sel, rz){
       for (const m of monumenti){
         if (st.nebbia && !GAME.hexEsplorato(m.hex)) continue;
         const h = hexes[m.hex]; if (!vis(h)) continue;
-        const s = w2s(v, h.x, h.y);
+        const s = wh(v, h);
         ctx.font = "600 11px Georgia";
         const w = ctx.measureText(m.etichetta).width + 14;
         if (!LBL.prova(s.x, s.y - rz*1.55, w, 20)) continue;
@@ -1114,7 +1259,7 @@ function vitaSullaMappa(ctx, v, st, rz, W, H){
   ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = Math.max(1, rz*0.035); ctx.lineCap="round";
   for (const h of terre){
     if (!h.costa) continue;
-    const s = w2s(v, h.x, h.y); if (!dentro(s)) continue;
+    const s = wh(v, h); if (!dentro(s)) continue;
     for (let k=0;k<2;k++){
       const f = rngSeme(h.i*17+k*5);
       const on = ((t*0.6 + f) % 1);
@@ -1131,7 +1276,7 @@ function vitaSullaMappa(ctx, v, st, rz, W, H){
   for (const cm of st ? st.comuni : []){
     const h = hexes[cm.hex];
     if (!h.costa || cm.pop < 4) continue;
-    const s = w2s(v, h.x, h.y); if (!dentro(s)) continue;
+    const s = wh(v, h); if (!dentro(s)) continue;
     const m = dirMare(h); if (!m) continue;
     const n = cm.pop >= 12 ? 3 : (cm.pop >= 7 ? 2 : 1);
     for (let k=0;k<n;k++){
@@ -1175,7 +1320,7 @@ function vitaSullaMappa(ctx, v, st, rz, W, H){
   if (rz > 46){
     for (const h of terre){
       if (!h.imp) continue;
-      const s = w2s(v, h.x, h.y); if (!dentro(s)) continue;
+      const s = wh(v, h); if (!dentro(s)) continue;
       const imp = h.imp;
       const greggi = imp==="pascolo" || imp==="rifugio_pastori";
       const campi = imp==="campo" || imp==="fattoria" || imp==="orto" || imp==="manifattura_molini";
@@ -1352,7 +1497,7 @@ function latiConfine(v, st, rz, W, H){
   for (const h of terre){
     const own = GAME.fazioneDiHex(h);
     if (own===-1) continue;
-    const s = w2s(v, h.x, h.y);
+    const s = wh(v, h);
     if (s.x<-rz*2||s.y<-rz*2||s.x>W+rz*2||s.y>H+rz*2) continue;
     const dirs = vicinatiCR(h.col,h.row);
     for (let d=0; d<dirs.length; d++){
@@ -1433,7 +1578,8 @@ function disegnaEsercito(ctx, v, rz, lista, st, sel){
   let ax=0, ay=0;
   for (const u of lista){ const p=FX.unitXY(u.id); ax+=p.x; ay+=p.y; }
   ax/=lista.length; ay/=lista.length;
-  const s = w2s(v, ax, ay);
+  const hu = hexes[lista[0].hex];
+  const s = w2s(v, ax, ay - (hu && hu.alt ? hu.alt : 0));   // in cima al colle, non ai piedi
   const fid = lista[0].fazione;
   const col = coloreFazione(st, fid);
   const col2 = coloreFazione2(st, fid);
@@ -1554,7 +1700,7 @@ function disegnaCovi(ctx, v, st, rz){
   const t = performance.now()/1000;
   for (const c of st.covi){
     if (st.nebbia && !GAME.hexEsplorato(c.hex)) continue;
-    const h = hexes[c.hex]; const s = w2s(v, h.x, h.y);
+    const h = hexes[c.hex]; const s = wh(v, h);
     if (s.x<-rz*2||s.y<-rz*2||s.x>window.innerWidth+rz*2||s.y>window.innerHeight+rz*2) continue;
     const k = rz*0.9;
     ctx.save();
