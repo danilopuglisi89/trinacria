@@ -829,6 +829,8 @@ function apriPannelloHex(i){
       <div class="p-riga muto">Finché non è tua non rende nulla e non si può migliorare.</div>
       <div class="p-riga">Una volta dentro il regno renderebbe ${voci.length?voci.join(" "):"poco"}.</div>`;
     if (p.costo !== undefined){
+      tutorial("compra_casella", "Le caselle si comprano",
+        "Fuori dai tuoi confini una casella <b>non rende nulla</b> e non si può migliorare: l'unica cosa che puoi fare è <b>comprarla</b>.<br><br>Il prezzo cresce con la distanza e con quanto sei già grande. Guarda le risorse col cerchietto dorato: quelle valgono la spesa.");
       const oro = Math.floor(st.fazioni[st.giocatore].oro);
       html += `<button class="btn-lista btn-compra-hex" id="btn-compra-hex" ${p.ok?"":"disabled"}>🪙 Compra questa casella — ${p.costo} oro
         <span class="muto">(ne hai ${oro}${p.ok?"":" — non bastano"})</span></button>`;
@@ -1503,6 +1505,52 @@ function tutorial(id, titolo, testo){
   card.querySelector(".tut-ok").onclick = () => card.classList.add("nascosto");
 }
 
+// Schede sui sistemi che si sbloccano strada facendo. Ne esce UNA per volta e mai due
+// nello stesso turno: sono spiegazioni, non un bombardamento.
+function schedeNuoveMeccaniche(){
+  const st = GAME.st;
+  if (!st || tutorialAttivo()) return;
+  const f = st.fazioni[st.giocatore];
+  st.visti = st.visti || {};
+  const mie = st.comuni.filter(function(c){ return c.fondata && c.fazione === st.giocatore; });
+
+  if (st.turno >= 3 && !st.visti.come_si_vince)
+    return tutorial("come_si_vince", "Si vince in quattro modi",
+      "Non serve conquistare tutto. Puoi vincere per <b>conquista</b>, <b>cultura</b>, <b>scienza</b> o <b>ricchezza</b>.<br><br>Trovi le quattro strade e a che punto sei in <b>👑 Regno → Come si vince</b>. Guarda anche quanto sono avanti i rivali: è una corsa.");
+
+  if (!st.visti.intuizioni && f.intuizioni && Object.keys(f.intuizioni).length > 0)
+    return tutorial("intuizioni", "Le intuizioni",
+      "Hai appena scontato una ricerca del <b>40%</b> facendo una cosa sulla mappa, non pagandola.<br><br>Ogni tecnologia ha la sua: fondare sulla costa, battere i briganti, costruire un mercato. Le trovi scritte sotto ogni ricerca con la 💡.");
+
+  for (const cm of mie){
+    const q = GAME.quartieriDisponibili(cm);
+    if (q.length && !st.visti.quartieri)
+      return tutorial("quartieri", "I quartieri",
+        "Un quartiere non sta dentro la città: occupa una <b>casella del territorio</b>, e rende in base a <b>cosa ha intorno</b>.<br><br>Una Fucina fra i monti vale il doppio della stessa Fucina in pianura. Quando ne scegli uno, la mappa ti accende le caselle possibili col numero di quanto renderebbero.");
+    const ca = GAME.caseComune(cm);
+    if (cm.pop >= ca.n && !st.visti.case)
+      return tutorial("case", "Le case mettono un tetto",
+        cm.nome+" non può più crescere: ha <b>"+cm.pop+" abitanti e "+ca.n+" case</b>.<br><br>Servono granaio, acquedotti, campi coltivati, un porto o una Marina. È il motivo per cui certi edifici esistono.");
+    const fe = GAME.fedeltaDelta(cm);
+    if (cm.fedelta !== undefined && cm.fedelta < 85 && !st.visti.fedelta)
+      return tutorial("fedeltà", "La fedeltà delle città",
+        cm.nome+" è a <b>"+Math.round(cm.fedelta)+" di fedeltà</b>. Le città vicine fanno pressione: le tue la tengono su, quelle altrui la tirano giù.<br><br>Sotto 75 rende meno, a zero si ribella e diventa <b>città libera</b>. Le conquiste lontane da casa non si tengono con le sole truppe.");
+  }
+
+  if (!st.visti.editti && GAME.edittiDisponibili(st.giocatore).length && !(f.editti||[]).filter(Boolean).length)
+    return tutorial("editti", "Gli editti",
+      "Puoi proclamare un <b>editto</b>: una scelta politica che vale per tutto il regno.<br><br>Hanno tutti un prezzo — il Latifondo dà cibo ma scontenta, la Corvée dà produzione ma toglie oro. Stanno in <b>👑 Regno → Editti</b>, il primo seggio è gratis.");
+
+  if (!st.visti.grandi){
+    // statoGrandi restituisce un ELENCO di categorie, non un oggetto con .disponibili:
+    // la scheda esce appena una categoria comincia ad accumulare punti
+    const sg = GAME.statoGrandi ? GAME.statoGrandi(st.giocatore) : null;
+    if (sg && sg.some(function(c){ return c.punti > 0; }))
+      return tutorial("grandi", "I Grandi Siciliani",
+        "Archimede, Antonello, Federico II: <b>ventiquattro figure storiche</b>, una sola copia ciascuna.<br><br>I quartieri generano i punti per reclutarli, e chi arriva primo se lo prende. Otto Grandi più quattro meraviglie sono una <b>vittoria culturale</b>.");
+  }
+  return null;
+}
 // ---------- LISTA ESERCITO ----------
 function aggiornaListaArmata(){
   const st = GAME.st;
@@ -1803,7 +1851,7 @@ function eseguiFineTurno(){
     processaPending();
     // battuta ambientale nei turni tranquilli (spesso ma breve)
     if (!eventoMostrato && (!GAME.st.fumetti || !GAME.st.fumetti.length) && Math.random()<0.22) battuta("ambiente");
-    if (!GAME.st.vittoria && !eventoMostrato) valutaConsigli();
+    if (!GAME.st.vittoria && !eventoMostrato){ valutaConsigli(); schedeNuoveMeccaniche(); }
     controllaFinePartita();
     if (!eventoMostrato) pianificaAuto();
   }, 60);

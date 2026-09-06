@@ -100,13 +100,16 @@ function diplomaziaIA(f){
     // le fazioni allo stesso tetto di citta' e di esercito nessuno lo e' mai, e in 161 turni
     // non scoppiava una sola guerra. Ora basta un vantaggio credibile, e chi non ha piu'
     // spazio per fondare diventa molto piu' propenso a prendersi le terre del vicino.
+    // Chi non ha piu' dove espandersi non aspetta di odiare il vicino: gli serve la sua terra.
+    // Con le vecchie soglie (vantaggio 1,05 e umore sotto zero) scoppiavano due guerre per
+    // partita e la mappa non cambiava mai padrone; ora la Sicilia piena diventa scomoda.
     const stretto = senzaSpazio(f.id);
-    const vantaggio = stretto ? 1.05 : 1.20;
-    const sogliaUmore = stretto ? 0 : -6;
+    const vantaggio = stretto ? 0.95 : 1.20;
+    const sogliaUmore = stretto ? 8 : -6;
     // `aggr()` restituisce un OGGETTO: moltiplicarlo dava NaN, e `rnd() < NaN` e' sempre falso.
     // Risultato: fra due IA non scoppiava MAI una guerra, in nessuna partita.
     const mult = st.difficolta==="facile" ? 0.6 : (st.difficolta==="difficile" ? 1.6 : 1);
-    const prob = (stretto ? 0.10 : 0.04) * mult;
+    const prob = (stretto ? 0.16 : 0.04) * mult;
     if (!faseProtetta() && d.stato==="pace" && !guerraInCorso && confinanti(f.id, g.id) &&
         GAME.forzaTotale(f.id) > GAME.forzaTotale(g.id)*vantaggio &&
         d.atteggiamento < sogliaUmore && rnd()<prob){
@@ -232,7 +235,14 @@ function gestioneCittaIA(f){
         const perRuolo = { inf:[], ranged:[], cav:[], siege:[] };
         for (const x of disp){ const r=D().UNITA[x.id].tipo; if (perRuolo[r]) perRuolo[r].push(x); }
         for (const r in perRuolo) perRuolo[r].sort((a,b)=>(b.atk+b.def)-(a.atk+a.def));
-        const pesi = [["inf",0.4],["ranged",0.28],["cav",0.24],["siege",0.08]];
+        // In guerra servono macchine d'assedio: senza, quattro fanti contro mura di livello 3
+        // hanno probabilita' ZERO, con un ariete la stessa citta' cade. Con l'8% fisso l'IA
+        // dichiarava guerre che non poteva vincere.
+        const haAssedio = st.unita.some(function(x){ return x.fazione===f.id && D().UNITA[x.tipo] && D().UNITA[x.tipo].tipo==="siege"; });
+        const pesi = inGuerra
+          ? (haAssedio ? [["inf",0.38],["ranged",0.24],["cav",0.20],["siege",0.18]]
+                       : [["siege",0.45],["inf",0.30],["ranged",0.15],["cav",0.10]])
+          : [["inf",0.4],["ranged",0.28],["cav",0.24],["siege",0.08]];
         let sceltaU = null; const roll = rnd();
         let acc=0; let ruoloVoluto="inf";
         for (const [r,w] of pesi){ acc+=w; if (roll<=acc){ ruoloVoluto=r; break; } }
@@ -477,6 +487,34 @@ function cacciaCoviIA(fid){
     passoVerso(u, covo.c.hex);
   }
 }
+// Quale citta' prendere, per tutta la fazione. Si sceglie una volta per turno e vale per
+// tutti i reparti: concentrare e' l'unico modo di far cadere una citta' murata. Il peso
+// premia le prede facili — poca guarnigione, mura basse, fedelta' gia' scossa — e penalizza
+// la distanza, perche' una marcia di venti esagoni finisce sempre male.
+let _pianoTurno = -1, _piani = {};
+function obiettivoGuerra(fid, bersagli){
+  const st = GAME.st;
+  if (st.turno !== _pianoTurno){ _pianoTurno = st.turno; _piani = {}; }
+  if (_piani[fid] !== undefined) return _piani[fid];
+  let scelto = null;
+  if (bersagli.length){
+    const mie = st.comuni.filter(function(c){ return c.fondata && c.fazione===fid; });
+    let meglio = -1e9;
+    for (const cm of bersagli){
+      // distanza dalla mia citta' piu' vicina: e' da li' che parte la spedizione
+      let d = 1e9;
+      for (const m of mie) d = Math.min(d, MAP.distKm(m.hex, cm.hex) / (MAP.R*2));
+      if (d > 26) continue;                                   // troppo lontana: non si tiene
+      const guardie = st.unita.filter(function(u){ return u.hex===cm.hex && !GAME.alleatiPub(u.fazione, fid); }).length;
+      const fed = (cm.fedelta === undefined) ? 100 : cm.fedelta;
+      let v = 40 - d*1.6 - guardie*7 - (cm.mura||0)*6 - fed*0.12 + (cm.pop||0)*0.3;
+      if (cm.fazione === -1) v += 8;                          // le citta' libere non hanno alleati
+      if (v > meglio){ meglio = v; scelto = cm; }
+    }
+  }
+  _piani[fid] = scelto;
+  return scelto;
+}
 function muoviUnitaIA(fid, bersagli){
   const st = GAME.st;
   muoviColoniIA(fid);   // i coloni non combattono mai: hanno una logica di movimento separata
@@ -489,8 +527,35 @@ function muoviUnitaIA(fid, bersagli){
     const f = fid>=0&&fid<100 ? st.fazioni[fid] : null;
     if (!f) return;
     const cap = st.comuni[f.capitale];
+    // In pace ogni reparto tornava verso la CAPITALE, e ci restava. Risultato: diciassette
+    // unita' ammassate sulla stessa casella, le altre citta' sguarnite, e nessun esercito
+    // nemico in grado di prendere niente — quattro attaccanti contro diciassette difensori
+    // hanno probabilita' zero, sempre. Ora ognuno presidia la citta' PIU' SGUARNITA fra le
+    // proprie: la difesa si distribuisce e le guerre tornano possibili.
+    const mieCitta = st.comuni.filter(function(c){ return c.fondata && c.fazione===fid; });
+    if (!mieCitta.length) return;
+    const presidio = {};
+    for (const u of st.unita)
+      if (u.fazione===fid && !GAME.eNavale(u) && u.tipo!=="colono" && u.tipo!=="lavoratore")
+        presidio[u.hex] = (presidio[u.hex]||0) + 1;
     for (const u of st.unita.filter(x=>x.fazione===fid && x.mov>0 && x.caccia!==st.turno && x.tipo!=="colono" && x.tipo!=="lavoratore" && !GAME.eNavale(x))){
-      if (MAP.distKm(u.hex, cap.hex) > 15) passoVerso(u, cap.hex);
+      const qui = presidio[u.hex] || 0;
+      const inCitta = mieCitta.some(function(c){ return c.hex === u.hex; });
+      if (inCitta && qui <= 3) continue;                 // gia' di guardia dove serve
+      // la citta' con meno difensori, a parita' preferendo la piu' vicina
+      let meta = null, punteggio = 1e9;
+      for (const c of mieCitta){
+        const n = presidio[c.hex] || 0;
+        const d = MAP.distKm(u.hex, c.hex) / (MAP.R*2);
+        const p = n*10 + d;
+        if (p < punteggio){ punteggio = p; meta = c; }
+      }
+      if (!meta) continue;
+      if (meta.hex === u.hex) continue;
+      if ((presidio[meta.hex]||0) >= 4) continue;        // gia' piena: non ammassare oltre
+      presidio[u.hex] = Math.max(0, qui-1);
+      presidio[meta.hex] = (presidio[meta.hex]||0) + 1;
+      passoVerso(u, meta.hex);
     }
     return;
   }
@@ -499,11 +564,16 @@ function muoviUnitaIA(fid, bersagli){
   for (const k of Object.keys(stacks)){
     const gruppo = stacks[k];
     const hex = parseInt(k);
-    // bersaglio più vicino
-    let best=null, bd=1e9;
-    for (const cm of bersagli){
-      const d = MAP.distKm(hex, cm.hex);
-      if (d<bd){ bd=d; best=cm; }
+    // L'obiettivo e' quello deciso dalla fazione, non il piu' vicino a QUESTO gruppo: cosi'
+    // i reparti convergono invece di assediare tre citta' per uno.
+    let best = obiettivoGuerra(fid, bersagli);
+    // se l'obiettivo comune e' lontanissimo per questo gruppo, si prende comunque il piu' vicino
+    if (!best || MAP.distKm(hex, best.hex) / (MAP.R*2) > 30){
+      let bd = 1e9;
+      for (const cm of bersagli){
+        const d = MAP.distKm(hex, cm.hex);
+        if (d < bd){ bd = d; best = cm; }
+      }
     }
     if (!best) continue;
     const uids = gruppo.map(u=>u.id);

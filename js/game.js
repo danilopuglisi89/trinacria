@@ -151,7 +151,16 @@ function statU(tipo){
     const linea = D().UNITA[(D().LINEA_ERA[st?st.era:0]||[])[0]] || b;
     return { ...b, atk: Math.max(b.atk, Math.round(linea.atk*0.7)), def: Math.max(b.def, Math.round(linea.def*0.7)) };
   }
-  if (tipo==="eroe" || tipo==="guarnigione"){
+  if (tipo==="guarnigione"){
+    // La guarnigione scalava di 4,75 volte con le ere: difesa 71 nell'era 5, contro i 27 di un
+    // fante di linea coevo. Nessun esercito, ne' del giocatore ne' dell'IA, poteva piu' prendere
+    // una citta' dopo le prime ere — le guerre si dichiaravano e non conquistavano niente.
+    // Ora vale un fante di linea dell'epoca con il vantaggio del difensore, e la robustezza
+    // continua a venirle da popolazione e mura (vedi miliziaCittadina).
+    const linea = D().UNITA[(D().LINEA_ERA[st?st.era:0]||[])[0]] || b;
+    return { ...b, atk: Math.max(b.atk, linea.atk), def: Math.max(b.def, Math.round(linea.def*1.35)) };
+  }
+  if (tipo==="eroe"){
     const m = 1 + (st?st.era:0) * 0.75;
     return { ...b, atk: Math.round(b.atk*m), def: Math.round(b.def*m) };
   }
