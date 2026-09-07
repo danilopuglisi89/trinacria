@@ -595,7 +595,7 @@ function costruzioniDisponibili(cm){
     if (e.req && !cm.edifici.includes(e.req)) continue;
     if (e.costiero && !costiero) continue;
     if (e.terrenoDom && !e.terrenoDom.includes(terrDom)) continue;
-    let costo = e.costo;
+    let costo = costoProd(e.costo, 0.7);
     if (f.leader && f.leader.tratto==="costruttore") costo = Math.round(costo*0.85);
     if (id==="mercato" && D().FAZIONI[f.id].bonusId==="oro") costo = Math.round(costo*0.5);
     if (id==="tempio" && D().FAZIONI[f.id].bonusId==="templi") costo = Math.round(costo*0.75);
@@ -606,7 +606,7 @@ function costruzioniDisponibili(cm){
     if (el.comune !== cm.nome) continue;
     if (cm.edifici.includes(el.id)) continue;
     if (cm.coda.some(x=>x.id===el.id)) continue;
-    let costo = el.costo;
+    let costo = costoProd(el.costo, 0.45);
     if (f.leader && f.leader.tratto==="costruttore") costo = Math.round(costo*0.85);
     // icona AI generica per tipo di edificio locale (castello/chiesa/torre/villa/scalinata)
     const n = el.nome.toLowerCase();
@@ -621,12 +621,38 @@ function costruzioniDisponibili(cm){
     if (m.tech && !f.techs.includes(m.tech)) continue;
     if (cm.coda.some(x=>x.id===m.id)) continue;
     if (m.id==="noto_duomo" && !cm.barocca) continue;
-    let costo = m.costo;
+    let costo = costoProd(m.costo, 0.3);
     if (D().FAZIONI[f.id].bonusId==="templi") costo = Math.round(costo*0.75);
     out.push({ tipo:"meraviglia", id:m.id, nome:m.nome, icona:"🏛️", costo, eff:m.eff, desc:m.desc });
   }
   return out;
 }
+// ---------- COSTO DI PRODUZIONE E RITMO DEI TURNI ----------
+// Quanto rende una citta' capoluogo, misurato: 16 punti al turno all'inizio, 22 al turno 25,
+// 45 al 50, 86 al 75, 113 alla fine. I costi in tabella invece erano fissi, quindi il tempo
+// di costruzione crollava a uno o due turni per tutto. RINCARO_ERA insegue quella curva, cosi'
+// un quartiere costa sei turni di lavoro in ogni epoca; RINCARO_BASE allunga un po' tutto,
+// perche' anche all'inizio le cose venivano su troppo in fretta.
+const RINCARO_ERA = [1, 1.5, 2.4, 3.4, 4.2, 5.0];
+const RINCARO_BASE = 1.35;
+// `scala` dice QUANTO una categoria segue la curva delle ere: 1 = per intero (coloni,
+// lavoratori, edifici, cioe' le cose che si costruivano in un turno solo), 0,75 per i
+// quartieri, 0,45 per le meraviglie — che partono gia' carissime e non devono diventare
+// il lavoro di un'era intera — e 0 per le unita' di linea, che rincarano gia' in tabella.
+function costoProd(base, scala){
+  const s = scala === true ? 1 : (scala || 0);
+  const k = 1 + ((RINCARO_ERA[st ? st.era : 0] || 1) - 1) * s;
+  return Math.max(1, Math.round(base * RINCARO_BASE * k));
+}
+// le unita' di linea hanno gia' il loro rincaro scritto in tabella (da 40 a 230): riscalarle
+// per era le renderebbe irraggiungibili. Coloni, lavoratori, esploratori e le unita' comiche
+// invece hanno un prezzo unico per tutta la partita, e vanno agganciate all'epoca.
+function unitaFuoriLinea(id){
+  const u = D().UNITA[id];
+  if (!u) return false;
+  return id === "colono" || id === "lavoratore" || id === "esploratore" || !!u.supporto || !!u.buffa;
+}
+
 // ---------- LIMITE ESERCITO ----------
 // un regno non dovrebbe mai accumulare più di 4-5 truppe assieme: eserciti piccoli ma
 // mantenuti bene, non stack infiniti. Si applica identicamente a giocatore e IA.
@@ -706,7 +732,7 @@ function unitaDisponibili(cm){
     }
     if (u.uu!==undefined && !cm.edifici.includes("caserma")) continue;
     if (u.reqEdificio && !cm.edifici.includes(u.reqEdificio)) continue;
-    let costo = u.costo;
+    let costo = costoProd(u.costo, unitaFuoriLinea(id));
     if (f.leader && f.leader.tratto==="ambizioso") costo = Math.round(costo*0.8);
     const colono = id==="colono", lavoratore = id==="lavoratore";
     out.push({ tipo:"unita", id, nome:u.nome, costo, atk:u.atk, def:u.def, mov:u.mov,
@@ -1005,7 +1031,10 @@ function suggerisciPercorso(fid){
   for (const t of scelta) if (accodaRicerca(fid, t.id)) n++;
   return n;
 }
-const COSTO_TECH = 0.5;   // ricerche più veloci: costo effettivo dimezzato
+// Rallentando le costruzioni sono calate anche accademie e Studium, e con loro la scienza:
+// a fine partita si erano scoperte trenta tecnologie su 55, cioe' meta' del gioco non si
+// vedeva mai. Le ricerche costano meno per compensare.
+const COSTO_TECH = 0.34;   // ricerche più veloci: costo effettivo dimezzato
 // Intuizione ottenuta = tecnologia scontata del 40%, come le Eureka di Civ VI. Lo sconto
 // resta valido anche se la si studia molto dopo: e' un premio per aver FATTO la cosa giusta.
 function costoTech(t, fid){
@@ -2368,7 +2397,7 @@ function quartieriDisponibili(cm){
     if (haQuartiere(cm, q.id)) continue;
     const celle = caselleQuartiere(cm, q.id);
     if (!celle.length) continue;
-    let costo = q.costo;
+    let costo = costoProd(q.costo, 0.55);
     if (f.leader && f.leader.tratto === "costruttore") costo = Math.round(costo*0.85);
     out.push({ tipo:"quartiere", id:q.id, nome:q.nome, icona:q.icona, icoId:q.ico, costo,
                eff:testoQuartiere(q), desc:q.desc, migliore:celle[0] });
@@ -2745,32 +2774,32 @@ function controllaEliminazione(fid){
 // numeri veri misurati a fine partita, non a occhio.
 const VIE = [
   { id:"conquista", nome:"Conquista", icona:"\u2694\uFE0F",
-    desc:"Venti città sotto il tuo stendardo, oppure nessun rivale ancora in piedi.",
+    desc:"Quindici città sotto il tuo stendardo, oppure nessun rivale ancora in piedi.",
     voci: function(fid){
-      return [ { t:"Città possedute", ora: cittaDi(fid), serve: 20 } ];
+      return [ { t:"Città possedute", ora: cittaDi(fid), serve: 15 } ];
     },
     extra: function(fid){                      // scorciatoia: sei rimasto solo
       return !st.fazioni.some(function(f){ return f.id!==fid && !f.eliminata; })
              && !st.comuni.some(function(c){ return c.fazione>=100; });
     } },
   { id:"cultura", nome:"Cultura", icona:"\u{1F3AD}",
-    desc:"Otto Grandi Siciliani al tuo servizio e quattro meraviglie costruite: la Sicilia che il mondo viene a vedere.",
+    desc:"Sei Grandi Siciliani al tuo servizio e due meraviglie costruite: la Sicilia che il mondo viene a vedere.",
     voci: function(fid){
       const f = st.fazioni[fid];
-      return [ { t:"Grandi Siciliani", ora: (f.grandi||[]).length, serve: 8 },
-               { t:"Meraviglie", ora: meravigliDi(fid), serve: 4 } ];
+      return [ { t:"Grandi Siciliani", ora: (f.grandi||[]).length, serve: 6 },
+               { t:"Meraviglie", ora: meravigliDi(fid), serve: 2 } ];
     } },
   { id:"scienza", nome:"Scienza", icona:"\u{1F4DC}",
-    desc:"Completa per primo tutte le tecnologie: chi arriva secondo non vince niente.",
+    desc:"Arriva per primo a quarantasette tecnologie: chi arriva secondo non vince niente.",
     voci: function(fid){
-      return [ { t:"Tecnologie", ora: st.fazioni[fid].techs.length, serve: D().TECH.length } ];
+      return [ { t:"Tecnologie", ora: st.fazioni[fid].techs.length, serve: Math.round(D().TECH.length*0.85) } ];
     } },
   { id:"ricchezza", nome:"Ricchezza", icona:"\u{1F4B0}",
-    desc:"Cinque prodotti tipici in mano, otto fra Marine e Fondachi, e quindicimila monete in cassa.",
+    desc:"Quattro prodotti tipici in mano, otto fra Marine e Fondachi, e dodicimila monete in cassa.",
     voci: function(fid){
-      return [ { t:"Prodotti DOP controllati", ora: dopControllati(fid).length, serve: 5 },
+      return [ { t:"Prodotti DOP controllati", ora: dopControllati(fid).length, serve: 4 },
                { t:"Marine e Fondachi",        ora: quartieriCommerciali(fid), serve: 8 },
-               { t:"Oro",                      ora: Math.floor(st.fazioni[fid].oro), serve: 15000 } ];
+               { t:"Oro",                      ora: Math.floor(st.fazioni[fid].oro), serve: 12000 } ];
     } }
 ];
 function meravigliDi(fid){
@@ -3764,7 +3793,7 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   unitaAggiornabili, upgradaUnita, upgradaEconomiche,
   miglioramentoAutomatico, azioneLavoratore, esisteMiglioriaPossibile,
   migliorieAggiornabili, upgradaMiglioria, upgradaMiglliorieEconomiche, prossimaMiglioria,
-  stat, statoObiettivi, obiettiviEra, punteggio, carteCostruzione, statoVittoria,
+  stat, statoObiettivi, obiettiviEra, punteggio, carteCostruzione, statoVittoria, costoProd,
   accodaRicerca, rimuoviDaPercorso, percorsoRicercaStato, suggerisciPercorso,
   dichiaraGuerra, proponiPace, proponiPatto, proponiCommercio, regalo, forzaTotale,
   poteriStato, poterePronto, usaPotere, rifocilla,
