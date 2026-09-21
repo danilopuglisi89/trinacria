@@ -103,13 +103,19 @@ function diplomaziaIA(f){
     // Chi non ha piu' dove espandersi non aspetta di odiare il vicino: gli serve la sua terra.
     // Con le vecchie soglie (vantaggio 1,05 e umore sotto zero) scoppiavano due guerre per
     // partita e la mappa non cambiava mai padrone; ora la Sicilia piena diventa scomoda.
+    // AMBIZIONE DA META' PARTITA. Misurato su 42 coppie di regni: l'umore medio non scende,
+    // SALE (da -2,6 al turno 25 a +8,7 al 125, spinto da patti e accordi commerciali), quindi
+    // la soglia fissa a -6 non veniva mai toccata e le poche guerre scoppiavano dopo il
+    // turno 100. Dall'era 2 in poi i regni smettono di aspettare un pretesto: ogni era alza
+    // la soglia d'umore e accorcia il vantaggio di forza che pretendono.
+    const ambizione = Math.max(0, st.era - 1);           // ere 0-1: 0, poi 1, 2, 3, 4
     const stretto = senzaSpazio(f.id);
-    const vantaggio = stretto ? 0.95 : 1.20;
-    const sogliaUmore = stretto ? 8 : -6;
+    const vantaggio = (stretto ? 0.95 : 1.20) - ambizione*0.04;
+    const sogliaUmore = (stretto ? 8 : -6) + ambizione*5;
     // `aggr()` restituisce un OGGETTO: moltiplicarlo dava NaN, e `rnd() < NaN` e' sempre falso.
     // Risultato: fra due IA non scoppiava MAI una guerra, in nessuna partita.
     const mult = st.difficolta==="facile" ? 0.6 : (st.difficolta==="difficile" ? 1.6 : 1);
-    const prob = (stretto ? 0.16 : 0.04) * mult;
+    const prob = ((stretto ? 0.16 : 0.04) + ambizione*0.015) * mult;
     if (!faseProtetta() && d.stato==="pace" && !guerraInCorso && confinanti(f.id, g.id) &&
         GAME.forzaTotale(f.id) > GAME.forzaTotale(g.id)*vantaggio &&
         d.atteggiamento < sogliaUmore && rnd()<prob){
@@ -141,6 +147,11 @@ function diplomaziaIA(f){
 // pretenderlo significava atteggiamenti mai in calo e ZERO guerre in tutta la partita.
 // In piu' la vecchia versione scorreva tutti i 10.000 esagoni di terra per ogni coppia.
 const RAGGIO_VICINANZA = 14;      // esagoni fra due citta' perche' i regni si sentano addosso
+// Quattordici esagoni fissi non bastavano: misurate, le citta' piu' vicine di due regni stanno
+// a 26 esagoni al turno 30, a 20-23 al 90, e scendono sotto i 14 solo dopo il 120. Nessuno era
+// mai "vicino" di nessuno, quindi niente guerre e niente rancore di confine fino alla fine.
+// Dall'era 2 strade e flotte accorciano l'isola: sei esagoni in piu' per ogni era.
+function raggioVicinanza(){ return RAGGIO_VICINANZA + Math.max(0, GAME.st.era - 1) * 6; }
 // Memoria di turno: confinanti() e senzaSpazio() vengono interrogate per ogni coppia di
 // fazioni a ogni turno, e ciascuna scorre citta' e comuni. Ricalcolarle ogni volta faceva
 // quadruplicare il costo del turno; i loro risultati non cambiano dentro lo stesso turno.
@@ -159,7 +170,7 @@ function confinantiCalc(a, b){
   const st = GAME.st;
   const ca = st.comuni.filter(c => c.fondata && c.fazione===a);
   const cb = st.comuni.filter(c => c.fondata && c.fazione===b);
-  const soglia = RAGGIO_VICINANZA * MAP.R * 2;
+  const soglia = raggioVicinanza() * MAP.R * 2;
   for (const x of ca) for (const y of cb)
     if (MAP.distKm(x.hex, y.hex) < soglia) return true;
   return false;
@@ -193,7 +204,23 @@ function gestioneCittaIA(f){
   // eserciti piccoli ma sempre aggiornati: mai più del limite di truppe del regno (uguale al giocatore)
   const limite = GAME.limiteEsercito(f.id);
   for (const cm of mieCitta){
-    if (cm.coda.length) continue;
+    if (cm.coda.length){
+      // cantiere di una meraviglia aperto e cassa piena: la si finisce a monete. L'IA chiudeva
+      // la partita con migliaia di monete ferme, e intanto la meraviglia gliela soffiava il tempo.
+      const testa = cm.coda[0];
+      if (testa.tipo==="meraviglia" && f.oro > Math.max(0, testa.costo - cm.prodAcc)*2 + 600) GAME.compraSubito(cm.id);
+      continue;
+    }
+    const cost = GAME.costruzioniDisponibili(cm);
+    // MERAVIGLIE PRIMA DI TUTTO (in pace, e con almeno due citta' alle spalle). Il ramo stava
+    // in fondo, dopo unita' e quartieri, e ci si arrivava una volta su cinque: la prima
+    // meraviglia nasceva fra il turno 43 e il 101 e la via della Cultura restava chiusa. Una
+    // meraviglia si puo' alzare in UN solo comune: chi lo possiede e non apre il cantiere la spreca.
+    // Conta solo la guerra VERA fra regni: `inGuerra` e' vero anche quando c'e' un invasore
+    // qualunque sulla mappa, cioe' quasi sempre nelle ere tarde, e fermava tutti i cantieri.
+    const mer = cost.find(x=>x.tipo==="meraviglia");
+    const guerraVera = Object.values(f.diplo).some(d=>d.stato==="guerra");
+    if (mer && mieCitta.length >= 2 && rnd()<(guerraVera ? 0.35 : 0.85) && GAME.accoda(cm.id, mer)) continue;
     // ogni tanto un colono, per espandersi pacificamente verso gli indipendenti indifesi vicini
     const coloniAttivi = st.unita.filter(u=>u.fazione===f.id && u.tipo==="colono").length;
     // Ritmo di espansione legato all'ERA, non alla sola voglia di crescere. Senza tetto l'IA
@@ -266,8 +293,6 @@ function gestioneCittaIA(f){
       const q = quart[0];
       if (GAME.accoda(cm.id, { tipo:"quartiere", id:q.id, costo:q.costo, hex:q.migliore.hex })) continue;
     }
-    const cost = GAME.costruzioniDisponibili(cm);
-    const mer = cost.find(x=>x.tipo==="meraviglia");
     if (mer && rnd()<0.5){ GAME.accoda(cm.id, mer); continue; }
     const locale = cost.find(x=>x.tipo==="locale");
     if (locale && rnd()<0.5){ GAME.accoda(cm.id, locale); continue; }

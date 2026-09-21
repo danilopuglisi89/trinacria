@@ -2774,6 +2774,8 @@ function controllaEliminazione(fid){
 // numeri veri misurati a fine partita, non a occhio.
 const VIE = [
   { id:"conquista", nome:"Conquista", icona:"\u2694\uFE0F",
+    // Resta a quindici. Provato quattordici: a «facile», dove le guerre sono poche, un regno ci
+    // arrivava al turno 110 solo fondando e annettendo indipendenti, senza espugnare nulla.
     desc:"Quindici città sotto il tuo stendardo, oppure nessun rivale ancora in piedi.",
     voci: function(fid){
       return [ { t:"Città possedute", ora: cittaDi(fid), serve: 15 } ];
@@ -2783,23 +2785,29 @@ const VIE = [
              && !st.comuni.some(function(c){ return c.fazione>=100; });
     } },
   { id:"cultura", nome:"Cultura", icona:"\u{1F3AD}",
-    desc:"Sei Grandi Siciliani al tuo servizio e due meraviglie costruite: la Sicilia che il mondo viene a vedere.",
+    desc:"Cinque Grandi Siciliani al tuo servizio e due meraviglie costruite: la Sicilia che il mondo viene a vedere.",
     voci: function(fid){
       const f = st.fazioni[fid];
-      return [ { t:"Grandi Siciliani", ora: (f.grandi||[]).length, serve: 6 },
+      return [ { t:"Grandi Siciliani", ora: (f.grandi||[]).length, serve: 5 },
                { t:"Meraviglie", ora: meravigliDi(fid), serve: 2 } ];
     } },
   { id:"scienza", nome:"Scienza", icona:"\u{1F4DC}",
-    desc:"Arriva per primo a quarantasette tecnologie: chi arriva secondo non vince niente.",
+    // Con l'85% dell'albero (47 tecnologie) la scienza chiudeva fra il turno 122 e il 144 e
+    // vinceva NOVE partite su nove: le altre vie a quel punto erano al 50-85%. Provato
+    // anche il 93% (51): cinque su cinque, fra il turno 132 e il 146. Al 96% (53) il traguardo
+    // cade fra il 145 e il 165, a cavallo del 1700, e Cultura e Ricchezza arrivano in tempo.
+    desc:"Arriva per primo a cinquantatré tecnologie: chi arriva secondo non vince niente.",
     voci: function(fid){
-      return [ { t:"Tecnologie", ora: st.fazioni[fid].techs.length, serve: Math.round(D().TECH.length*0.85) } ];
+      return [ { t:"Tecnologie", ora: st.fazioni[fid].techs.length, serve: Math.round(D().TECH.length*0.96) } ];
     } },
   { id:"ricchezza", nome:"Ricchezza", icona:"\u{1F4B0}",
-    desc:"Quattro prodotti tipici in mano, otto fra Marine e Fondachi, e dodicimila monete in cassa.",
+    // I prodotti tipici erano il collo di bottiglia: in nessuna partita misurata un regno ne
+    // ha mai controllati piu' di due, mentre oro e quartieri arrivavano da soli.
+    desc:"Tre prodotti tipici in mano, otto fra Marine e Fondachi, e diecimila monete in cassa.",
     voci: function(fid){
-      return [ { t:"Prodotti DOP controllati", ora: dopControllati(fid).length, serve: 4 },
+      return [ { t:"Prodotti DOP controllati", ora: dopControllati(fid).length, serve: 3 },
                { t:"Marine e Fondachi",        ora: quartieriCommerciali(fid), serve: 8 },
-               { t:"Oro",                      ora: Math.floor(st.fazioni[fid].oro), serve: 12000 } ];
+               { t:"Oro",                      ora: Math.floor(st.fazioni[fid].oro), serve: 10000 } ];
     } }
 ];
 function meravigliDi(fid){
