@@ -1006,9 +1006,17 @@ function renderDynamic(ctx, v, st, sel, rz){
       if (GAME.hexVisibile(h.i)) continue;
       if (!vis(h)) continue;
       const s = wh(v, h);
-      ART.hexPath(ctx, s.x, s.y, rz+1);
       ctx.fillStyle = GAME.hexEsplorato(h.i) ? "rgba(9,14,20,0.55)" : "rgba(6,10,14,0.96)";
+      ART.hexPath(ctx, s.x, s.y, rz+1);
       ctx.fill();
+      // le caselle in rilievo hanno sotto la parete, all'altezza del piede: senza questo
+      // secondo velo spuntava dal buio come uno zig-zag dorato e svelava i colli inesplorati
+      // (solo sul buio pieno: sul velo leggero delle caselle gia' viste la doppia passata scurirebbe)
+      if (h.alt && h.alt*v.z > 0.8 && !GAME.hexEsplorato(h.i)){
+        const p = w2s(v, h.x, h.y);
+        ART.hexPath(ctx, p.x, p.y, rz+1);
+        ctx.fill();
+      }
     }
   }
   // Risorse sulle caselle GIA' SCOPERTE: si ridisegnano SOPRA il velo, altrimenti il velo

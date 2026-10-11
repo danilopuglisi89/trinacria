@@ -1261,6 +1261,10 @@ function prossimoFumetto(){
   disegnaVoltoFumetto(f.chi);
   $("fum-nome").textContent = nome;
   $("fum-testo").innerHTML = f.testo;
+  // sotto la barra in alto, qualunque altezza abbia: sul telefono va su tre righe e il
+  // fumetto a 54px fissi copriva Regno, Corte e Diplomazia
+  const tb = $("topbar");
+  if (tb) box.style.top = Math.round(tb.getBoundingClientRect().bottom + 8) + "px";
   box.classList.remove("nascosto");
   box.classList.remove("fum-in"); void box.offsetWidth; box.classList.add("fum-in");
   fumTimer = setTimeout(() => { fumTimer = null; prossimoFumetto(); }, f.durata);
