@@ -1149,9 +1149,12 @@ function aggiornaTopbar(){
   $("info-era").innerHTML = `<b>${D().ERE[st.era].nome}</b> — ${GAME.annoStr(st.anno)} <span class="muto">(turno ${st.turno})</span>`;
   document.body.className = "era-"+st.era;
   const nComuni = st.comuni.filter(c=>c.fazione===st.giocatore).length;
+  const ir = id => `<img class="ico-ris" src="assets/ui/icona_${id}.webp" alt="">`;
   $("risorse").innerHTML =
-    `💰 ${Math.floor(f.oro)} <span class="muto">(${r.oro>=0?"+":""}${r.oro.toFixed(1)})</span> &nbsp; `+
-    `📜 +${r.scienza.toFixed(1)} &nbsp; 🎭 ${Math.floor(f.cultura)} &nbsp; 🏘️ ${nComuni}/${st.comuni.length}`;
+    `<span title="Oro">${ir("oro")} ${Math.floor(f.oro)} <span class="muto">(${r.oro>=0?"+":""}${r.oro.toFixed(1)})</span></span>`+
+    `<span title="Scienza per turno">${ir("scienza")} +${r.scienza.toFixed(1)}</span>`+
+    `<span title="Cultura">${ir("cultura")} ${Math.floor(f.cultura)}</span>`+
+    `<span title="Città">${ir("mura")} ${nComuni}/${st.comuni.length}</span>`;
   const t = D().TRATTI[f.leader.tratto];
   $("leader-box").innerHTML = `<canvas id="sov-topbar" width="40" height="46"></canvas>`+
     `<span class="lb-txt"><span style="color:${D().FAZIONI[st.giocatore].colore}">◆</span> ${f.leader.nome}<br><span class="muto">${ico(t, f.leader.tratto)} ${t.nome},${Math.round(f.leader.eta)} anni</span></span>`;
@@ -1590,12 +1593,20 @@ function aggiornaListaArmata(){
 }
 
 // ---------- MODALI ----------
+// Illustrazioni: "scene/<nome>" sono le tavole nuove (webp, da grafica-chatgpt), il resto le
+// vecchie jpg. I cambi d'era puntano gia' alle tavole nuove senza toccare il motore.
+const ERA_SCENA = ["greca","romana","bizantina","araba","normanna","aragonese"];
+function srcIllustr(img){
+  const m = /^era_(\d)$/.exec(img);
+  if (m) img = "scene/caricamento_era_" + ERA_SCENA[+m[1]];
+  return "assets/" + img + (img.startsWith("scene/") ? ".webp" : ".jpg");
+}
 let codaModali = [];
 function mostraModale(evt, cb){
   const sf = $("modale-sfondo");
   const m = $("modale");
   let html = "";
-  if (evt.img) html += `<div class="m-illustr"><img src="assets/${evt.img}.jpg" alt=""></div>`;
+  if (evt.img) html += `<div class="m-illustr"><img src="${srcIllustr(evt.img)}" alt=""></div>`;
   if (evt.ritratto) html += `<canvas class="m-ritratto" width="200" height="260"></canvas>`;
   if (evt.ritrattoGrande !== undefined && evt.ritrattoGrande !== null)
     html += `<canvas class="m-ritratto" id="m-grande" width="200" height="260"></canvas>`;
@@ -1894,7 +1905,8 @@ function controllaFinePartita(){
   const vi = st.vittoriaInfo;
   if (st.vittoria==="vinta"){
     AUDIO.sfx("vittoria"); AUDIO.parla("don_vittoria");
-    mostraModale({ titolo: vi ? vi.icona+" VITTORIA DI "+vi.nome.toUpperCase() : "🔱 TRINACRIA È TUA!",
+    mostraModale({ img:"scene/vittoria_"+(vi ? vi.tipo : "conquista"),
+      titolo: vi ? vi.icona+" VITTORIA DI "+vi.nome.toUpperCase() : "🔱 TRINACRIA È TUA!",
       testo:(vi ? "Hai vinto per "+vi.nome.toLowerCase()+".\n\n" : "")+
         "Da Messina a Marsala, da Cefalù a Pachino, ogni campanile suona per te.\n\n"+
         st.fazioni[st.giocatore].leader.nome+" di "+st.fazioni[st.giocatore].nome+" regna sulla Sicilia unita, nell'anno "+GAME.annoStr(st.anno)+", dopo "+st.turno+" turni di sangue, grano e gloria.\n\n«Cu' avi 'a Sicilia, avi u munnu.»",
@@ -1905,7 +1917,8 @@ function controllaFinePartita(){
   } else {
     AUDIO.sfx("sconfitta"); AUDIO.parla("don_sconfitta");
     const battuto = vi && vi.fazione !== st.giocatore;
-    mostraModale({ titolo: battuto ? "🏳️ Ti hanno battuto sul tempo" : "⚰️ La tua dinastia si spegne",
+    mostraModale({ img: battuto ? "scene/vittoria_"+vi.tipo : "scene/sconfitta",
+      titolo: battuto ? "🏳️ Ti hanno battuto sul tempo" : "⚰️ La tua dinastia si spegne",
       testo: battuto
         ? vi.nomeFazione+" ha vinto per "+vi.nome.toLowerCase()+" nell'anno "+GAME.annoStr(st.anno)+".\n\nLa tua dinastia è ancora in piedi, ma la storia ricorderà loro.\n\n«Cu' arriva primu, s'assetta.»"
         : "L'ultima città è caduta, l'ultimo stendardo è bruciato. La storia della Sicilia continuerà — ma senza di te.\n\n«Cu' nesci, arrinesci... ma tu nun ha' nisciutu.»",
@@ -2702,7 +2715,7 @@ function apriMenu(){
     <button class="btn-lista" id="btn-tutorial">🎓 Rifai il tutorial guidato</button>
     ${window.SPONSOR_ON ? `<button class="btn-lista" id="btn-sponsor">📣 Diventa Sponsor (demo)</button>` : ""}
     <button class="btn-lista" id="btn-nuova">🔄 Nuova partita</button>`;
-  mostraModale({ titolo:"☰ Menu", html:`<div class="m-scroll">${html}</div>`,
+  mostraModale({ titolo:"☰ Menu", img:"scene/carica_salva", html:`<div class="m-scroll">${html}</div>`,
     scelte:[{label:"Torna al gioco", eff:"nulla"}] }, ()=>{});
   const bTut = $("btn-tutorial");
   if (bTut) bTut.onclick = () => { $("modale-sfondo").classList.add("nascosto"); avviaTutorial(); };

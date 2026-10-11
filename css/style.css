@@ -11,7 +11,7 @@ button { font-family:inherit; cursor:pointer; }
 /* ---------- SCHERMATA AVVIO ---------- */
 #avvio {
   position:fixed; inset:0; overflow-y:auto; text-align:center; padding:24px;
-  background: linear-gradient(rgba(12,18,26,0.62), rgba(12,18,26,0.9)), url("../assets/intro_bg.jpg");
+  background: linear-gradient(rgba(12,18,26,0.35), rgba(12,18,26,0.88)), url("../assets/scene/titolo_principale.webp");
   background-size: cover; background-position: center top;
 }
 #avvio h1 {
@@ -603,3 +603,38 @@ body[class^="era-"] #cons-nome { color: var(--epoca, #d9c48a); }
 .vit-barra i{ display:block; height:100%; background:linear-gradient(90deg,#a8813a,#f0d06e); }
 .vit-voce{ font-size:12px; opacity:0.85; }
 .vit-voce.ok{ color:#9fd0a8; opacity:1; }
+
+/* ---------- GRAFICA MOSAICO (tavole di grafica-chatgpt, ottobre 2026) ---------- */
+/* texture di tessere blu sotto un velo scuro: resta leggibile come prima, ma e' mosaico */
+#topbar {
+  background: linear-gradient(rgba(10,16,30,0.78), rgba(10,16,30,0.86)), url("../assets/ui/sfondo_mosaico_scuro.webp");
+  background-size: auto, 256px; border-bottom: 2px solid #b8902e;
+}
+#pannello, #modale {
+  background: linear-gradient(rgba(14,20,34,0.9), rgba(12,17,28,0.95)), url("../assets/ui/sfondo_mosaico_scuro.webp");
+  background-size: auto, 256px;
+}
+#pannello { border-color: #8a7a52; }
+#risorse { display:flex; align-items:center; gap:14px; }
+#risorse > span { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
+img.ico-ris { height:24px; width:auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8)); }
+/* Fine Turno: il sigillo di cera con la Trinacria. Va in ::before perche' il testo del
+   pulsante viene riscritto da fineTurno() e dal turno automatico */
+#btn-turno { display:flex; align-items:center; gap:10px; padding-left:16px; }
+#btn-turno::before {
+  content:""; width:40px; height:40px; flex:0 0 40px; margin:-6px 0;
+  background: url("../assets/ui/pulsante_fine_turno.webp") center/contain no-repeat;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6)); transition: transform .3s;
+}
+#btn-turno:hover::before { transform: rotate(-12deg) scale(1.08); }
+#btn-turno:disabled::before { animation: sigillo-gira 2.4s linear infinite; }
+/* col sigillo Fine Turno e' piu' largo: il turno automatico si sposta alla sua sinistra */
+#btn-auto { right:256px; }
+@keyframes sigillo-gira { to { transform: rotate(360deg); } }
+.m-illustr img { aspect-ratio: 3 / 2; object-fit: cover; }
+@media (max-width: 700px){
+  #risorse { gap:8px; font-size:12px; }
+  img.ico-ris { height:18px; }
+  #btn-turno::before { width:30px; height:30px; flex-basis:30px; }
+  #btn-auto { right:10px; bottom:calc(112px + env(safe-area-inset-bottom)); }
+}

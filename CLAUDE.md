@@ -11,6 +11,9 @@ Gioco 4X a turni stile Civilization ambientato in Sicilia. JS puro + canvas, nes
 - `js/audio.js` — grafo Web Audio, effetti sintetizzati, ambiente
 - `js/save.js` — salvataggi (VERSIONE 3: salva anche `h.citta`, `h.quart`, `h.imp`)
 - `SCALETTA_*.md` — storia delle decisioni di design
+- `grafica-chatgpt/` — brief + tavole di ChatGPT (384 previste, fuori da git); `python strumenti/importa_grafica.py`
+  le converte in `assets/scene/*.webp` (illustrazioni) e `assets/ui/*.webp` (magenta scontornato).
+  Nelle modali `img:"scene/<nome>"` usa le tavole nuove; `era_N` è già rimappato in `srcIllustr`
 
 ## Comandi
 - Avvio locale: server statico su porta 8743 (`.claude/launch.json`, nome `trinacria`)

@@ -3069,7 +3069,7 @@ function passoDinastia(f){
     if (f.id===st.giocatore && vecchio.look) f.leader.look = vecchio.look;
     const t = D().TRATTI[f.leader.tratto];
     if (f.id===st.giocatore){
-      st.pending.push({ titolo:"⚱️ Morte di "+vecchio.nome,
+      st.pending.push({ titolo:"⚱️ Morte di "+vecchio.nome, img:"scene/cambio_sovrano",
         ritratto:{ fid:f.id, tratto:f.leader.tratto, nome:f.leader.nome },
         testo: vecchio.nome+" si spegne a "+Math.round(vecchio.eta)+" anni dopo aver guidato "+f.nome+".\n\nSale al potere "+f.leader.nome+" — "+t.icona+" "+t.nome+": "+t.desc,
         scelte:[{label:"Lunga vita a "+f.leader.nome+"!", eff:"nulla"}] });
@@ -3607,7 +3607,7 @@ function fineTurno(){
       .sort((a,b)=>b.p.totale-a.p.totale);
     const righe = classifica.map((x,i)=>(i+1)+". "+x.f.nome+" — "+x.p.totale+" punti ("+x.p.citta+" città, "+x.p.meraviglie+" meraviglie"+(x.f.id===st.giocatore?", "+x.p.obiettivi+" obiettivi":"")+")").join("\n");
     const pos = classifica.findIndex(x=>x.f.id===st.giocatore)+1;
-    st.pending.push({ titolo:"⏳ L'Anno 1700", testo:"Le ere si sono compiute. La Sicilia entra nell'età moderna.\n\nClassifica finale:\n"+righe+"\n\n"+(pos===1?"👑 Sei il sovrano più glorioso dell'isola!":"Sei arrivato "+pos+"°: la storia ricorderà chi ha fatto di più.")+"\n\nPuoi continuare a giocare fino alla conquista totale.", scelte:[{label:"Continua a giocare", eff:"nulla"}] });
+    st.pending.push({ titolo:"⏳ L'Anno 1700", img:"scene/fine_1700_classifica", testo:"Le ere si sono compiute. La Sicilia entra nell'età moderna.\n\nClassifica finale:\n"+righe+"\n\n"+(pos===1?"👑 Sei il sovrano più glorioso dell'isola!":"Sei arrivato "+pos+"°: la storia ricorderà chi ha fatto di più.")+"\n\nPuoi continuare a giocare fino alla conquista totale.", scelte:[{label:"Continua a giocare", eff:"nulla"}] });
   }
   SAVE.autosalva();
 }

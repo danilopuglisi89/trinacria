@@ -29,7 +29,7 @@ function minacciaGiocatore(f){
     d.minaccia--;
     if (d.minaccia===0){
       GAME.dichiaraGuerra(f.id, g);
-      st.pending.push({ titolo:"🚨 "+f.nome+" dichiara guerra!", testo:f.leader.nome+" di "+f.nome+" ha rotto la pace: le sue truppe marciano verso i tuoi confini.\n\nDifendi le città di frontiera e prepara i picciotti.", scelte:[{label:"Alle armi!", eff:"nulla"}] });
+      st.pending.push({ titolo:"🚨 "+f.nome+" dichiara guerra!", img:"scene/guerra_dichiarata", testo:f.leader.nome+" di "+f.nome+" ha rotto la pace: le sue truppe marciano verso i tuoi confini.\n\nDifendi le città di frontiera e prepara i picciotti.", scelte:[{label:"Alle armi!", eff:"nulla"}] });
     }
     return;
   }
@@ -88,7 +88,7 @@ function diplomaziaIA(f){
     if (d.stato==="guerra" && (GAME.forzaTotale(f.id) < GAME.forzaTotale(g.id)*0.6 || d.turniGuerra>18)){
       if (g.ai){ GAME.proponiPace(f.id, g.id); }
       else if (rnd()<0.4 && !st.pending.some(p=>p.dip)){
-        st.pending.push({ dip:true, titolo:"🕊️ Ambasciata da "+f.nome,
+        st.pending.push({ dip:true, titolo:"🕊️ Ambasciata da "+f.nome, img:"scene/pace_firmata",
           testo: f.leader.nome+" di "+f.nome+" chiede la pace: «Basta sangue tra le nostre genti. La Sicilia è grande abbastanza per entrambi.»",
           scelte:[ {label:"Accetta la pace", eff:"dip:pace:"+f.id},
                    {label:"La guerra continua", eff:"nulla"} ] });
