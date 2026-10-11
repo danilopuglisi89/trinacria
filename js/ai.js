@@ -4,6 +4,37 @@ const D = () => GDATA;
 function rnd(){ return Math.random(); }
 function scegli(a){ return a[Math.floor(rnd()*a.length)]; }
 
+// ---------- STRATEGIA: la vittoria a cui punta ogni regno ----------
+// Senza un traguardo l'IA costruiva per tutti la stessa lista e la Scienza, che cresce da sola
+// con qualunque cosa, vinceva quasi sempre. Ora ogni regno sceglie una via secondo il suo
+// carattere e la insegue: edifici e quartieri che le servono, quanto rischia in guerra, quante
+// meraviglie apre, quanto oro mette da parte. A ogni nuova era la ripensa: se un'altra via e'
+// nettamente piu' avanti, cambia.
+const STRATEGIE = {
+  conquista: { edifici:["caserma","mura1","scuderia","arsenale","fonderia","castello","mura2"], quartieri:{ fucina:1.6 }, guerra:1.8, meraviglie:0.5, unita:true },
+  cultura:   { edifici:["tempio","teatro","cattedrale","cava_marmo"], quartieri:{ agora:1.6, sagrato:1.4 }, guerra:0.6, meraviglie:0.95 },
+  scienza:   { edifici:["accademia","casascienza"], quartieri:{ studium:1.6 }, guerra:0.8, meraviglie:0.6 },
+  ricchezza: { edifici:["mercato","porto","banco","cantiere"], quartieri:{ fondaco:1.6, marina:1.5 }, guerra:0.8, meraviglie:0.6, risparmia:true }
+};
+const VIA_CARATTERE = { etna:"conquista", oro:"ricchezza", stretto:"ricchezza", scienza:"scienza", templi:"cultura", sale:"cultura", grano:"conquista" };
+function strategia(f){
+  const st = GAME.st;
+  if (!f.via){ f.via = VIA_CARATTERE[D().FAZIONI[f.id].bonusId] || scegli(Object.keys(STRATEGIE)); f.viaEra = st.era; }
+  if (f.viaEra !== st.era){
+    // Si confronta il VANTAGGIO sui rivali, non la percentuale: la scienza cresce da sola per
+    // tutti, e scegliendo la via «piu' avanti» al secondo cambio d'era erano tutti scienziati.
+    f.viaEra = st.era;
+    const rivali = st.fazioni.filter(x => x.id !== f.id && !x.eliminata).map(x => GAME.statoVittoria(x.id));
+    const vantaggio = {};
+    GAME.statoVittoria(f.id).forEach((v, i) => {
+      vantaggio[v.id] = v.pct - Math.max(0, ...rivali.map(r => r[i].pct));
+    });
+    const meglio = Object.keys(vantaggio).sort((a,b) => vantaggio[b] - vantaggio[a])[0];
+    if (meglio !== f.via && vantaggio[meglio] >= (vantaggio[f.via] || 0) + 15) f.via = meglio;
+  }
+  return STRATEGIE[f.via];
+}
+
 const PRIORITA_EDIFICI = ["granaio","mercato","porto","caserma","tempio","mura1","scuderia","arsenale","accademia","teatro","mura2","castello","cattedrale","banco","casascienza","mura3",
   "silos_grano","cava_marmo","cantiere","fonderia"];
 
@@ -119,7 +150,7 @@ function diplomaziaIA(f){
     // `aggr()` restituisce un OGGETTO: moltiplicarlo dava NaN, e `rnd() < NaN` e' sempre falso.
     // Risultato: fra due IA non scoppiava MAI una guerra, in nessuna partita.
     const mult = st.difficolta==="facile" ? 0.6 : (st.difficolta==="difficile" ? 1.6 : 1);
-    const prob = ((stretto ? 0.16 : 0.04) + ambizione*0.015) * mult;
+    const prob = ((stretto ? 0.16 : 0.04) + ambizione*0.015) * mult * strategia(f).guerra;
     if (!faseProtetta() && d.stato==="pace" && !guerraInCorso && confinanti(f.id, g.id) &&
         GAME.forzaTotale(f.id) > GAME.forzaTotale(g.id)*vantaggio &&
         d.atteggiamento < sogliaUmore && rnd()<prob){
@@ -224,7 +255,7 @@ function gestioneCittaIA(f){
     // qualunque sulla mappa, cioe' quasi sempre nelle ere tarde, e fermava tutti i cantieri.
     const mer = cost.find(x=>x.tipo==="meraviglia");
     const guerraVera = Object.values(f.diplo).some(d=>d.stato==="guerra");
-    if (mer && mieCitta.length >= 2 && rnd()<(guerraVera ? 0.35 : 0.85) && GAME.accoda(cm.id, mer)) continue;
+    if (mer && mieCitta.length >= 2 && rnd()<(guerraVera ? 0.35 : strategia(f).meraviglie) && GAME.accoda(cm.id, mer)) continue;
     // ogni tanto un colono, per espandersi pacificamente verso gli indipendenti indifesi vicini
     const coloniAttivi = st.unita.filter(u=>u.fazione===f.id && u.tipo==="colono").length;
     // Ritmo di espansione legato all'ERA, non alla sola voglia di crescere. Senza tetto l'IA
@@ -257,7 +288,7 @@ function gestioneCittaIA(f){
       }
     }
     const truppeOra = GAME.truppeFazione(f.id);
-    const vuoleUnita = truppeOra < limite && (inGuerra || truppeOra < mieCitta.length);
+    const vuoleUnita = truppeOra < limite && (inGuerra || truppeOra < mieCitta.length || (strategia(f).unita && rnd()<0.5));
     let costruito = false;
     if (vuoleUnita){
       const disp = GAME.unitaDisponibili(cm).filter(x=>!D().UNITA[x.id].supporto && !x.pieno);
@@ -293,14 +324,16 @@ function gestioneCittaIA(f){
     // ramo il giocatore avrebbe l'isola piu' sviluppata solo perche' l'IA non li usa.
     const quart = GAME.quartieriDisponibili(cm);
     if (quart.length && rnd()<0.6){
-      quart.sort((x,y) => y.migliore.totale - x.migliore.totale);
+      const pq = strategia(f).quartieri;
+      const peso = q => q.migliore.totale * (pq[q.id] || 1) + (pq[q.id] ? 1 : 0);
+      quart.sort((x,y) => peso(y) - peso(x));
       const q = quart[0];
       if (GAME.accoda(cm.id, { tipo:"quartiere", id:q.id, costo:q.costo, hex:q.migliore.hex })) continue;
     }
     if (mer && rnd()<0.5){ GAME.accoda(cm.id, mer); continue; }
     const locale = cost.find(x=>x.tipo==="locale");
     if (locale && rnd()<0.5){ GAME.accoda(cm.id, locale); continue; }
-    for (const pid of PRIORITA_EDIFICI){
+    for (const pid of strategia(f).edifici.concat(PRIORITA_EDIFICI)){
       const c = cost.find(x=>x.id===pid);
       if (c){ GAME.accoda(cm.id, c); break; }
     }
@@ -342,7 +375,7 @@ function spesaIA(f){
   const st = GAME.st;
   // riserva alta e un solo acquisto a turno: con tre acquisti e 150+120 per era l'IA comprava
   // 150-200 costruzioni a partita e la vittoria arrivava al turno 108, prima del 1700
-  const riserva = 300 + st.era*220;
+  const riserva = (300 + st.era*220) + (strategia(f).risparmia ? f.oro*0.5 : 0);
   // chi corre per la Ricchezza e ha gia' prodotti tipici e quartieri accumula: e' la sua vittoria
   const ric = GAME.statoVittoria(f.id)[3];
   if (ric && ric.voci[0].ora >= ric.voci[0].serve && ric.voci[1].ora >= ric.voci[1].serve) return;
@@ -434,9 +467,11 @@ function muoviColoniIA(fid){
     if (GAME.puoFondare(u.hex, fid).ok && fondaConNome(u, fid)) continue;
     // altrimenti punta al sito libero piu' promettente
     let best=null, bd=1e9;
+    const f = st.fazioni[fid], cercaDop = f && f.via === "ricchezza";
     for (const cm of liberi){
       if (cm.fondata) continue;
-      const d = MAP.distKm(u.hex, cm.hex) - cm.tier*6;      // le localita' maggiori attirano
+      // le localita' maggiori attirano; chi punta alla Ricchezza cerca i prodotti tipici
+      const d = MAP.distKm(u.hex, cm.hex) - cm.tier*6 - (cercaDop && cm.dop ? MAP.R*2*8 : 0);
       if (d<bd && GAME.puoFondare(cm.hex, fid).ok){ bd=d; best=cm; }
     }
     if (!best) continue;

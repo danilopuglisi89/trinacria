@@ -1048,7 +1048,10 @@ const COSTO_TECH = 0.34;   // ricerche più veloci: costo effettivo dimezzato
 // resta valido anche se la si studia molto dopo: e' un premio per aver FATTO la cosa giusta.
 function costoTech(t, fid){
   const f = st.fazioni[fid === undefined ? st.giocatore : fid];
-  const base = Math.max(8, Math.round(t.costo * COSTO_TECH));
+  // Le ricerche in tabella crescono di una volta e mezza a era, la scienza prodotta fino a cinque
+  // volte: le ultime ere si studiavano in pochi turni e chi puntava alla Scienza vinceva al turno
+  // 116-124. Un quinto del rincaro delle ere (RINCARO_ERA) si applica anche qui.
+  const base = Math.max(8, Math.round(t.costo * COSTO_TECH * (1 + ((RINCARO_ERA[t.era] || 1) - 1) * 0.2)));
   return (f && f.intuizioni && f.intuizioni[t.id]) ? Math.max(5, Math.round(base * 0.6)) : base;
 }
 // cosa sblocca una tecnologia (unità + edifici + migliorie)
@@ -2801,20 +2804,24 @@ const VIE = [
              && !st.comuni.some(function(c){ return c.fazione>=100; });
     } },
   { id:"cultura", nome:"Cultura", icona:"\u{1F3AD}",
-    desc:"Cinque Grandi Siciliani al tuo servizio e due meraviglie costruite: la Sicilia che il mondo viene a vedere.",
+    desc:"Tre Grandi Siciliani al tuo servizio e tre meraviglie costruite: la Sicilia che il mondo viene a vedere.",
     voci: function(fid){
       const f = st.fazioni[fid];
-      return [ { t:"Grandi Siciliani", ora: (f.grandi||[]).length, serve: 5 },
-               { t:"Meraviglie", ora: meravigliDi(fid), serve: 2 } ];
+      // tre Grandi e tre meraviglie (v216): con due meraviglie vinceva sempre Agrigento, che ne
+      // ha due nel proprio territorio; con quattro Grandi e tre meraviglie la Cultura spariva
+      return [ { t:"Grandi Siciliani", ora: (f.grandi||[]).length, serve: 3 },
+               { t:"Meraviglie", ora: meravigliDi(fid), serve: 3 } ];
     } },
   { id:"scienza", nome:"Scienza", icona:"\u{1F4DC}",
     // Con l'85% dell'albero (47 tecnologie) la scienza chiudeva fra il turno 122 e il 144 e
     // vinceva NOVE partite su nove: le altre vie a quel punto erano al 50-85%. Provato
     // anche il 93% (51): cinque su cinque, fra il turno 132 e il 146. Al 96% (53) il traguardo
     // cade fra il 145 e il 165, a cavallo del 1700, e Cultura e Ricchezza arrivano in tempo.
-    desc:"Arriva per primo a cinquantatré tecnologie: chi arriva secondo non vince niente.",
+    // Tutto l'albero (v214): con le strategie dell'IA il regno che punta alla scienza
+    // arrivava a 53 sempre per primo, e la Scienza vinceva dieci partite su dodici.
+    desc:"Scopri per primo tutte le tecnologie: chi arriva secondo non vince niente.",
     voci: function(fid){
-      return [ { t:"Tecnologie", ora: st.fazioni[fid].techs.length, serve: Math.round(D().TECH.length*0.96) } ];
+      return [ { t:"Tecnologie", ora: st.fazioni[fid].techs.length, serve: D().TECH.length } ];
     } },
   { id:"ricchezza", nome:"Ricchezza", icona:"\u{1F4B0}",
     // I prodotti tipici erano il collo di bottiglia: in nessuna partita misurata un regno ne
