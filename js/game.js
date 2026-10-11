@@ -117,9 +117,18 @@ function nuovoLeader(fid, era, iniziale){
   const storico = D().LEADER_STORICI[fid] && D().LEADER_STORICI[fid][era];
   const f = st ? st.fazioni[fid] : null;
   const cult = f ? f.cultureId : D().FAZIONI[fid].cultura0;
-  const nome = storico || scegli(D().NOMI_EREDI[cult] || D().NOMI_EREDI.siciliana);
+  // Il nome non deve gia' essere di un altro sovrano vivo: con sei-dieci nomi per cultura due
+  // regni finivano governati dallo stesso «Marco Panormita». Se la lista e' esaurita si numera.
+  // (compreso il sovrano che sta morendo: l'erede non puo' chiamarsi come lui)
+  const inUso = new Set(st ? st.fazioni.filter(x => x.leader && !x.eliminata).map(x => x.leader.nome) : []);
+  const lista = D().NOMI_EREDI[cult] || D().NOMI_EREDI.siciliana;
+  const liberi = lista.filter(n => !inUso.has(n));
+  let nome = storico || scegli(liberi.length ? liberi : lista);
+  if (!storico && inUso.has(nome)) nome += " II";
   const tratti = Object.keys(D().TRATTI);
-  return { nome, eta: 25 + Math.floor(rnd()*15), tratto: scegli(tratti), storico: !!storico };
+  // volto dipinto (atlante «sovrano_NN»): senza, eredi e rivali avevano il ritratto disegnato a
+  // mano, grezzo e scuro, che stonava accanto al volto scelto all'inizio
+  return { nome, eta: 25 + Math.floor(rnd()*15), tratto: scegli(tratti), storico: !!storico, ritratto: Math.floor(rnd()*26) };
 }
 
 // dove nasce un'unita' appena completata: le navi vanno varate in un esagono d'acqua
@@ -1050,18 +1059,24 @@ function sbloccatiDaTech(techId){
   const tutto = [...u, ...e, ...m];
   return tutto.length ? "🔓 Ora puoi: "+tutto.join(", ") : "";
 }
+// Pesca la prossima ricerca: prima dal percorso pianificato (scartando le tech nel frattempo
+// diventate non valide), poi, per l'IA o per chi l'ha affidata a Don Calorio, la piu' conveniente.
+function prossimaRicerca(f){
+  f.percorsoRicerca = f.percorsoRicerca || [];
+  while (!f.ricerca && f.percorsoRicerca.length){
+    const nextId = f.percorsoRicerca.shift();
+    if (!f.techs.includes(nextId) && D().TECH.some(t=>t.id===nextId && t.era<=st.era)) f.ricerca = nextId;
+  }
+  if (!f.ricerca && f.ai){
+    const disp = techDisponibili(f.id);
+    if (disp.length) f.ricerca = disp.sort((a,b)=>a.costo-b.costo)[0].id;
+  }
+  if (!f.ricerca && f.ricercaAuto){ const t = miglioreTech(f.id); if (t) f.ricerca = t.id; }
+}
 function passoRicerca(f, sci){
   f.percorsoRicerca = f.percorsoRicerca || [];
   if (!f.ricerca){
-    // pesca dal percorso pianificato, scartando eventuali tech nel frattempo diventate non valide
-    while (!f.ricerca && f.percorsoRicerca.length){
-      const nextId = f.percorsoRicerca.shift();
-      if (!f.techs.includes(nextId) && D().TECH.some(t=>t.id===nextId && t.era<=st.era)) f.ricerca = nextId;
-    }
-    if (!f.ricerca && f.ai){
-      const disp = techDisponibili(f.id);
-      if (disp.length) f.ricerca = disp.sort((a,b)=>a.costo-b.costo)[0].id;
-    }
+    prossimaRicerca(f);
     if (!f.ricerca){ f.sciAcc = Math.min(f.sciAcc+sci, 999); return; }
   }
   f.sciAcc += sci;
@@ -1070,6 +1085,7 @@ function passoRicerca(f, sci){
     f.sciAcc -= costoTech(t, f.id);
     f.techs.push(t.id);
     f.ricerca = null;
+    prossimaRicerca(f);
     cucinaReset(); techBonusReset();
     if (f.id===st.giocatore){
       aggiungiLog("📜 Scoperta: "+t.nome+"! "+t.desc, "bene");
@@ -3656,7 +3672,7 @@ function suggerimenti(fid){
     }
   }
   // ricerca: nessuna in corso
-  if (!f.ricerca && techDisponibili(fid).length){
+  if (!f.ricerca && !(f.percorsoRicerca && f.percorsoRicerca.length) && !f.ricercaAuto && techDisponibili(fid).length){
     out.push({ id:"ricerca", tipo:"ricerca", prio:6,
       testo:"Nuddu studia nenti alla to corti. Un populu senza sapiri resta arreri: scigliti 'na ricerca." });
   }
@@ -3753,11 +3769,11 @@ function propostaConsigliere(fid){
         azione:{ tipo:"costruisci", cmId:cm.id, item:{ tipo:"unita", id:item.id, costo:item.costo } } });
     }
   }
-  // 3. nessuna ricerca in corso
-  if (!f.ricerca){
+  // 3. nessuna ricerca in corso (ne' in coda, ne' affidata a Don Calorio)
+  if (!f.ricerca && !(f.percorsoRicerca && f.percorsoRicerca.length) && !f.ricercaAuto){
     const t = miglioreTech(fid);
     if (t) out.push({ id:"ricerca", prio:7,
-      testo:"Nuddu studia nenti alla to corti. Avviamu 'a ricerca «"+t.nome+"»?",
+      testo:"Nuddu studia nenti alla to corti. Avviamu 'a ricerca «"+t.nome+"» e chiddi ca venunu dopu?",
       azione:{ tipo:"ricerca", techId:t.id } });
   }
   // 4. città senza produzione
@@ -3775,7 +3791,7 @@ function propostaConsigliere(fid){
 function eseguiProposta(a){
   const fid = st.giocatore;
   if (!a) return false;
-  if (a.tipo==="ricerca"){ ricerca(fid, a.techId); return true; }
+  if (a.tipo==="ricerca"){ ricerca(fid, a.techId); suggerisciPercorso(fid); return true; }
   if (a.tipo==="costruisci"){ return accoda(a.cmId, a.item); }
   if (a.tipo==="sagra"){ return faSagra(fid, a.id); }
   if (a.tipo==="invia"){ return impostaGoto(a.uid, a.hex); }
@@ -3791,7 +3807,7 @@ return { nuovaPartita, get st(){ return st; }, set st(v){ st = v; },
   trovaPercorso, impostaGoto, processaGoto, fortifica, svegliaUnita, unitaFerme, suggerimenti,
   cucina, dopControllati, piattiSbloccati, faSagra,
   calcolaVisibilita, hexVisibile, hexEsplorato,
-  fondaCitta, puoFondare, fondaComune, comuneCheDaIlNome, fazioneDiHex, territorioDi, espandiTerritorio, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, techBonusReset, costoTech, sbloccatiDaTech, miglioreCostruzione,
+  fondaCitta, puoFondare, fondaComune, comuneCheDaIlNome, fazioneDiHex, territorioDi, espandiTerritorio, cittaDaGestire, propostaConsigliere, eseguiProposta, techBonus, techBonusReset, costoTech, sbloccatiDaTech, miglioreCostruzione, miglioreTech,
   costruzioniDisponibili, unitaDisponibili, accoda, compraSubito, migliora,
   quartieriDisponibili, caselleQuartiere, adiacenzaQuartiere, puoQuartiere, quartiereDef, quartieriDi, tettoQuartieri,
   fedeltaDelta, fedeltaMult, pressioniSu, resetIndiceTerritorio, caseComune, serviziComune, statoGrandi,

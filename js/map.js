@@ -997,28 +997,66 @@ function renderTerreno(ctx, v, st, rz){
 }
 
 // livello dinamico (screen-space): selezione, Etna, unità animate, particelle, etichette
+// ---- NEBBIA DI GUERRA ----
+// Ridisegnarla casella per casella a ogni fotogramma costava migliaia di fill: con l'isola intera
+// in vista la mappa scendeva a 12 fotogrammi al secondo (e a 1-4 provando un tracciato unico).
+// Ora si dipinge UNA volta in due immagini in memoria, buio pieno e velo leggero, e si rifa' solo
+// quando cambia la visibilita' (calcolaVisibilita crea un oggetto st.visibile nuovo). Le caselle
+// si riempiono opache e la trasparenza si da' all'immagine intera: niente cuciture piu' scure
+// dove due esagoni si sovrappongono. Da vicino l'immagine sgranerebbe: li' si torna al disegno
+// dal vivo, che con poche caselle in vista costa poco.
+const nebbiaCache = { rif:null, buio:null, velo:null, x0:0, y0:0, k:1 };
+function nebbiaRifai(st){
+  let x0=1e9, y0=1e9, x1=-1e9, y1=-1e9;
+  for (const h of terre){ x0=Math.min(x0,h.x); x1=Math.max(x1,h.x); y0=Math.min(y0,h.y-(h.alt||0)); y1=Math.max(y1,h.y); }
+  x0 -= R*2; y0 -= R*2; x1 += R*2; y1 += R*2;
+  const k = Math.min(2048/(x1-x0), 2048/(y1-y0));
+  const W = Math.ceil((x1-x0)*k), H = Math.ceil((y1-y0)*k);
+  const fai = () => { const c = document.createElement("canvas"); c.width = W; c.height = H; return c; };
+  nebbiaCache.buio = nebbiaCache.buio && nebbiaCache.buio.width===W && nebbiaCache.buio.height===H ? nebbiaCache.buio : fai();
+  nebbiaCache.velo = nebbiaCache.velo && nebbiaCache.velo.width===W && nebbiaCache.velo.height===H ? nebbiaCache.velo : fai();
+  const cb = nebbiaCache.buio.getContext("2d"), cv = nebbiaCache.velo.getContext("2d");
+  cb.clearRect(0,0,W,H); cv.clearRect(0,0,W,H);
+  cb.fillStyle = "#060a0e"; cv.fillStyle = "#090e14";
+  const r = R*k + 1;
+  for (const h of terre){
+    if (GAME.hexVisibile(h.i)) continue;
+    const buio = !GAME.hexEsplorato(h.i), c = buio ? cb : cv;
+    const x = (h.x-x0)*k, yc = (h.y-(h.alt||0)-y0)*k;
+    ART.hexPath(c, x, yc, r); c.fill();
+    // le caselle in rilievo hanno sotto la parete, all'altezza del piede: senza questo secondo
+    // esagono spuntava dal buio come uno zig-zag dorato e svelava i colli inesplorati
+    if (buio && h.alt){ ART.hexPath(c, x, (h.y-y0)*k, r); c.fill(); }
+  }
+  nebbiaCache.x0 = x0; nebbiaCache.y0 = y0; nebbiaCache.k = k; nebbiaCache.rif = st.visibile;
+}
+function disegnaNebbia(ctx, v, rz, vis){
+  const st = GAME.st;
+  if (v.z <= nebbiaCache.k * 2.5 || !nebbiaCache.buio){
+    if (nebbiaCache.rif !== st.visibile || !nebbiaCache.buio) nebbiaRifai(st);
+    const k = nebbiaCache.k, X = nebbiaCache.x0*v.z + v.x, Y = nebbiaCache.y0*v.z + v.y;
+    const w = nebbiaCache.buio.width / k * v.z, h = nebbiaCache.buio.height / k * v.z;
+    ctx.save();
+    ctx.globalAlpha = 0.96; ctx.drawImage(nebbiaCache.buio, X, Y, w, h);
+    ctx.globalAlpha = 0.55; ctx.drawImage(nebbiaCache.velo, X, Y, w, h);
+    ctx.restore();
+    return;
+  }
+  // da vicino: dal vivo, solo le caselle in vista
+  for (const h of terre){
+    if (GAME.hexVisibile(h.i) || !vis(h)) continue;
+    const buio = !GAME.hexEsplorato(h.i), s = wh(v, h);
+    ctx.fillStyle = buio ? "rgba(6,10,14,0.96)" : "rgba(9,14,20,0.55)";
+    ART.hexPath(ctx, s.x, s.y, rz+1); ctx.fill();
+    if (buio && h.alt && h.alt*v.z > 0.8){ const p = w2s(v, h.x, h.y); ART.hexPath(ctx, p.x, p.y, rz+1); ctx.fill(); }
+  }
+}
+
 function renderDynamic(ctx, v, st, sel, rz){
   const W = window.innerWidth, H = window.innerHeight;
   const vis = h => { const s=wh(v, h); return !(s.x<-rz*3||s.y<-rz*3||s.x>W+rz*3||s.y>H+rz*3); };
   // nebbia di guerra: copre la mappa non in vista
-  if (st && st.nebbia){
-    for (const h of terre){
-      if (GAME.hexVisibile(h.i)) continue;
-      if (!vis(h)) continue;
-      const s = wh(v, h);
-      ctx.fillStyle = GAME.hexEsplorato(h.i) ? "rgba(9,14,20,0.55)" : "rgba(6,10,14,0.96)";
-      ART.hexPath(ctx, s.x, s.y, rz+1);
-      ctx.fill();
-      // le caselle in rilievo hanno sotto la parete, all'altezza del piede: senza questo
-      // secondo velo spuntava dal buio come uno zig-zag dorato e svelava i colli inesplorati
-      // (solo sul buio pieno: sul velo leggero delle caselle gia' viste la doppia passata scurirebbe)
-      if (h.alt && h.alt*v.z > 0.8 && !GAME.hexEsplorato(h.i)){
-        const p = w2s(v, h.x, h.y);
-        ART.hexPath(ctx, p.x, p.y, rz+1);
-        ctx.fill();
-      }
-    }
-  }
+  if (st && st.nebbia) disegnaNebbia(ctx, v, rz, vis);
   // Risorse sulle caselle GIA' SCOPERTE: si ridisegnano SOPRA il velo, altrimenti il velo
   // le spegne e non si puo' decidere quale casella valga la pena comprare. Quelle fuori dai
   // regni prendono un cerchietto dorato: sono le occasioni.

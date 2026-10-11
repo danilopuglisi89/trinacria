@@ -105,6 +105,16 @@ function scegliSovrano(fid){
 // insieme di pezzi intercambiabili.
 const N_RITRATTI = 26;
 let sovRitratto = 0;
+// volto di un sovrano in partita: dipinto se il leader ne ha uno, altrimenti quello disegnato
+function disegnaSovrano(cx, x, y, w, h, leader, fid){
+  const r = leader ? leader.ritratto : null;
+  if (r != null && ritrattoDisponibile(r)){
+    cx.save(); cx.beginPath(); cx.rect(x-w/2, y-h/2, w, h); cx.clip();
+    SPRITES.drawFit(cx, "sovrano_"+String(r).padStart(2,"0"), x, y, null, Math.max(w, h));
+    cx.restore(); return;
+  }
+  ART.sovrano(cx, x, y, w, h, leader ? leader.look : null, fid);
+}
 function ritrattoDisponibile(i){ return SPRITES.abilitato.ritratti && SPRITES.getFrame("sovrano_"+String(i).padStart(2,"0")); }
 function renderSovranoRitratto(){
   const cv = $("sov-ritratto"); if (!cv) return;
@@ -1161,7 +1171,7 @@ function aggiornaTopbar(){
   const sovCv = $("sov-topbar");
   if (sovCv && ART.sovrano){
     const sc = sovCv.getContext("2d");
-    ART.sovrano(sc, 20, 23, 38, 44, f.leader.look, st.giocatore);
+    disegnaSovrano(sc, 20, 23, 38, 44, f.leader, st.giocatore);
   }
   // pulsante Regno: mostra la ricerca in corso e lampeggia se manca (o se ci sono aggiornamenti)
   const btnRegno = $("btn-regno");
@@ -1238,8 +1248,8 @@ function disegnaVoltoFumetto(chi){
   else {
     const st = GAME.st;
     const fid = chi.fid!==undefined ? chi.fid : (st?st.giocatore:0);
-    const look = st && st.fazioni[fid] && st.fazioni[fid].leader ? st.fazioni[fid].leader.look : null;
-    ART.sovrano(cx, 30, 30, 54, 58, look, fid);
+    const leader = st && st.fazioni[fid] ? st.fazioni[fid].leader : null;
+    disegnaSovrano(cx, 30, 30, 58, 60, leader, fid);
   }
 }
 // mostra un fumetto (o lo accoda se ce n'è già uno)
@@ -1633,7 +1643,10 @@ function mostraModale(evt, cb){
       // ritratto AI del sovrano iniziale della casata; per i leader successivi resta il ritratto araldico procedurale
       const st = GAME.st, fz = st && st.fazioni[evt.ritratto.fid];
       const iniziale = fz && fz.leader && D().LEADER_STORICI[evt.ritratto.fid] && fz.leader.nome === D().LEADER_STORICI[evt.ritratto.fid][0];
-      if (!(iniziale && SPRITES.abilitato.ritratti && SPRITES.drawFit(cc, "ritratto_"+evt.ritratto.fid, 100, 130, null, 240)))
+      // gli eredi hanno ora un volto dipinto proprio (leader.ritratto): si usa quello
+      const erede = fz && fz.leader && fz.leader.ritratto != null && !iniziale;
+      if (erede && ritrattoDisponibile(fz.leader.ritratto)) disegnaSovrano(cc, 100, 130, 176, 232, fz.leader, evt.ritratto.fid);
+      else if (!(iniziale && SPRITES.abilitato.ritratti && SPRITES.drawFit(cc, "ritratto_"+evt.ritratto.fid, 100, 130, null, 240)))
         ART.ritratto(cc, 100, 130, 176, 232, evt.ritratto.fid, evt.ritratto.tratto);
     }
   }
@@ -1659,6 +1672,13 @@ function processaPending(){
   if (!st) return;
   if (!st.pending.length){ if (typeof pianificaAuto === "function") pianificaAuto(); return; }
   const evt = st.pending.shift();
+  // Le scoperte erano la finestra piu' frequente della partita, una ogni due-tre turni, tutte da
+  // chiudere col pulsante «Gloria al sapere!». Ora le annuncia Don Calorio in un fumetto.
+  if (evt.ricercaFatta){
+    fumetto({ tipo:"calorio" }, "<b>" + evt.titolo + "</b><br>" + evt.testo.replace(/\n+/g, "<br>"), 6000);
+    processaPending();
+    return;
+  }
   // il rintocco grande e' del cambio d'era; gli altri eventi hanno la campana normale
   AUDIO.sfx(evt.titolo && /^[⏳🔱👑]/.test(evt.titolo) ? "era" : "campana");
   if (evt.vox) AUDIO.parla(evt.vox);      // narratore: solo sugli eventi che contano
@@ -1682,11 +1702,8 @@ function fineTurno(force){
   if (!$("modale-sfondo").classList.contains("nascosto")) return;
   if (!force){
     const f = GAME.st.fazioni[GAME.st.giocatore];
-    if (!f.ricerca && !(f.percorsoRicerca && f.percorsoRicerca.length)){ proponiRicerca(); return; }
-    const ferme = GAME.unitaFerme(GAME.st.giocatore);
-    if (ferme.length){ proponiAutoTruppe(ferme); return; }
-    const citta = GAME.cittaDaGestire(GAME.st.giocatore);
-    if (citta.length){ proponiAutoCitta(citta); return; }
+    if (!f.ricerca && !(f.percorsoRicerca && f.percorsoRicerca.length) && !f.ricercaAuto){ proponiRicerca(); return; }
+    proseguiDopoRicerca(); return;
   }
   eseguiFineTurno();
 }
@@ -1699,10 +1716,12 @@ function proponiRicerca(){
     scelte:[
       {label:"📜 Scelgo io", desc:"Apri l'elenco completo e imposta un percorso"},
       {label:"🎓 Suggeriscimi un percorso", desc:"Accoda automaticamente le 4 ricerche più economiche"},
+      {label:"🤖 Decidi sempre tu, Don Calorio", desc:"Sceglie lui ogni nuova ricerca e non te lo chiede più (si cambia dal Menu)"},
       {label:"⏭ Ignora per ora", desc:"Nessuna scienza accumulata finché non scegli"}
     ] }, idx => {
       if (idx===0){ apriRicerca(); return; }
       if (idx===1){ GAME.suggerisciPercorso(st.giocatore); AUDIO.sfx("click"); aggiornaTutto(); }
+      if (idx===2){ const f = st.fazioni[st.giocatore]; f.ricercaAuto = true; const t = GAME.miglioreTech(st.giocatore); if (t && !f.ricerca) f.ricerca = t.id; AUDIO.sfx("click"); aggiornaTutto(); }
       proseguiDopoRicerca();
     });
 }
@@ -1715,16 +1734,27 @@ function proseguiDopoRicerca(){
 }
 // modalità automatica (chiesta ogni turno, non memorizzata): prima le truppe ferme...
 function proponiAutoTruppe(ferme){
+  // risposta ricordata: si applica senza chiedere
+  const pref = (GAME.st.pref = GAME.st.pref || {});
+  if (pref.truppe){
+    if (pref.truppe === "auto") autoEsploraTruppe(ferme); else for (const u of ferme) GAME.fortifica(u.id);
+    aggiornaTutto();
+    const citta = GAME.cittaDaGestire(GAME.st.giocatore);
+    if (citta.length) proponiAutoCitta(citta); else eseguiFineTurno();
+    return;
+  }
   mostraModale({ titolo:"🪖 "+ferme.length+" "+(ferme.length===1?"truppa ferma":"truppe ferme"),
     testo:"Come vuoi gestire le truppe che non hanno ancora ordini questo turno?",
     scelte:[
       {label:"⚔️ Agisci automaticamente", desc:"Truppe: conquista · Coloni: fonda città · Lavoratori: migliora — ognuno secondo il suo mestiere"},
       {label:"🛡️ Fortifica tutte", desc:"Restano di guardia: si curano e non compaiono più tra quelle da gestire"},
       {label:"🖐 Le gestisco io", desc:"Passale in rassegna una per una"},
-      {label:"⏭ Lascia così, finisci il turno", desc:"Non cambia nulla per loro: salta direttamente alla fine del turno"}
+      {label:"⏭ Lascia così, finisci il turno", desc:"Non cambia nulla per loro: salta direttamente alla fine del turno"},
+      {label:"🔁 Sempre automatico", desc:"Come «Agisci automaticamente», ogni turno e senza chiedere (si cambia dal Menu)"}
     ] }, idx => {
       if (idx===2){ autoAvanza(); return; }
       if (idx===3){ eseguiFineTurno(); return; }
+      if (idx===4){ pref.truppe = "auto"; idx = 0; }
       if (idx===0) autoEsploraTruppe(ferme); else for (const u of ferme) GAME.fortifica(u.id);
       AUDIO.sfx("click"); aggiornaTutto();
       // poi (nello stesso turno) le città senza ordini
@@ -1733,7 +1763,14 @@ function proponiAutoTruppe(ferme){
     });
 }
 // ...poi le città senza produzione in coda: 3 carte per città (una decisione secca invece di una lista)
-function proponiAutoCitta(citta){ proponiCarteCitta(citta, 0); }
+function proponiAutoCitta(citta){
+  const pref = GAME.st.pref || {};
+  if (pref.citta === "auto"){
+    for (const c of citta){ const item = GAME.miglioreCostruzione(c); if (item && !c.coda.length) GAME.accoda(c.id, item); }
+    aggiornaTutto(); eseguiFineTurno(); return;
+  }
+  proponiCarteCitta(citta, 0);
+}
 function proponiCarteCitta(citta, k){
   if (k >= citta.length){ eseguiFineTurno(); return; }
   const cm = citta[k];
@@ -1743,6 +1780,7 @@ function proponiCarteCitta(citta, k){
   const scelte = carte.map(c => ({ label: (c.icona||"🏗️")+" "+c.nome, desc: (c.costo+"⚒️ — "+(c.eff||"")).trim() }));
   scelte.push({ label:"🏘️ Apri la città", desc:"Lista completa di reclutamento e costruzioni" });
   scelte.push({ label:"🤖 Automatico per tutte", desc:"Scelgo io per questa e per le altre città senza ordini" });
+  scelte.push({ label:"🔁 Sempre automatico", desc:"Ogni turno, senza chiedere (si cambia dal Menu)" });
   const centra = () => { const h = MAP.hexes[cm.hex]; view.x = window.innerWidth/2 - h.x*view.z; view.y = window.innerHeight/2 - h.y*view.z; };
   centra();
   mostraModale({ titolo:"🏗️ Cosa costruiamo a "+cm.nome+"?", testo:"("+(k+1)+" di "+citta.length+") ⚒️ "+cm.prodAcc.toFixed(0)+" produzione accumulata, 👥 "+cm.pop+" abitanti", scelte }, idx => {
@@ -1754,6 +1792,7 @@ function proponiCarteCitta(citta, k){
     } else if (idx === carte.length){
       apriPannelloCitta(cm);
     } else {
+      if (idx === carte.length + 2){ GAME.st.pref = GAME.st.pref || {}; GAME.st.pref.citta = "auto"; }
       for (const c of citta.slice(k)){ const item = GAME.miglioreCostruzione(c); if (item && !c.coda.length) GAME.accoda(c.id, item); }
       AUDIO.sfx("click"); aggiornaTutto();
       eseguiFineTurno();
@@ -2102,7 +2141,7 @@ function apriGuardaroba(){
   const disegnaPreview = () => {
     const cv = $("gr-canvas"); if (!cv) return;
     const cx = cv.getContext("2d"); cx.clearRect(0,0,cv.width,cv.height);
-    ART.sovrano(cx, 65, 81, 120, 150, f.leader.look, st.giocatore);
+    disegnaSovrano(cx, 65, 81, 120, 150, f.leader, st.giocatore);
   };
   disegnaPreview();
   document.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
@@ -2713,6 +2752,16 @@ function apriMenu(){
       <label>🌊 Ambiente <input type="range" id="vol-amb" min="0" max="100" value="${Math.round(A.ambiente*100)}"></label>
       <label class="m-check"><input type="checkbox" id="voce-on" ${A.voceOn?"checked":""}> Don Calorio e il narratore parlano</label>
     </div>`;
+  // risposte ricordate alle domande di fine turno: una riga per ciascuna, si tolgono qui
+  const prefs = GAME.st ? (GAME.st.pref || {}) : {}, fG = GAME.st ? GAME.st.fazioni[GAME.st.giocatore] : null;
+  const ricordate = [];
+  if (fG && fG.ricercaAuto) ricordate.push(["ricerca", "🤖 Ricerca scelta da Don Calorio"]);
+  if (prefs.truppe) ricordate.push(["truppe", "🔁 Truppe ferme: sempre automatico"]);
+  if (prefs.citta) ricordate.push(["citta", "🔁 Città senza ordini: sempre automatico"]);
+  if (ricordate.length){
+    html += `<div class="m-sez">Fatto in automatico</div>` + ricordate.map(([k, t]) =>
+      `<button class="btn-lista" data-pref="${k}">${t} — <b>chiedimelo di nuovo</b></button>`).join("");
+  }
   // il governo del regno sta tutto in 👑 Regno e 🍴 Corte: qui restano partita e utilità
   html += `<div class="m-sez">Partita</div>
     <button class="btn-lista" id="btn-aiuto">❓ Come si gioca</button>
@@ -2721,6 +2770,11 @@ function apriMenu(){
     <button class="btn-lista" id="btn-nuova">🔄 Nuova partita</button>`;
   mostraModale({ titolo:"☰ Menu", img:"scene/carica_salva", html:`<div class="m-scroll">${html}</div>`,
     scelte:[{label:"Torna al gioco", eff:"nulla"}] }, ()=>{});
+  document.querySelectorAll("[data-pref]").forEach(b => b.onclick = () => {
+    const k = b.dataset.pref;
+    if (k === "ricerca") fG.ricercaAuto = false; else delete GAME.st.pref[k];
+    AUDIO.sfx("click"); b.remove();
+  });
   const bTut = $("btn-tutorial");
   if (bTut) bTut.onclick = () => { $("modale-sfondo").classList.add("nascosto"); avviaTutorial(); };
   const sl = (id, set) => { const e = $(id); if (e) e.oninput = () => set(e.value/100); };
