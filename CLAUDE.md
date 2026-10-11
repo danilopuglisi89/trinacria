@@ -31,3 +31,9 @@ Gioco 4X a turni stile Civilization ambientato in Sicilia. JS puro + canvas, nes
   (~4 s a partita; mai meno di 8 partite per giudicare, e provare anche «facile»: le soglie
   delle `VIE` si comportano diversamente dove le guerre sono poche)
 - Pubblicare solo quando Danilo dice "pubblica"
+- Strumenti di misura (Playwright di caterino-lead + Edge, perche' Smart App Control blocca il Chromium
+  di Playwright): `node strumenti/studio_ia.js 2` = partite tutte-IA con battaglie, conquiste, acquisti,
+  distanza degli eserciti in guerra; `node strumenti/giro_grafico.js` = foto PC/telefono + controlli.
+  `AI._dbg` espone obiettivoGuerra/bersagliFazione solo per questi studi
+- Cache della mappa: `MAP.invalidate()` ricuoce solo se cambia l'impronta (firmaMondo); chi cambia
+  altro (texture, strutture fuori firma) usa `MAP.invalidate(true)`. La nebbia ha una cache sua

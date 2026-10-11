@@ -62,7 +62,7 @@ async function caricaAtlante(id){
   a.caricando = caricaImmagine("assets/sprites/"+a.file+(versione?"?v="+versione:"")).then(im => {
     a.img = im; a.pronto = true;
     // gli atlanti "cotti" nella cache-mondo arrivano anche a partita avviata: ricuoci una volta
-    if (window.MAP && ["terreno","citta","monumenti","icone","core"].includes(a.group)) MAP.invalidate();
+    if (window.MAP && ["terreno","citta","monumenti","icone","core"].includes(a.group)) MAP.invalidate(true);
     return im;
   });
   return a.caricando;

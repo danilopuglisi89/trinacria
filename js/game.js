@@ -1952,7 +1952,7 @@ function compraCasella(hexIdx, fid){
   const f = st.fazioni[fid];
   f.oro -= p.costo;
   rivendica(hexIdx, p.cm.id);
-  MAP.invalidate();
+  MAP.invalidate(true);
   if (fid === st.giocatore){
     const h = MAP.hexes[hexIdx];
     aggiungiLog("🪙 Casella acquistata per "+p.cm.nome+" ("+p.costo+" oro).", "bene");
@@ -2440,7 +2440,7 @@ function posaQuartiere(cm, hexIdx, qid, ignoraCoda){
   h.quart = qid;
   h.imp = null;              // il quartiere prende il posto della miglioria: si costruisce sopra
   h.impTurni = 0;
-  MAP.invalidate();
+  MAP.invalidate(true);
   return true;
 }
 
@@ -3027,7 +3027,10 @@ function proponiPace(a, b){
   const fa=st.fazioni[a], fb=st.fazioni[b];
   if (fa.diplo[b].stato!=="guerra") return false;
   const forzaA = forzaTotale(a), forzaB = forzaTotale(b);
-  const ok = fb.ai ? (forzaB < forzaA*0.85 || fa.diplo[b].turniGuerra>12 || rnd()<0.25) : true;
+  // chi riceve la proposta accetta se e' piu' debole, se la guerra dura da piu' di 40 turni, o
+  // raramente per caso. Prima bastavano 12 turni (o una volta su quattro): il piu' forte
+  // firmava la pace mentre il suo esercito era ancora in marcia.
+  const ok = fb.ai ? (forzaB < forzaA*0.85 || fa.diplo[b].turniGuerra>40 || rnd()<0.08) : true;
   if (ok){
     fa.diplo[b].stato="pace"; fb.diplo[a].stato="pace";
     fa.diplo[b].atteggiamento+=10; fb.diplo[a].atteggiamento+=10;
@@ -3074,8 +3077,12 @@ function forzaTotale(fid){
 // ---------- DINASTIE ----------
 function passoDinastia(f){
   if (!f.leader || f.eliminata) return;
-  // il tempo di gioco scorre veloce: i leader invecchiano in modo attenuato
-  f.leader.eta += anniPerTurno()*0.25;
+  // il tempo di gioco scorre veloce: i leader invecchiano in modo attenuato. Il quarto degli anni
+  // del turno, da solo, nell'era romana faceva sei anni e mezzo a turno: un sovrano regnava
+  // cinque-otto turni e ne morivano dieci a partita, ognuno con la sua finestra. Col tetto di
+  // 1,1 anni a turno un regno dura una trentina di turni: tre o quattro sovrani a partita
+  // (con 0,8 erano due soli in 160 turni).
+  f.leader.eta += Math.min(anniPerTurno()*0.25, 1.1);
   if (f.leader.eta > 58 && rnd() < (f.leader.eta-58)/50){
     const vecchio = f.leader;
     f.dinastia.push(vecchio.nome);
@@ -3317,8 +3324,12 @@ function passoPeste(){
   }
 }
 function eventiCasuali(){
+  // Lo stesso evento non torna prima di 25 turni: la siccita' usciva sette volte in una partita.
+  st.ultimiEventi = st.ultimiEventi || {};
   for (const ev of D().EVENTI_CASUALI){
+    if (st.ultimiEventi[ev.id] && st.turno - st.ultimiEventi[ev.id] < 25) continue;
     if (rnd() > ev.p) continue;
+    st.ultimiEventi[ev.id] = st.turno;
     const gioc = st.giocatore;
     const mieCitta = st.comuni.filter(c=>c.fazione===gioc);
     if (!mieCitta.length) return;

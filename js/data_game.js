@@ -693,7 +693,7 @@ const EVENTI_STORICI = [
 const EVENTI_CASUALI = [
   { id:"buon_raccolto", p:0.03, titolo:"Annata d'oro", testo:"Piogge generose e sole giusto: i campi traboccano.", tipo:"buono" },
   { id:"fiera", p:0.025, titolo:"La Fiera", testo:"Mercanti da tutto il Mediterraneo affollano le tue piazze.", tipo:"buono" },
-  { id:"siccita", p:0.025, titolo:"Siccità", testo:"U suli spacca i petri: raccolti bruciati nelle campagne.", tipo:"cattivo" },
+  { id:"siccita", p:0.012, titolo:"Siccità", testo:"U suli spacca i petri: raccolti bruciati nelle campagne.", tipo:"cattivo" },
   { id:"briganti", p:0.02, titolo:"Briganti", testo:"Bande armate infestano le trazzere dell'interno.", tipo:"cattivo" },
   { id:"eruzione_min", p:0.03, titolo:"L'Etna borbotta", testo:"'A Muntagna sputa fuoco: colate di lava scendono verso i paesi.", tipo:"etna" },
   { id:"terremoto_min", p:0.02, titolo:"Terremoto", testo:"La terra trema: crolli e paura.", tipo:"terremoto" }

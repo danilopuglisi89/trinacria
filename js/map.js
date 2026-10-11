@@ -169,7 +169,31 @@ const COTTURE_PER_FRAME = 2; // tiles ricotte al massimo per frame (le altre res
 let baseCanvas = null, baseEpoch = -1;
 let tiles = new Map();    // "tx,ty" -> { canvas, epoch, last }
 let epoch = 0, lruTick = 0;
-function invalidate(){ epoch++; }
+// Ricuocere il terreno costa: da lontano e' l'isola intera in un colpo solo, mezzo secondo di
+// blocco. aggiornaTutto() lo chiedeva dopo OGNI azione, anche solo per una truppa spostata
+// (le truppe stanno nel livello animato, non nella cache). Ora si confronta un'impronta di cio'
+// che la cache disegna davvero — possesso delle caselle, migliorie, quartieri, citta' — e si
+// ricuoce solo se e' cambiata. forza=true per chi cambia altro (texture appena caricate).
+let ultimaFirma = null;
+function firmaMondo(st){
+  let f = 7;
+  const mix = x => { f = (Math.imul(f, 31) + (x|0)) | 0; };
+  const str = s => { if (!s) return 0; let h = 0; for (let i=0;i<s.length;i++) h = (Math.imul(h, 33) + s.charCodeAt(i)) | 0; return h; };
+  for (const h of terre){ mix(GAME.fazioneDiHex(h) + 3); mix(str(h.imp)); mix(str(h.quart)); mix(str(h.res)); }
+  for (const c of st.comuni){
+    if (!c.fondata) continue;
+    mix(c.id); mix(c.fazione); mix(c.pop); mix(c.mura); mix(Math.round(c.muraHP || 0)); mix(c.edifici.length); mix(c.tier);
+  }
+  for (const fz of st.fazioni) mix(fz.capitale);
+  mix(Object.keys(st.meraviglie).length);
+  return f;
+}
+function invalidate(forza){
+  const st = window.GAME && GAME.st;
+  if (forza || !st){ ultimaFirma = null; epoch++; return; }
+  const f = firmaMondo(st);
+  if (f !== ultimaFirma){ ultimaFirma = f; epoch++; }
+}
 // livello base: se permettiVecchia, una base di un'epoca passata va bene (fa solo da sfondo)
 function ensureBase(st, permettiVecchia){
   if (baseCanvas && (baseEpoch === epoch || permettiVecchia)) return;
@@ -548,7 +572,7 @@ function build(){
     const w = toXY(p.lat, p.lon);
     return { n:p.n, c:p.c, lat:p.lat, lon:p.lon, x:w.x, y:w.y, hex:hexPiuVicino(w.x, w.y, true).i };
   });
-  epoch++;   // mondo nuovo: base e tiles vanno ricotte
+  epoch++; ultimaFirma = null;   // mondo nuovo: base e tiles vanno ricotte
   return { hexes, comuni };
 }
 

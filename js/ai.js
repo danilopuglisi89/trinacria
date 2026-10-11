@@ -69,6 +69,7 @@ function turnoIA(){
     if (st.difficolta === "difficile") f.sciAcc += 1 + st.era;
     diplomaziaIA(f);
     gestioneCittaIA(f);
+    spesaIA(f);
     if (!f.eroeVivo && f.oro > GAME.costoEroe()+100 && rnd()<0.3) GAME.reclutaEroe(f.id);
     if (f.oro > 160 && rnd()<0.5) miglioriaIA(f);
     if (rnd()<0.5) compraCaselleIA(f);
@@ -85,7 +86,10 @@ function diplomaziaIA(f){
     if (g.id===f.id || g.eliminata) continue;
     const d = f.diplo[g.id];
     // proponi pace se in difficoltà
-    if (d.stato==="guerra" && (GAME.forzaTotale(f.id) < GAME.forzaTotale(g.id)*0.6 || d.turniGuerra>18)){
+    // Stanchezza: dopo 40 turni, non 18. Un esercito marcia circa una casella a turno e le
+    // citta' nemiche stanno a 15-25 caselle: con 18 turni la pace arrivava prima delle truppe,
+    // e quasi nessuna guerra prendeva una citta'.
+    if (d.stato==="guerra" && (GAME.forzaTotale(f.id) < GAME.forzaTotale(g.id)*0.6 || d.turniGuerra>40)){
       if (g.ai){ GAME.proponiPace(f.id, g.id); }
       else if (rnd()<0.4 && !st.pending.some(p=>p.dip)){
         st.pending.push({ dip:true, titolo:"🕊️ Ambasciata da "+f.nome, img:"scene/pace_firmata",
@@ -329,6 +333,44 @@ function compraCaselleIA(f){
   const quante = f.oro > 4000 ? 3 : (f.oro > 1200 ? 2 : 1);
   for (let k=0; k<quante && k<cand.length; k++) GAME.compraCasella(cand[k].i, f.id);
 }
+// SPESA DELL'ORO. Misurato su due partite intere: i regni chiudevano con 7.000-15.000 monete
+// mai spese e in tutta la partita compravano sei cose in tutto, solo meraviglie. L'oro e' il
+// motore che il giocatore usa di piu' (comprare, aggiornare truppe e migliorie) e l'IA lo
+// lasciava in cassa. Ora tiene una riserva che cresce con l'era e spende il resto, in ordine:
+// truppe da aggiornare (un esercito vecchio perde ogni guerra), migliorie, costruzioni.
+function spesaIA(f){
+  const st = GAME.st;
+  // riserva alta e un solo acquisto a turno: con tre acquisti e 150+120 per era l'IA comprava
+  // 150-200 costruzioni a partita e la vittoria arrivava al turno 108, prima del 1700
+  const riserva = 300 + st.era*220;
+  // chi corre per la Ricchezza e ha gia' prodotti tipici e quartieri accumula: e' la sua vittoria
+  const ric = GAME.statoVittoria(f.id)[3];
+  if (ric && ric.voci[0].ora >= ric.voci[0].serve && ric.voci[1].ora >= ric.voci[1].serve) return;
+  const libero = () => f.oro - riserva;
+  // 1. truppe di un'era passata, le piu' economiche prima
+  for (const it of GAME.unitaAggiornabili(f.id).sort((a,b)=>a.costo-b.costo)){
+    if (it.costo > libero()) break;
+    GAME.upgradaUnita(it.uid, f.id);
+  }
+  // 2. migliorie del territorio
+  for (const it of GAME.migliorieAggiornabili(f.id).sort((a,b)=>a.costo-b.costo)){
+    if (it.costo > libero()) break;
+    GAME.upgradaMiglioria(it.hex, f.id);
+  }
+  // 3. comprare la costruzione in testa alla coda: edifici, quartieri e meraviglie sempre,
+  //    le truppe solo in guerra. Un acquisto a turno, la citta' piu' avanti prima.
+  const inGuerra = Object.values(f.diplo).some(d=>d.stato==="guerra");
+  const citta = st.comuni.filter(c => c.fazione===f.id && c.coda.length)
+    .map(c => ({ c, prezzo: Math.ceil(Math.max(0, c.coda[0].costo - c.prodAcc)*2) }))
+    .filter(x => x.c.coda[0].tipo !== "unita" || inGuerra)
+    .sort((a,b) => a.prezzo - b.prezzo);
+  let comprati = 0;
+  for (const x of citta){
+    if (comprati >= 1 || x.prezzo > libero()) break;
+    if (GAME.compraSubito(x.c.id)) comprati++;
+  }
+}
+
 function miglioriaIA(f){
   const st = GAME.st;
   const miei = MAP.terre.filter(h => h.citta>=0 && st.comuni[h.citta].fazione===f.id && !h.imp && h.i!==st.comuni[h.citta].hex);
@@ -522,6 +564,14 @@ function obiettivoGuerra(fid, bersagli){
   if (st.turno !== _pianoTurno){ _pianoTurno = st.turno; _piani = {}; }
   if (_piani[fid] !== undefined) return _piani[fid];
   let scelto = null;
+  // Obiettivo STABILE. Ricalcolato da capo ogni turno cambiava appena una guarnigione si
+  // spostava: misurato in partita, gli eserciti avanzavano mezza casella a turno perche'
+  // oscillavano fra due o tre citta'. Ora si tiene quello di prima finche' e' ancora un
+  // bersaglio valido, a meno che ne compaia uno nettamente migliore (+15 punti).
+  const f = fid>=0 && fid<100 ? st.fazioni[fid] : null;
+  const prima = f && f.obiettivoIA != null ? st.comuni[f.obiettivoIA] : null;
+  const valePrima = prima && bersagli.includes(prima);
+  let vPrima = -1e9;
   if (bersagli.length){
     const mie = st.comuni.filter(function(c){ return c.fondata && c.fazione===fid; });
     let meglio = -1e9;
@@ -529,14 +579,20 @@ function obiettivoGuerra(fid, bersagli){
       // distanza dalla mia citta' piu' vicina: e' da li' che parte la spedizione
       let d = 1e9;
       for (const m of mie) d = Math.min(d, MAP.distKm(m.hex, cm.hex) / (MAP.R*2));
-      if (d > 26) continue;                                   // troppo lontana: non si tiene
+      // troppo lontana: non si tiene. Per un regno in guerra il limite e' piu' largo: a meta'
+      // partita le citta' nemiche piu' vicine stanno a 20-26 caselle, e con 26 per tutti le
+      // guerre dichiarate non trovavano bersagli e finivano contro i villaggi indipendenti
+      if (d > (cm.fazione >= 0 && cm.fazione < 100 ? 40 : 26)) continue;
       const guardie = st.unita.filter(function(u){ return u.hex===cm.hex && !GAME.alleatiPub(u.fazione, fid); }).length;
       const fed = (cm.fedelta === undefined) ? 100 : cm.fedelta;
       let v = 40 - d*1.6 - guardie*7 - (cm.mura||0)*6 - fed*0.12 + (cm.pop||0)*0.3;
       if (cm.fazione === -1) v += 8;                          // le citta' libere non hanno alleati
+      if (cm === prima) vPrima = v;
       if (v > meglio){ meglio = v; scelto = cm; }
     }
+    if (valePrima && vPrima > -1e9 && meglio - vPrima < 15) scelto = prima;
   }
+  if (f) f.obiettivoIA = scelto ? scelto.id : null;
   _piani[fid] = scelto;
   return scelto;
 }
@@ -635,7 +691,8 @@ function muoviUnitaIA(fid, bersagli){
       }
     }
     if (attaccato) continue;
-    // altrimenti avvicinati
+    // altrimenti avvicinati: prima lungo il percorso vero, poi (se non c'e') in linea d'aria
+    if (passoLungo(uids, best.hex)) continue;
     let bestHex=-1, bhd=1e9;
     for (const i of Object.keys(raggio)){
       if (raggio[i].attacco) continue;
@@ -656,6 +713,25 @@ function passoVerso(u, target, evita){
     if (d<bd){ bd=d; bestHex=parseInt(i); }
   }
   if (bestHex>=0) GAME.muovi([u.id], bestHex);
+  else if (!evita) passoLungo([u.id], target);     // bloccata davanti a un monte o a un golfo
+}
+// Il passo «in linea d'aria» resta fermo davanti a un monte o a un golfo: nessuna casella
+// raggiungibile e' piu' vicina alla meta, e il reparto non si muove piu'. Misurato su due
+// partite intere: in tutta la partita gli eserciti arrivavano sotto una citta' nemica da 3 a 14
+// volte, quasi sempre con una truppa sola. Qui si segue il percorso vero (lo stesso A* dei
+// reparti del giocatore) fin dove arriva il movimento di questo turno.
+function passoLungo(uids, target){
+  const p = GAME.trovaPercorso(uids[0], target);
+  if (!p || !p.percorso.length) return false;
+  const raggio = GAME.raggioMovimento(uids);
+  let meta = -1;
+  for (const h of p.percorso){
+    if (!raggio[h]) break;
+    if (!raggio[h].attacco) meta = h;
+  }
+  if (meta < 0) return false;
+  GAME.muovi(uids, meta);
+  return true;
 }
 
 function turnoInvasori(){
@@ -727,5 +803,5 @@ function turnoRibelli(){
   }
 }
 
-return { turnoIA, turnoInvasori, turnoRibelli };
+return { turnoIA, turnoInvasori, turnoRibelli, _dbg: { obiettivoGuerra, bersagliFazione } };
 })();
